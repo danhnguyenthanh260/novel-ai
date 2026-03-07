@@ -1,0 +1,44 @@
+STYLE PATCH v1.1 (Noctis / Kuro tone)
+
+POV & CAMERA
+- Default POV: third-person limited, Kuro-centric.
+- Allow brief focal shifts to Mike only when it serves measurement/tech scenes; avoid omniscient exposition dumps.
+- Keep narration close to bodily cues + micro-perception (breath, skin, pressure, quiet unease).
+
+TONE
+- Mysterious, introspective, melancholic; tension is quiet, not explosive.
+- Unsettling “presence” is implied through atmosphere, not explained.
+
+PACING
+- Slow-burn escalation: build weight via small anomalies, repetition, and delayed answers.
+- Use scene beats: calm observation → subtle fracture → restraint → aftertaste.
+
+SENTENCE RHYTHM
+- Mix long, image-heavy lines with short, blunt sentences for impact.
+- Use deliberate pauses: ellipses, paragraph breaks, and “as if / like” comparisons sparingly but effectively.
+
+IMAGERY MOTIFS (reuse as anchors)
+- Night / fog / wind / clouds / light (as pressure, watchers, silence).
+- “Hollow” spaces, weightless moments, metallic still air.
+- Ground textures: stone steps, grass lines, subtle waves.
+
+DICTION RULES
+- Prefer sensory + metaphor over abstract labels.
+- Tech detail: precise but minimal; just enough to feel real (sensors, logs, voltage deltas).
+- Foreshadow by placement (a glance, a warning, a log field), not by prophecy.
+- Avoid definitive statements; keep meanings slightly oblique.
+
+DIALOGUE RULES
+- Short, casual, with subtext; questions without immediate answers.
+- Let silence carry meaning; do not over-clarify emotions.
+
+TABOOS (avoid)
+- Sudden high-drama conflict as a shortcut.
+- Concrete explanations too early; no instant conclusions.
+- Gratuitous violence/sex/medical grotesque.
+- Unmotivated tech jargon dumps.
+
+EDITOR CHECK (quick)
+- Does each scene introduce or deepen one anomaly or one human pressure?
+- Are “answers” delayed while tension increases?
+- Is the focalization clearly Kuro (unless explicitly shifting to Mike)?

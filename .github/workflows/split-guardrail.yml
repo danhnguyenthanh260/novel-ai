@@ -1,0 +1,41 @@
+name: split-guardrail
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  benchmark-guardrail:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/studio/package-lock.json
+
+      - name: Ensure benchmark DB secret exists
+        env:
+          SPLIT_BENCHMARK_DB_DSN: ${{ secrets.SPLIT_BENCHMARK_DB_DSN }}
+        run: |
+          if [ -z "$SPLIT_BENCHMARK_DB_DSN" ]; then
+            echo "Missing required secret: SPLIT_BENCHMARK_DB_DSN"
+            exit 1
+          fi
+
+      - name: Install studio deps
+        working-directory: apps/studio
+        run: npm ci
+
+      - name: Run split guardrail
+        working-directory: apps/studio
+        env:
+          DB_DSN: ${{ secrets.SPLIT_BENCHMARK_DB_DSN }}
+        run: |
+          npm run -s doctor:split-guardrail \
+            -- --baseline ../../benchmarks/split_benchmark_baseline.json \
+            --golden ../../benchmarks/split_golden_set.json \
+            --thresholds ../../benchmarks/split_guardrail_thresholds.json

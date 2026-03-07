@@ -1,0 +1,9 @@
+.next/dev/types/validator.ts(810,31): error TS2344: Type 'typeof import("/home/danh/novel-ai/apps/studio/src/app/api/stories/[slug]/dictionary/promote/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/stories/[slug]/dictionary/promote">'.
+  Types of property 'POST' are incompatible.
+    Type '(req: NextRequest, { params }: { params: { slug: string; }; }) => Promise<NextResponse<{ ok: boolean; term_key: string; tier: string; }> | NextResponse<{ ok: boolean; error: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ slug: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ slug: string; }>; }' is not assignable to type '{ params: { slug: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'slug' is missing in type 'Promise<{ slug: string; }>' but required in type '{ slug: string; }'.
+src/app/api/stories/[slug]/dictionary/promote/route.ts(2,18): error TS2307: Cannot find module '@/lib/db' or its corresponding type declarations.
+src/app/api/stories/[slug]/dictionary/promote/route.ts(3,40): error TS2307: Cannot find module '@/features/ingest/server/storyResolution' or its corresponding type declarations.

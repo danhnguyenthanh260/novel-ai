@@ -1,0 +1,51 @@
+{
+  "name": "novel-studio",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "lint:line-budgets": "node scripts/check_line_budgets.mjs",
+    "typecheck": "tsc --noEmit",
+    "doctor:pipeline": "node scripts/doctor_pipeline.mjs",
+    "doctor:memory-bridge": "node scripts/doctor_memory_bridge.mjs",
+    "doctor:ingest-validate": "node scripts/doctor_ingest_validate.mjs",
+    "doctor:ingest-validate-matrix": "node scripts/doctor_ingest_validate_matrix.mjs",
+    "doctor:ingest-upload": "node scripts/doctor_ingest_upload.mjs",
+    "doctor:ingest-actions": "node scripts/doctor_ingest_actions.mjs",
+    "doctor:review-flow": "node scripts/doctor_review_flow.mjs",
+    "doctor:review-policy": "node scripts/doctor_review_policy.mjs",
+    "doctor:canon-guard": "node scripts/doctor_canon_guard.mjs",
+    "doctor:stage1-global-memory": "node scripts/doctor_stage1_global_memory.mjs",
+    "doctor:split-benchmark": "node scripts/doctor_split_benchmark.mjs",
+    "doctor:split-guardrail": "node scripts/doctor_split_guardrail.mjs",
+    "doctor:split-maturity": "node scripts/doctor_split_maturity.mjs",
+    "doctor:pipeline-ops-consistency": "node scripts/doctor_pipeline_ops_consistency.mjs",
+    "doctor:split-feedback-insights": "node scripts/doctor_split_feedback_insights.mjs",
+    "doctor:split-weekly-review": "node scripts/doctor_split_weekly_review.mjs",
+    "doctor:supervisor-casebook": "node scripts/doctor_supervisor_casebook.mjs",
+    "doctor:pipeline-inspector-lite": "node scripts/doctor_pipeline_inspector_lite.mjs",
+    "doctor:style-profile-mine": "node scripts/doctor_style_profile_mine.mjs"
+  },
+  "dependencies": {
+    "diff": "^8.0.3",
+    "fflate": "^0.8.2",
+    "next": "16.1.6",
+    "pg": "^8.18.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/pg": "^8.16.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

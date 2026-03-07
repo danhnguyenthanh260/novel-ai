@@ -1,0 +1,1 @@
+"""Moltbook Agent Configuration."""
