@@ -1,4 +1,4 @@
-```markdown
+
 # novel-ai
 
 `novel-ai` là một chapter-first AI writing studio để tạo, ingest, phân tích, review, split và xuất bản truyện dài kỳ trong một workspace thống nhất. Repo này kết hợp:
