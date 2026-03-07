@@ -22,6 +22,7 @@ __pycache__/
 .python-version
 .pytest_cache/
 .mypy_cache/
+.venv/
 
 # Notebook / local experiments
 **/.ipynb_checkpoints/
@@ -40,5 +41,6 @@ infra/*.local.yml
 _debug*
 _fix_data.sql
 _staging*
+*.sql
 
 AGENT.md
