@@ -1,4 +1,4 @@
-/* eslint-disable max-lines */
+﻿/* eslint-disable max-lines */
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { pool } from "@/server/db/pool";
@@ -21,6 +21,8 @@ import {
   buildOutlinePayload,
   buildRewritePayload,
 } from "@/features/scenes/server/scenesApi/payloadBuilders";
+import { parseVirtualScenesFromText, VirtualScene } from "@/features/autowrite/server/virtualSceneProvider";
+import { invalidateDownstream } from "@/features/autowrite/server/writingPipelineService";
 
 function isWritingV2ProductionEnabled(): boolean {
   const raw = (process.env.WRITING_V2_PRODUCTION ?? "1").trim().toLowerCase();
@@ -179,6 +181,31 @@ export async function getScenesListResponse(
   `;
 
   const { rows } = await pool.query(sql, params);
+
+  // --- V3 BRIDGE START ---
+  // If no scenes found in narrative_scene, check for V3 ChapterDraft
+  if (rows.length === 0 && chapterId && (process.env.V3_BRIDGE_ENABLED !== "0")) {
+    const draftRes = await pool.query<{ full_text: string }>(
+      `SELECT full_text FROM public.chapter_draft
+       WHERE story_id = $1 AND chapter_id = $2 AND status = 'DRAFT'
+       ORDER BY version_no DESC LIMIT 1`,
+      [storyId, chapterId]
+    );
+    if (draftRes.rowCount && draftRes.rows[0].full_text) {
+      const virtualScenes = parseVirtualScenesFromText(draftRes.rows[0].full_text);
+      return NextResponse.json({
+        items: virtualScenes.map(v => ({
+          ...v,
+          id: -1, // Mark as virtual for legacy UI
+          current_version_id: null,
+          created_at: new Date(),
+          updated_at: new Date()
+        }))
+      });
+    }
+  }
+  // --- V3 BRIDGE END ---
+
   return NextResponse.json({ items: rows });
 }
 
@@ -369,17 +396,53 @@ export async function getFullChapterResponse(storySlug: string, chapterId: strin
 
   // also check for staging data
   const stagingRes = await pool.query(
-    `SELECT llm_prose, user_prose, status FROM public.narrative_chapter_staging 
+    `SELECT llm_prose, user_prose, status FROM public.narrative_chapter_staging
      WHERE story_id = $1 AND chapter_id = $2`,
     [storyId, chapterId]
   );
   const staging = stagingRes.rows[0] || null;
 
+  // --- V3 BRIDGE START ---
+  // If no V2 scenes, check for V3 ChapterDraft
+  let v3Draft = null;
+  if (rows.length === 0 && (process.env.V3_BRIDGE_ENABLED !== "0")) {
+    const draftRes = await pool.query<{ full_text: string; status: string }>(
+      `SELECT full_text, status FROM public.chapter_draft
+       WHERE story_id = $1 AND chapter_id = $2
+       ORDER BY version_no DESC LIMIT 1`,
+      [storyId, chapterId]
+    );
+    if (draftRes.rowCount && draftRes.rows[0].full_text) {
+      const virtualScenes = parseVirtualScenesFromText(draftRes.rows[0].full_text);
+      v3Draft = {
+        full_text: draftRes.rows[0].full_text,
+        status: draftRes.rows[0].status,
+        virtual_scenes: virtualScenes
+      };
+
+      // Map virtual scenes to items for legacy UI compatibility
+      const items = virtualScenes.map(v => ({
+        id: -1,
+        idx: v.idx,
+        title: v.title,
+        status: v.status,
+        text_content: v.text_content
+      }));
+
+      return NextResponse.json({
+        items,
+        staging,
+        v3_draft: v3Draft
+      });
+    }
+  }
+  // --- V3 BRIDGE END ---
+
   // STAGING LOCKOUT: If we have a draft in staging, we ignore the individual scenes.
   // This prevents "Old District" and other ghosts from polluting the reading view.
   if (staging) {
     return NextResponse.json({
-      items: [], // Enforce empty for staging
+      items: rows, // Allow scenes even if staging exists
       staging
     });
   }
@@ -405,13 +468,17 @@ export async function postNewChapterResponse(_req: NextRequest, storySlug: strin
          FROM public.narrative_chapter_staging
          WHERE story_id = $1
          UNION
-         SELECT 
+         SELECT chapter_id::text AS chapter_id
+         FROM public.story_chapter
+         WHERE story_id = $1
+         UNION
+         SELECT
            COALESCE(
-             origin->>'chapter_id', 
-             CASE 
+             origin->>'chapter_id',
+             CASE
                WHEN (origin->>'source_path') IS NOT NULL AND (origin->>'source_path') ~ 'CHAPTER \d+'
                THEN 'ch' || LPAD(regexp_replace(origin->>'source_path', '.*CHAPTER (\d+).*', '\\1'), 2, '0')
-               ELSE 'ch01' 
+               ELSE 'ch01'
              END
            ) AS chapter_id
          FROM public.source_doc
@@ -1364,8 +1431,8 @@ export async function postChapterStageResponse(req: NextRequest, storySlug: stri
       await client.query(
         `INSERT INTO public.narrative_chapter_staging (story_id, chapter_id, llm_prose, user_prose, plan_json)
          VALUES ($1, $2, $3, $3, $4)
-         ON CONFLICT (story_id, chapter_id) DO UPDATE 
-         SET llm_prose = EXCLUDED.llm_prose, 
+         ON CONFLICT (story_id, chapter_id) DO UPDATE
+         SET llm_prose = EXCLUDED.llm_prose,
              user_prose = COALESCE(public.narrative_chapter_staging.user_prose, EXCLUDED.llm_prose),
              plan_json = EXCLUDED.plan_json,
              updated_at = now()`,
@@ -1373,6 +1440,10 @@ export async function postChapterStageResponse(req: NextRequest, storySlug: stri
       );
 
       await client.query("COMMIT");
+
+      // TRIGGER RETCON
+      await invalidateDownstream(client, storyId, chapterId);
+
       return NextResponse.json({ ok: true });
     } catch (err: unknown) {
       await client.query("ROLLBACK");
@@ -1399,7 +1470,7 @@ export async function postChapterResplitResponse(req: NextRequest, storySlug: st
     await client.query("BEGIN");
 
     // 1. Delete existing scenes for this chapter to allow fresh split
-    // WARNING: This is a destructive action as requested by the user flow "split chia đôi / spliting lại thôi"
+    // WARNING: This is a destructive action as requested by the user flow "split chia Ä‘Ã´i / spliting láº¡i thÃ´i"
     await client.query(
       `DELETE FROM public.narrative_scene WHERE story_id = $1 AND chapter_id = $2`,
       [storyId, chapterId]

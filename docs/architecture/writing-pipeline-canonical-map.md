@@ -2,7 +2,7 @@
 
 Issue: #7
 Parent epic: #2
-Status: Draft inventory with maintainer-approved assumptions
+Status: Draft inventory with chapter-first V3 stabilization in progress
 Last updated: 2026-05-01
 
 ## Decision Summary
@@ -30,7 +30,7 @@ These decisions resolve the main #2 approval blockers. Remaining checks are evid
 | Item | Decision | Remaining check | Current evidence |
 |---|---|---|---|
 | `VersionRepo.createVersion` durable write path | Treat `WorkflowEngine` and `versionRepo.ts` as dormant legacy / deprecate. | Do one final route/UI trace before any deletion task. | `git grep` finds `VersionRepo.createVersion` used only by `workflowEngine.ts`; `git grep WorkflowEngine` finds no tracked call sites outside its own file. |
-| Uncommitted writing-related files | Treat chapter-first writing files as intended product direction. | Re-run focused inventory after those files are committed or intentionally removed. | Working tree contains new/modified writing surfaces listed in `Approved Product-Direction Files To Integrate`. |
+| Chapter-first writing-related files | Treat chapter-first writing files as intended product direction. | Re-run focused inventory after the #9 stabilization PR lands. | #9 stabilizes the new/modified writing surfaces listed in `Approved Product-Direction Files To Integrate`. |
 | Kept surfaces mapped to flow steps | Approve current `Canonical Flow Integration Map` as the working integration contract. | Correct only if implementation evidence contradicts the map. | Added below. |
 | `NARRATIVE_*` fate | Merge useful narrative stages into `CHAPTER_WRITE_V3` internals or validation gates; do not keep as a separate public pipeline. | Decide exact worker function ownership during task taxonomy work. | TS and Python both contain `NARRATIVE_*` execution surfaces; Python worker appears more complete. |
 | Prose source of truth | Future source of truth is document/chapter blocks; `narrative_scene_version` is compatibility/history. | #5 must define the document block schema and bridge rules. | Current writes are split across `chapter_draft`, `narrative_chapter_staging`, and `narrative_scene_version`. |
@@ -105,7 +105,7 @@ Tooling note: `rg` was not executable in this WSL/UNC session because it resolve
 | `apps/studio/src/features/scenes/server/workflow/repoScene.ts` | Scene repository and active TS `insertVersion` | SQL queries | None | Active `narrative_scene_version` write | keep | Current durable scene-version writer. |
 | `apps/studio/src/features/scenes/server/workflow/versionRepo.ts` | Alternate `VersionRepo.createVersion` | SQL insert | None | Alternate `narrative_scene_version` write without `story_id` | deprecate | Approved assumption: `WorkflowEngine` and this repo are dormant legacy unless final route/UI trace proves active usage. Do not delete without a child task. |
 | `apps/studio/src/features/autowrite/server/autowriteRunService.ts` | Direct writer/critic/judge autowrite loop | `buildStoryContextPack`, prompt builders, `callChatCompletionJson`, `runDraft` | Direct TS LLM, multiple calls | Final save through `runDraft` -> `insertVersion` | deprecate | Duplicate generation path outside canonical worker/task model. |
-| `apps/studio/src/features/autowrite/server/writingPipelineService.ts` | Legacy and V3 task orchestration | Enqueues `WRITING_*`, `NARRATIVE_*`; local dirty tree also routes V3 flag to `enqueueChapterWriteV3` and chains `CHAPTER_WRITE_V3` -> `CHAPTER_LEDGER_EXTRACT` -> `MEMORY_ROLLUP_V3` | Python worker later | `ingest_job`, `ingest_task`, some staging/status tables | merge | Contains key orchestration but has multiple competing flows in one file. Local V3 changes support the approved direction but are not committed in this branch. |
+| `apps/studio/src/features/autowrite/server/writingPipelineService.ts` | Legacy and V3 task orchestration | Enqueues `WRITING_*`, `NARRATIVE_*`; #9 routes the V3 flag to `enqueueChapterWriteV3` and chains `CHAPTER_WRITE_V3` -> `CHAPTER_LEDGER_EXTRACT` -> `MEMORY_ROLLUP_V3` | Python worker later | `ingest_job`, `ingest_task`, some staging/status tables | merge | Contains key orchestration but has multiple competing flows in one file. V3 changes support the approved direction and are stabilized by #9. |
 | `apps/studio/src/features/autowrite/server/narrativeWorkerService.ts` | TS poller for `NARRATIVE_%` tasks | `processNarrativeTask` | TS executor later | `ingest_task` status | deprecate | Competes with Python worker, which also handles `NARRATIVE_*`. |
 | `apps/studio/src/features/autowrite/server/narrativeTaskExecutor.ts` | TS executor for `NARRATIVE_*` tasks | `buildStoryContextPack`; local placeholder prose steps | No real external LLM in this pass | `narrative_chapter_staging`, `ingest_task`, `ingest_job` | deprecate | Duplicate implementation of Python narrative handlers. |
 | `apps/studio/src/features/autowrite/server/chapterContextService.ts` | `buildWorkingSet` for chapter context | DB reads from `story_series`, style profile, canon facts, milestones, chapter ledger | None | Read-only | merge | Local working-tree file; context assembly should feed canonical `WritingContext`. |
@@ -116,16 +116,16 @@ Tooling note: `rg` was not executable in this WSL/UNC session because it resolve
 
 | Task / surface | File | Function | Data received | Data emitted / writes | LLM boundary | Classification | Evidence / reason |
 |---|---|---|---|---|---|---|---|
-| Worker dispatch | `services/memory-bridge/memory_bridge_worker.py` | `run_worker` task switch | `ingest_task.payload_json` | Marks task done/failed through repo helpers | Indirect | keep | Central Python boundary for task execution; local dirty tree dispatches `CHAPTER_WRITE_V3`, `CHAPTER_LEDGER_EXTRACT`, and `MEMORY_ROLLUP_V3`. |
+| Worker dispatch | `services/memory-bridge/memory_bridge_worker.py` | `run_worker` task switch | `ingest_task.payload_json` | Marks task done/failed through repo helpers | Indirect | keep | Central Python boundary for task execution; #9 dispatches `CHAPTER_WRITE_V3`, `CHAPTER_LEDGER_EXTRACT`, and `MEMORY_ROLLUP_V3`. |
 | Task claiming and scene persistence | `services/memory-bridge/worker_ingest_repo.py` | `claim_next_task`, `insert_scene_with_version`, `mark_task_*` | DB task rows | `narrative_scene`, `narrative_scene_version`, task status | None | keep | Active DB boundary; writes scene versions during ingest/split path. |
 | `WRITING_ANALYSIS` | `services/memory-bridge/worker_task_handlers.py`, `worker_writing_analysis.py` | `process_writing_analysis_task` -> analysis helpers | instructions, chapter_id, profile/policy/context | `writing_analysis_staging`, `writing_snapshot_v3`, follow-up tasks | `call_llm_json` | merge | Strong analysis and snapshot behavior, but tied to legacy autowrite flow. |
 | `WRITING_PLANNING` | `worker_task_handlers.py`, `worker_writing_planning.py` | `process_writing_planning_task`, `generate_beat_map` | analysis_result, instructions | `ingest_task.result_json` with plan | `call_llm_json` | merge | Planning concept needed, but TS `runChapterPlanning` also exists. |
 | `WRITING_PROSE` | `worker_task_handlers.py`, `worker_writing_prose.py` | `process_writing_prose_task`, `generate_prose_with_snapshot` | beat, scene info, truth context pack | `ingest_task.result_json` prose | `call_llm_json` | merge | Prose generation concept needed, but output does not directly own final document model. |
 | `WRITING_CONTINUITY` | `worker_task_handlers.py`, `worker_writing_continuity.py` | `process_writing_continuity_task` | prose result and continuity state | `narrative_scene_state`, task result | `call_llm_json` | merge | Continuity validation belongs in canonical flow. |
 | `WRITING_SUPERVISOR` | `worker_task_handlers.py`, `worker_writing_supervisor.py` | `process_writing_supervisor_task` | pipeline results | task result/supervisor output | `call_llm_json` | merge | Supervision/evaluation needed but should be unified with canonical gates. |
-| `CHAPTER_WRITE_V3` | `worker_task_handlers.py`, `worker_chapter_writer.py` | `process_chapter_write_v3_task`, `generate_chapter_v3` | `chapter_id`, `chapter_goal`, `working_set`, `style_options` | `chapter_draft` upsert with `full_text`, `status='READY'`, `metadata_json`; task result | `call_llm_json` | keep | Local working-tree implementation; best current canonical chapter-first generation endpoint. |
-| `CHAPTER_LEDGER_EXTRACT` | `worker_task_handlers.py`, `worker_chapter_ledger_extractor.py`, `worker_chapter_auditor.py` | `process_chapter_ledger_task`, `extract_ledger`, `audit_chapter` | `chapter_id`, `chapter_goal`, `working_set`; loads `chapter_draft.full_text` | `chapter_ledger`, `chapter_continuity_issue`, task result | `call_llm_json` | keep | Local working-tree implementation; required for long-story consistency and validation gates if chapter-first path is canonical. |
-| `MEMORY_ROLLUP_V3` | `worker_task_handlers.py`, `worker_memory_rollup_v3.py` | `process_memory_rollup_v3_task`, `run_memory_rollup_v3` | `story_id`, `chapter_id`; loads `chapter_ledger` and prior `story_milestone` | `story_milestone` upsert; task result | No LLM in current local implementation | keep | Local working-tree implementation; required memory progression for canonical flow. |
+| `CHAPTER_WRITE_V3` | `worker_task_handlers.py`, `worker_chapter_writer.py` | `process_chapter_write_v3_task`, `generate_chapter_v3` | `chapter_id`, `chapter_goal`, `working_set`, `style_options` | `chapter_draft` upsert with `full_text`, `status='DRAFT'`, `metadata_json`; task result | `call_llm_json` | keep | #9 implementation; best current canonical chapter-first generation endpoint. |
+| `CHAPTER_LEDGER_EXTRACT` | `worker_task_handlers.py`, `worker_chapter_ledger_extractor.py`, `worker_chapter_auditor.py` | `process_chapter_ledger_task`, `extract_ledger`, `audit_chapter` | `chapter_id`, `chapter_goal`, `working_set`; loads `chapter_draft.full_text` | `chapter_ledger`, `chapter_continuity_issue`, task result | `call_llm_json` | keep | #9 implementation; required for long-story consistency and validation gates if chapter-first path is canonical. |
+| `MEMORY_ROLLUP_V3` | `worker_task_handlers.py`, `worker_memory_rollup_v3.py` | `process_memory_rollup_v3_task`, `run_memory_rollup_v3` | `story_id`, `chapter_id`; loads `chapter_ledger` and prior `story_milestone` | `story_milestone` upsert; task result | No LLM in current local implementation | keep | #9 implementation; required memory progression for canonical flow. |
 | `NARRATIVE_START` | `worker_narrative_handlers.py` | `process_narrative_start_task` | plan/job payload | enqueues `NARRATIVE_STYLIST` | None | merge | Useful multi-agent sequence, but overlaps `CHAPTER_WRITE_V3`. |
 | `NARRATIVE_STYLIST` | `worker_narrative_handlers.py` | `process_narrative_stylist_task` | beat payload, context block, prior prose | prose in task payload/result; enqueues critic | `call_llm_text` | merge | Useful stylist stage, but output should feed canonical draft/document model. |
 | `NARRATIVE_CRITIC` | `worker_narrative_handlers.py` | `process_narrative_critic_task` | prose and rubric/context | critique result; may enqueue refine | `call_llm_json` | merge | Critic behavior should become canonical validation/evaluation stage. |
@@ -223,7 +223,7 @@ Recommended near-term path:
 Resolved assumptions:
 
 - `VersionRepo.createVersion` / `WorkflowEngine`: deprecate as dormant legacy, but do not delete without a final route/UI trace.
-- Uncommitted chapter-first writing files: treat as intended product direction and integrate into the canonical inventory after they are committed.
+- Chapter-first writing files: treat as intended product direction and stabilize through #9 before closing #7.
 - Canonical flow-step placement: approved as the working integration contract.
 - `NARRATIVE_*`: merge useful behavior into `CHAPTER_WRITE_V3` internals or validation gates instead of preserving a separate public pipeline.
 - Prose source of truth: future document/chapter blocks own edited/generated prose; `narrative_scene_version` remains compatibility/history.
@@ -235,7 +235,7 @@ Follow-up trace before implementation:
 
 Remaining implementation guardrail:
 
-- The approved chapter-first direction depends on local dirty/untracked product files. Do not close #7 as fully branch-reproducible until those files are committed in a product-code task or intentionally removed.
+- Do not close #7 as fully branch-reproducible until the #9 stabilization PR is merged or the V3 product files are intentionally removed.
 
 ## Focused Trace Closure 2026-05-01
 
@@ -246,7 +246,7 @@ Remaining implementation guardrail:
 | Chapter execute route | `POST /api/stories/[slug]/chapters/[chapterId]/execute` calls `postChapterExecuteResponse` -> `runChapterWriting`; current path enqueues `NARRATIVE_START`. | Explicit `merge` entry because narrative execution must be absorbed into the canonical chapter-first path. |
 | Chapter execute control route | `POST /api/stories/[slug]/chapters/[chapterId]/execute/control` updates `ingest_job` / `ingest_task` to `PAUSED` or `CANCELLED`. | Explicit `keep` operational control entry. |
 | `WorkflowEngine` / `versionRepo.ts` | `git grep` finds `VersionRepo.createVersion` only inside `workflowEngine.ts`; no tracked `WorkflowEngine` call sites outside its own file. | Confirms dormant legacy / deprecate classification, with final route/UI trace before deletion. |
-| Local V3 product-direction files | Local working tree wires `buildWorkingSet`, `CHAPTER_WRITE_V3`, `CHAPTER_LEDGER_EXTRACT`, and `MEMORY_ROLLUP_V3` through modified TS/Python files. | Supports approved canonical direction, but branch is not reproducible until product files are committed. |
+| Local V3 product-direction files | #9 wires `buildWorkingSet`, `CHAPTER_WRITE_V3`, `CHAPTER_LEDGER_EXTRACT`, and `MEMORY_ROLLUP_V3` through modified TS/Python files. | Supports approved canonical direction; branch becomes reproducible after #9 merges. |
 
 Line counts for newly traced files:
 
@@ -271,7 +271,7 @@ Line counts for newly traced files:
 
 ## Approved Product-Direction Files To Integrate
 
-These files were present in the working tree during inventory and are now treated as intended chapter-first product direction. They must be folded into the final inventory once committed.
+These files were present in the working tree during inventory and are now treated as intended chapter-first product direction. #9 stabilizes the product files and intentionally excludes scratch-only files unless they are promoted later.
 
 | File / group | Intended direction | Required follow-up |
 |---|---|---|
@@ -285,7 +285,8 @@ These files were present in the working tree during inventory and are now treate
 | `apps/studio/src/app/api/stories/[slug]/status/`, `apps/studio/src/features/story-status/` | Candidate readiness/status support for chapter-first flow. | Classify as operations/status support unless it gates writing. |
 | Review V3 files under `features/reviews` | Candidate validation/review UI for steps 7/8. | Decide relation to document approval in #5. |
 | `docs/architecture/chapter_first_v3_spec.md`, `docs/examples/workingset_v3_kuro.json` | Existing source evidence for intended chapter-first flow. | Reconcile with this map before opening #3 implementation tasks. |
-| Modified tracked writing files (`writingPipelineService.ts`, `scenesApiService.ts`, `memory_bridge_worker.py`, `worker_task_handlers.py`) | May contain active chapter-first implementation changes. | Re-run focused inventory after these changes are committed or intentionally removed. |
+| Modified tracked writing files (`writingPipelineService.ts`, `scenesApiService.ts`, `memory_bridge_worker.py`, `worker_task_handlers.py`) | Active chapter-first implementation changes. | Re-run focused inventory after #9 lands. |
+| `apps/studio/scripts/simulate_v3_flow.ts` | Scratch/local simulation helper unless promoted later. | Leave out of #9 product stabilization; create a separate tooling task if this should become a supported command. |
 
 ## Queue Taxonomy Dependency
 
@@ -309,7 +310,7 @@ Required follow-up: create a task taxonomy decision issue before changing queue 
 
 ## Maintainer Approval
 
-Approval status: assumptions approved; final #7 closure pending focused trace and issue update.
+Approval status: assumptions approved; final #7 closure pending #9 stabilization PR and issue update.
 
 Approver: repository maintainer
 

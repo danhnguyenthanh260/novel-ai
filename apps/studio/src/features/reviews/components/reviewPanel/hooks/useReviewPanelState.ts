@@ -28,6 +28,9 @@ type UseReviewPanelStateResult = {
   loadRequests: () => Promise<void>;
   submitResponse: () => Promise<void>;
   applyLatest: () => Promise<void>;
+  acceptLedger: () => Promise<void>;
+  applyPatch: (issueId: number) => Promise<void>;
+  v3Data: any;
 };
 
 function buildStateResult(
@@ -160,6 +163,7 @@ export function useReviewPanelState(storySlug: string): UseReviewPanelStateResul
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [form, setForm] = useReviewFormState();
+  const [v3Data, setV3Data] = useState<any>(null);
 
   const loadResponses = useCallback(
     async (requestId: number) => {
@@ -189,7 +193,12 @@ export function useReviewPanelState(storySlug: string): UseReviewPanelStateResul
 
       const chosen = chooseSelectedRequestId(items, selectedRequestId);
       setSelectedRequestId(chosen);
-      if (!chosen) setResponses([]);
+      if (!chosen) {
+        setResponses([]);
+        setV3Data(null);
+      } else {
+        setV3Data(json?.v3_data || null);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "GET_REVIEW_REQUESTS_FAILED");
       setRequests([]);
@@ -213,6 +222,7 @@ export function useReviewPanelState(storySlug: string): UseReviewPanelStateResul
     loadRequests,
     loadResponses,
   });
+
   const applyLatest = useApplyLatestAction({
     acting,
     base,
@@ -223,6 +233,57 @@ export function useReviewPanelState(storySlug: string): UseReviewPanelStateResul
     loadRequests,
     loadResponses,
   });
+
+  const acceptLedger = useCallback(async () => {
+    if (!selectedRequestId || acting) return;
+    setActing(true);
+    setError(null);
+    setOk(null);
+    try {
+      const res = await fetch(base, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "accept_ledger",
+          request_id: selectedRequestId,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || json?.ok === false) throw new Error(json?.error ?? "ACCEPT_LEDGER_FAILED");
+      setOk(`Ledger accepted. Canon facts inserted: ${json.count}`);
+      await loadRequests();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "ACCEPT_LEDGER_FAILED");
+    } finally {
+      setActing(false);
+    }
+  }, [acting, base, loadRequests, selectedRequestId]);
+
+  const applyPatch = useCallback(async (issueId: number) => {
+    if (!selectedRequestId || acting) return;
+    setActing(true);
+    setError(null);
+    setOk(null);
+    try {
+      const res = await fetch(base, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "apply_patch",
+          request_id: selectedRequestId,
+          response_id: issueId, // Reusing response_id as issue_id
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || json?.ok === false) throw new Error(json?.error ?? "APPLY_PATCH_FAILED");
+      setOk(`Patch applied to chapter. Issue marked as resolved.`);
+      await loadRequests();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "APPLY_PATCH_FAILED");
+    } finally {
+      setActing(false);
+    }
+  }, [acting, base, loadRequests, selectedRequestId]);
 
   return buildStateResult({
     requests,
@@ -240,5 +301,8 @@ export function useReviewPanelState(storySlug: string): UseReviewPanelStateResul
     loadRequests,
     submitResponse,
     applyLatest,
+    acceptLedger,
+    applyPatch,
+    v3Data,
   });
 }

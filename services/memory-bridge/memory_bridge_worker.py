@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 
 from __future__ import annotations
 
@@ -42,6 +42,9 @@ from worker_task_handlers import (
     process_writing_prose_task,
     process_writing_continuity_task,
     process_writing_supervisor_task,
+    process_chapter_write_v3_task,
+    process_chapter_ledger_task,
+    process_memory_rollup_v3_task,
     process_narrative_start_task,
     process_narrative_stylist_task,
     process_narrative_critic_task,
@@ -64,10 +67,10 @@ def run_worker(
             os.makedirs(runtime_dir, exist_ok=True)
         except Exception:
             pass
-    
+
     lock_file_path = os.path.join(runtime_dir, f"worker_{lane}.lock")
     lock_file = None
-    
+
     # Singleton check via file lock (fcntl is available on WSL/Linux)
     try:
         import fcntl
@@ -84,7 +87,7 @@ def run_worker(
     conn = None
     pending_db_fail: Dict[str, Any] | None = None
     claimed_task: Dict[str, Any] | None = None
-    
+
     print(f"[worker] Started with PID {os.getpid()}, lane={lane}, poll={poll_interval_sec}s", flush=True)
 
     try:
@@ -183,7 +186,7 @@ def run_worker(
                         except Exception:
                             pass
                         print(f"[worker] failed memory_enrich task={memory_task['id']} err={err}", file=sys.stderr, flush=True)
-                        
+
                     if max_tasks > 0 and processed >= max_tasks:
                         break
                     continue
@@ -226,6 +229,12 @@ def run_worker(
                         process_writing_continuity_task(conn, task)
                     elif task_type == "WRITING_SUPERVISOR":
                         process_writing_supervisor_task(conn, task)
+                    elif task_type == "CHAPTER_WRITE_V3":
+                        process_chapter_write_v3_task(conn, task)
+                    elif task_type == 'CHAPTER_LEDGER_EXTRACT':
+                        process_chapter_ledger_task(conn, task)
+                    elif task_type == 'MEMORY_ROLLUP_V3':
+                        process_memory_rollup_v3_task(conn, task)
                     elif task_type == "NARRATIVE_START":
                         process_narrative_start_task(conn, task)
                     elif task_type == "NARRATIVE_STYLIST":

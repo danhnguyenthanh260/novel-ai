@@ -38,6 +38,7 @@ type UseWriteTabStateResult = {
   handleAutoWriteComplete: (prose: string) => Promise<void>;
   saveChapterDraft: (prose: string) => Promise<void>;
   resplitChapter: (prose: string) => Promise<void>;
+  v3Draft: { full_text: string; status: string; virtual_scenes: any[] } | null;
 };
 
 export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
@@ -67,6 +68,7 @@ export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
   const [showAutoWrite, setShowAutoWrite] = useState(false);
   const [pendingChapterProse, setPendingChapterProse] = useState<{ id: string, prose: string } | null>(null);
   const [stagingData, setStagingData] = useState<{ user_prose: string; llm_prose: string; status: string } | null>(null);
+  const [v3Draft, setV3Draft] = useState<{ full_text: string; status: string; virtual_scenes: any[] } | null>(null);
 
   const listUrl = useMemo(() => `${apiBase(storySlug)}/scenes`, [storySlug]);
   const detailUrl = useMemo(
@@ -174,6 +176,7 @@ export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
       if (!res.ok) throw new Error(json?.error ?? "GET_CHAPTER_FULL_FAILED");
       setChapterScenes(json.items || []);
       setStagingData(json.staging || null);
+      setV3Draft(json.v3_draft || null);
       setViewMode("chapter");
       // Pick first scene's label for header if available
       if (json.items?.[0]) {
@@ -193,9 +196,9 @@ export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
   useEffect(() => {
     if (selectedChapterId) {
       // Logic: Only clear pending prose if it's NOT for this chapter.
-      // Since fetchChapterFull is called on select, we usually want to clear it 
+      // Since fetchChapterFull is called on select, we usually want to clear it
       // EXCEPT when we just generated it.
-      // We'll trust handleAutoWriteComplete to set it, and only clear it here 
+      // We'll trust handleAutoWriteComplete to set it, and only clear it here
       // if we are explicitly loading a DIFFERENT chapter.
       fetchChapterFull(selectedChapterId);
     }
@@ -224,6 +227,7 @@ export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
         setSelectedChapterId(json.chapter_id);
         setPendingChapterProse(null);
         setStagingData(null);
+        setV3Draft(null);
         setViewMode("chapter");
       } else if (json.scene_id) {
         setSceneId(String(json.scene_id));
@@ -335,5 +339,6 @@ export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
     handleAutoWriteComplete,
     saveChapterDraft,
     resplitChapter,
+    v3Draft,
   };
 }
