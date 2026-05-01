@@ -80,11 +80,13 @@ Tooling note: `rg` was not executable in this WSL/UNC session because it resolve
 | Autowrite v1 run | `apps/studio/src/app/api/[storySlug]/autowrite/run/route.ts` | `POST` | `postAutowriteRunResponse` | Direct TS LLM via `callChatCompletionJson` | Saves final prose through `runDraft` -> `insertVersion` | deprecate | Duplicates writer/critic/judge loop outside worker pipeline and canonical context contract. |
 | Legacy autowrite analysis | `apps/studio/src/app/api/[storySlug]/autowrite/pipeline/analysis/route.ts` | `POST` | `createWritingAnalysisTask` | Python worker LLM later | `ingest_job`, `ingest_task(WRITING_ANALYSIS)` | merge | Contains useful analysis/task enqueue path but competes with chapter-first V3. |
 | Legacy autowrite execute | `apps/studio/src/app/api/[storySlug]/autowrite/pipeline/execute/route.ts` | `POST` | `executeWritingPhase` | Python worker LLM later | `ingest_task(WRITING_PROSE)` | merge | Concept of approved plan -> prose task belongs in canonical orchestration, current path is legacy. |
-| Chapter auto-write | `apps/studio/src/app/api/stories/[slug]/chapters/[chapterId]/auto-write/route.ts` | `POST`, `GET` | story API service / chapter auto-write handlers | Python worker LLM later | `ingest_job`, `ingest_task(CHAPTER_WRITE_V3)` or status reads | keep | Best candidate canonical entry for automated chapter writing. |
+| Chapter auto-write | `apps/studio/src/app/api/stories/[slug]/chapters/[chapterId]/auto-write/route.ts` | `POST`, `GET` | `postChapterAutoWriteResponse` -> `runChapterPlanning` -> `runChapterWriting`; `GET` -> `getChapterWritingStatusResponse` | TS planning LLM first, Python worker later | `ingest_job`, `ingest_task(NARRATIVE_START)` today; local V3 changes route autowrite pipeline to `CHAPTER_WRITE_V3` | keep | Best candidate canonical entry for automated chapter writing, but current committed route still launches narrative writing through `scenesApiService`. |
 | Chapter auto-write retry/status | `apps/studio/src/app/api/stories/[slug]/chapters/[chapterId]/auto-write/retry/route.ts`, `.../status/route.ts` | `POST`, `GET` | story API service / status handlers | Python worker LLM later | Worker task/status tables | keep | Operational support for chapter-first generation. |
-| Chapter plan/write via scene API service | no single route; `scenesApiService` exposes chapter planning/writing branches | `POST` routes in chapter/scenes surfaces | `runChapterPlanning`, `runChapterWriting` | TS planning LLM and Python narrative tasks | `ingest_job`, `ingest_task(NARRATIVE_START)` | merge | Valuable planning and narrative task launch, but route ownership is spread across scene API service. |
+| Chapter plan | `apps/studio/src/app/api/stories/[slug]/chapters/[chapterId]/plan/route.ts` | `POST` | `postChapterPlanResponse` -> `runChapterPlanning` | Direct TS LLM via `callChatCompletionJson` inside planning step | No durable prose; returns plan and conflict metadata | keep | Explicit planning entry for current AutoWrite wizard; should consume canonical `WritingContext` after #3. |
+| Chapter execute | `apps/studio/src/app/api/stories/[slug]/chapters/[chapterId]/execute/route.ts` | `POST` | `postChapterExecuteResponse` -> `runChapterWriting` | Python worker LLM later | `ingest_job`, `ingest_task(NARRATIVE_START)` | merge | Explicit plan-to-write route, but it launches the narrative task path that should be merged under `CHAPTER_WRITE_V3` or document-block generation. |
+| Chapter execute control | `apps/studio/src/app/api/stories/[slug]/chapters/[chapterId]/execute/control/route.ts` | `POST` | `postChapterExecuteControlResponse` | None | Updates `ingest_job` and `ingest_task` status to `PAUSED` or `CANCELLED` | keep | Operational control for long-running chapter jobs. |
 | Muse prose/synthesis/compress | `apps/studio/src/app/api/muse/chat/prose/route.ts`, `synthesis/route.ts`, `compress/route.ts` | `POST` | `callChatCompletionJson` | Direct TS LLM | No durable prose write by route | compatibility-only | Editor assist path, not canonical autonomous writing; should later belong to document editor assist. |
-| Draft stream pipeline | `apps/studio/src/app/api/pipeline/draft/stream/route.ts` | `POST` | `postDraftStreamResponse` | Unknown in this pass | Unknown | unknown / needs decision | Found as write-like route, but not traced in this pass. |
+| Draft stream pipeline | `apps/studio/src/app/api/pipeline/draft/stream/route.ts` | `POST` | `postDraftStreamResponse` -> `parseDraftStreamRequest` -> `buildCanonGuard` when `story_slug` exists -> `fetchUpstreamWithFallback` | Direct streaming proxy to `${LLM_API_BASE}/chat/completions` | No durable write; SSE response only | compatibility-only | Active editor ghost-writing assist via `useDraftGhost`; not canonical autonomous generation or persistence. |
 
 ## TypeScript Service Inventory
 
@@ -103,26 +105,27 @@ Tooling note: `rg` was not executable in this WSL/UNC session because it resolve
 | `apps/studio/src/features/scenes/server/workflow/repoScene.ts` | Scene repository and active TS `insertVersion` | SQL queries | None | Active `narrative_scene_version` write | keep | Current durable scene-version writer. |
 | `apps/studio/src/features/scenes/server/workflow/versionRepo.ts` | Alternate `VersionRepo.createVersion` | SQL insert | None | Alternate `narrative_scene_version` write without `story_id` | deprecate | Approved assumption: `WorkflowEngine` and this repo are dormant legacy unless final route/UI trace proves active usage. Do not delete without a child task. |
 | `apps/studio/src/features/autowrite/server/autowriteRunService.ts` | Direct writer/critic/judge autowrite loop | `buildStoryContextPack`, prompt builders, `callChatCompletionJson`, `runDraft` | Direct TS LLM, multiple calls | Final save through `runDraft` -> `insertVersion` | deprecate | Duplicate generation path outside canonical worker/task model. |
-| `apps/studio/src/features/autowrite/server/writingPipelineService.ts` | Legacy and V3 task orchestration | Enqueues `WRITING_*`, `NARRATIVE_*`, `CHAPTER_WRITE_V3` | Python worker later | `ingest_job`, `ingest_task`, some staging/status tables | merge | Contains key orchestration but has multiple competing flows in one file. |
+| `apps/studio/src/features/autowrite/server/writingPipelineService.ts` | Legacy and V3 task orchestration | Enqueues `WRITING_*`, `NARRATIVE_*`; local dirty tree also routes V3 flag to `enqueueChapterWriteV3` and chains `CHAPTER_WRITE_V3` -> `CHAPTER_LEDGER_EXTRACT` -> `MEMORY_ROLLUP_V3` | Python worker later | `ingest_job`, `ingest_task`, some staging/status tables | merge | Contains key orchestration but has multiple competing flows in one file. Local V3 changes support the approved direction but are not committed in this branch. |
 | `apps/studio/src/features/autowrite/server/narrativeWorkerService.ts` | TS poller for `NARRATIVE_%` tasks | `processNarrativeTask` | TS executor later | `ingest_task` status | deprecate | Competes with Python worker, which also handles `NARRATIVE_*`. |
 | `apps/studio/src/features/autowrite/server/narrativeTaskExecutor.ts` | TS executor for `NARRATIVE_*` tasks | `buildStoryContextPack`; local placeholder prose steps | No real external LLM in this pass | `narrative_chapter_staging`, `ingest_task`, `ingest_job` | deprecate | Duplicate implementation of Python narrative handlers. |
-| `apps/studio/src/features/autowrite/server/chapterContextService.ts` | `buildWorkingSet` for chapter context | DB reads | None | Read-only | merge | Context assembly should feed canonical `WritingContext`. |
-| `apps/studio/src/features/autowrite/server/virtualSceneProvider.ts` | Parses virtual scenes from chapter draft text | Called by `scenesApiService` list bridge | None | Read-only | compatibility-only | Bridge for V3 draft display in legacy scene UI. |
+| `apps/studio/src/features/autowrite/server/chapterContextService.ts` | `buildWorkingSet` for chapter context | DB reads from `story_series`, style profile, canon facts, milestones, chapter ledger | None | Read-only | merge | Local working-tree file; context assembly should feed canonical `WritingContext`. |
+| `apps/studio/src/features/autowrite/server/chapterFirstTypes.ts` | Chapter-first type definitions for drafts, ledgers, issues | Type-only | None | None | keep | Local working-tree file; likely seed evidence for #3/#5 types but not final central schema by default. |
+| `apps/studio/src/features/autowrite/server/virtualSceneProvider.ts` | Parses virtual scenes from chapter draft text | Called by modified `scenesApiService` list bridge | None | Read-only | compatibility-only | Local working-tree bridge for V3 draft display in legacy scene UI. |
 
 ## Python Worker Inventory
 
 | Task / surface | File | Function | Data received | Data emitted / writes | LLM boundary | Classification | Evidence / reason |
 |---|---|---|---|---|---|---|---|
-| Worker dispatch | `services/memory-bridge/memory_bridge_worker.py` | `run_worker` task switch | `ingest_task.payload_json` | Marks task done/failed through repo helpers | Indirect | keep | Central Python boundary for task execution. |
+| Worker dispatch | `services/memory-bridge/memory_bridge_worker.py` | `run_worker` task switch | `ingest_task.payload_json` | Marks task done/failed through repo helpers | Indirect | keep | Central Python boundary for task execution; local dirty tree dispatches `CHAPTER_WRITE_V3`, `CHAPTER_LEDGER_EXTRACT`, and `MEMORY_ROLLUP_V3`. |
 | Task claiming and scene persistence | `services/memory-bridge/worker_ingest_repo.py` | `claim_next_task`, `insert_scene_with_version`, `mark_task_*` | DB task rows | `narrative_scene`, `narrative_scene_version`, task status | None | keep | Active DB boundary; writes scene versions during ingest/split path. |
 | `WRITING_ANALYSIS` | `services/memory-bridge/worker_task_handlers.py`, `worker_writing_analysis.py` | `process_writing_analysis_task` -> analysis helpers | instructions, chapter_id, profile/policy/context | `writing_analysis_staging`, `writing_snapshot_v3`, follow-up tasks | `call_llm_json` | merge | Strong analysis and snapshot behavior, but tied to legacy autowrite flow. |
 | `WRITING_PLANNING` | `worker_task_handlers.py`, `worker_writing_planning.py` | `process_writing_planning_task`, `generate_beat_map` | analysis_result, instructions | `ingest_task.result_json` with plan | `call_llm_json` | merge | Planning concept needed, but TS `runChapterPlanning` also exists. |
 | `WRITING_PROSE` | `worker_task_handlers.py`, `worker_writing_prose.py` | `process_writing_prose_task`, `generate_prose_with_snapshot` | beat, scene info, truth context pack | `ingest_task.result_json` prose | `call_llm_json` | merge | Prose generation concept needed, but output does not directly own final document model. |
 | `WRITING_CONTINUITY` | `worker_task_handlers.py`, `worker_writing_continuity.py` | `process_writing_continuity_task` | prose result and continuity state | `narrative_scene_state`, task result | `call_llm_json` | merge | Continuity validation belongs in canonical flow. |
 | `WRITING_SUPERVISOR` | `worker_task_handlers.py`, `worker_writing_supervisor.py` | `process_writing_supervisor_task` | pipeline results | task result/supervisor output | `call_llm_json` | merge | Supervision/evaluation needed but should be unified with canonical gates. |
-| `CHAPTER_WRITE_V3` | `worker_task_handlers.py`, `worker_chapter_writer.py` | `process_chapter_write_v3_task`, `generate_chapter_v3` | job_config, working_set, instructions | `chapter_draft` | `call_llm_json` | keep | Best current canonical chapter-first generation endpoint. |
-| `CHAPTER_LEDGER_EXTRACT` | `worker_task_handlers.py`, `worker_chapter_ledger_extractor.py` | `process_chapter_ledger_task` | chapter draft/prose | `chapter_ledger`, continuity issues | `call_llm_json` | keep | Required for long-story consistency if chapter-first path is canonical. |
-| `MEMORY_ROLLUP_V3` | `worker_task_handlers.py`, `worker_memory_rollup_v3.py` | `process_memory_rollup_v3_task` | ledger/memory inputs | rollup memory tables | `call_llm_json` | keep | Required memory progression for canonical flow. |
+| `CHAPTER_WRITE_V3` | `worker_task_handlers.py`, `worker_chapter_writer.py` | `process_chapter_write_v3_task`, `generate_chapter_v3` | `chapter_id`, `chapter_goal`, `working_set`, `style_options` | `chapter_draft` upsert with `full_text`, `status='READY'`, `metadata_json`; task result | `call_llm_json` | keep | Local working-tree implementation; best current canonical chapter-first generation endpoint. |
+| `CHAPTER_LEDGER_EXTRACT` | `worker_task_handlers.py`, `worker_chapter_ledger_extractor.py`, `worker_chapter_auditor.py` | `process_chapter_ledger_task`, `extract_ledger`, `audit_chapter` | `chapter_id`, `chapter_goal`, `working_set`; loads `chapter_draft.full_text` | `chapter_ledger`, `chapter_continuity_issue`, task result | `call_llm_json` | keep | Local working-tree implementation; required for long-story consistency and validation gates if chapter-first path is canonical. |
+| `MEMORY_ROLLUP_V3` | `worker_task_handlers.py`, `worker_memory_rollup_v3.py` | `process_memory_rollup_v3_task`, `run_memory_rollup_v3` | `story_id`, `chapter_id`; loads `chapter_ledger` and prior `story_milestone` | `story_milestone` upsert; task result | No LLM in current local implementation | keep | Local working-tree implementation; required memory progression for canonical flow. |
 | `NARRATIVE_START` | `worker_narrative_handlers.py` | `process_narrative_start_task` | plan/job payload | enqueues `NARRATIVE_STYLIST` | None | merge | Useful multi-agent sequence, but overlaps `CHAPTER_WRITE_V3`. |
 | `NARRATIVE_STYLIST` | `worker_narrative_handlers.py` | `process_narrative_stylist_task` | beat payload, context block, prior prose | prose in task payload/result; enqueues critic | `call_llm_text` | merge | Useful stylist stage, but output should feed canonical draft/document model. |
 | `NARRATIVE_CRITIC` | `worker_narrative_handlers.py` | `process_narrative_critic_task` | prose and rubric/context | critique result; may enqueue refine | `call_llm_json` | merge | Critic behavior should become canonical validation/evaluation stage. |
@@ -149,6 +152,7 @@ Tooling note: `rg` was not executable in this WSL/UNC session because it resolve
 | Boundary | File | Function | Provider call | Classification |
 |---|---|---|---|---|
 | TS Muse shared LLM | `apps/studio/src/app/api/muse/_shared.ts` | `callChatCompletionJson` | `fetch(${LLM_API_BASE}/chat/completions)` | keep as shared adapter; move product ownership above it |
+| TS draft stream | `apps/studio/src/features/pipeline/server/draftStreamService.ts`, `draftStream/upstreamClient.ts` | `postDraftStreamResponse`, `fetchUpstreamWithFallback` | streaming `fetch(${LLM_API_BASE}/chat/completions)` with SSE passthrough | compatibility-only editor assist |
 | TS chapter planning | `chapterPlanning.ts` | `runChapterPlanning` | `callChatCompletionJson` | keep |
 | TS chapter writing/narrative prompts | `chapterWriting.ts` | imported prompt + `callChatCompletionJson` references | TS LLM or Python queued depending path | merge |
 | TS autowrite v1 | `autowriteRunService.ts` | writer/critic/judge calls | `callChatCompletionJson` | deprecate |
@@ -159,6 +163,7 @@ Tooling note: `rg` was not executable in this WSL/UNC session because it resolve
 | Python continuity | `worker_writing_continuity.py` | extract/integrity calls | `call_llm_json` | merge |
 | Python supervisor | `worker_writing_supervisor.py` | supervisor call | `call_llm_json` | merge |
 | Python chapter V3 | `worker_chapter_writer.py` | `generate_chapter_v3` | `call_llm_json` | keep |
+| Python chapter ledger/audit V3 | `worker_chapter_ledger_extractor.py`, `worker_chapter_auditor.py` | `extract_ledger`, `audit_chapter` | `call_llm_json` | keep |
 | Python narrative multi-agent | `worker_narrative_handlers.py` | stylist/critic/refine | `call_llm_text`, `call_llm_json` | merge |
 
 ## Durable Write Boundaries
@@ -169,6 +174,9 @@ Tooling note: `rg` was not executable in this WSL/UNC session because it resolve
 | `narrative_scene_version` alternate TS write | `apps/studio/src/features/scenes/server/workflow/versionRepo.ts` | `VersionRepo.createVersion` via `workflowEngine.ts` | deprecate | Approved dormant legacy path. Final route/UI trace required before any deletion because this is a durable write boundary. |
 | `narrative_scene_version` Python ingest write | `services/memory-bridge/worker_ingest_repo.py` | `insert_scene_with_version` | keep | Used by ingest/split scene creation and `SCENE_CREATE`. |
 | `chapter_draft` | `services/memory-bridge/worker_task_handlers.py` | `process_chapter_write_v3_task` insert | keep | Current chapter-first generated prose store and transition source until future document/chapter blocks become source of truth. |
+| `chapter_ledger` | `services/memory-bridge/worker_task_handlers.py`, `services/memory-bridge/worker_chapter_ledger_extractor.py` | `process_chapter_ledger_task` insert | keep | Captures added facts, modified states, resolved/open loops after chapter draft generation. |
+| `chapter_continuity_issue` | `services/memory-bridge/worker_task_handlers.py`, `services/memory-bridge/worker_chapter_auditor.py` | `process_chapter_ledger_task` insert | keep | Stores audit findings for validation/review gates. |
+| `story_milestone` | `services/memory-bridge/worker_memory_rollup_v3.py` | `run_memory_rollup_v3` upsert | keep | Consolidates chapter ledger into long-range memory. |
 | `narrative_chapter_staging` | `apps/studio/src/features/autowrite/server/narrativeTaskExecutor.ts`, `services/memory-bridge/worker_narrative_handlers.py`, `scenesApiService.ts` | final/staging inserts | merge | Interim owner should be the Python narrative finalization path in `worker_narrative_handlers.py`; TS `narrativeTaskExecutor.ts` should receive no new writes until ownership is resolved. `scenesApiService.ts` remains a compatibility reader/bridge. |
 | `writing_snapshot_v3` | `services/memory-bridge/worker_task_handlers.py` | `process_writing_analysis_task` insert | keep | Important memory/truth snapshot for generation. |
 | `writing_scope_snapshot_v1` | `services/memory-bridge/worker_memory_rollup.py`, `historianAnalysisService.ts` | rollup/activation writes | keep | Needed for long-range memory. |
@@ -222,8 +230,44 @@ Resolved assumptions:
 
 Follow-up trace before implementation:
 
-- `apps/studio/src/app/api/pipeline/draft/stream/route.ts`: found as draft-like route but not traced in this pass.
-- Exact route/service ownership for `apps/studio/src/app/api/stories/[slug]/chapters/[chapterId]/plan/route.ts` and execute/control routes should be traced before implementation work.
+- Completed 2026-05-01: `apps/studio/src/app/api/pipeline/draft/stream/route.ts` traced to streaming LLM proxy with guard injection and no durable write.
+- Completed 2026-05-01: chapter plan/execute/control routes traced to `scenesApiService`, `runChapterPlanning`, `runChapterWriting`, and ingest job/task control.
+
+Remaining implementation guardrail:
+
+- The approved chapter-first direction depends on local dirty/untracked product files. Do not close #7 as fully branch-reproducible until those files are committed in a product-code task or intentionally removed.
+
+## Focused Trace Closure 2026-05-01
+
+| Trace item | Result | Classification impact |
+|---|---|---|
+| `/api/pipeline/draft/stream` | Active editor-assist endpoint called by `useDraftGhost`; builds optional canon guard from `story_slug`, proxies SSE to `${LLM_API_BASE}/chat/completions`, and writes no durable prose. | Changed from `unknown / needs decision` to `compatibility-only`. |
+| Chapter plan route | `POST /api/stories/[slug]/chapters/[chapterId]/plan` calls `postChapterPlanResponse` -> `runChapterPlanning`; direct TS planning LLM; no durable prose write. | Explicit `keep` planning entry. |
+| Chapter execute route | `POST /api/stories/[slug]/chapters/[chapterId]/execute` calls `postChapterExecuteResponse` -> `runChapterWriting`; current path enqueues `NARRATIVE_START`. | Explicit `merge` entry because narrative execution must be absorbed into the canonical chapter-first path. |
+| Chapter execute control route | `POST /api/stories/[slug]/chapters/[chapterId]/execute/control` updates `ingest_job` / `ingest_task` to `PAUSED` or `CANCELLED`. | Explicit `keep` operational control entry. |
+| `WorkflowEngine` / `versionRepo.ts` | `git grep` finds `VersionRepo.createVersion` only inside `workflowEngine.ts`; no tracked `WorkflowEngine` call sites outside its own file. | Confirms dormant legacy / deprecate classification, with final route/UI trace before deletion. |
+| Local V3 product-direction files | Local working tree wires `buildWorkingSet`, `CHAPTER_WRITE_V3`, `CHAPTER_LEDGER_EXTRACT`, and `MEMORY_ROLLUP_V3` through modified TS/Python files. | Supports approved canonical direction, but branch is not reproducible until product files are committed. |
+
+Line counts for newly traced files:
+
+| File | Lines |
+|---|---:|
+| `apps/studio/src/app/api/pipeline/draft/stream/route.ts` | 6 |
+| `apps/studio/src/features/pipeline/server/draftStreamService.ts` | 67 |
+| `apps/studio/src/features/pipeline/server/draftStream/requestParser.ts` | 26 |
+| `apps/studio/src/features/pipeline/server/draftStream/messageBuilder.ts` | 49 |
+| `apps/studio/src/features/pipeline/server/draftStream/upstreamClient.ts` | 48 |
+| `apps/studio/src/features/pipeline/server/draftStream/types.ts` | 11 |
+| `apps/studio/src/app/api/stories/[slug]/chapters/[chapterId]/plan/route.ts` | 7 |
+| `apps/studio/src/app/api/stories/[slug]/chapters/[chapterId]/execute/route.ts` | 7 |
+| `apps/studio/src/app/api/stories/[slug]/chapters/[chapterId]/execute/control/route.ts` | 7 |
+| `apps/studio/src/features/autowrite/server/chapterContextService.ts` | 159 |
+| `apps/studio/src/features/autowrite/server/chapterFirstTypes.ts` | 67 |
+| `apps/studio/src/features/autowrite/server/virtualSceneProvider.ts` | 76 |
+| `services/memory-bridge/worker_chapter_writer.py` | 61 |
+| `services/memory-bridge/worker_chapter_auditor.py` | 64 |
+| `services/memory-bridge/worker_chapter_ledger_extractor.py` | 62 |
+| `services/memory-bridge/worker_memory_rollup_v3.py` | 78 |
 
 ## Approved Product-Direction Files To Integrate
 
