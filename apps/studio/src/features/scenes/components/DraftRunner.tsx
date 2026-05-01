@@ -26,6 +26,13 @@ import {
   wrapSelectionWith,
 } from "@/features/scenes/components/draftRunner/shared";
 
+// NOTE:
+// - DraftRunner hiển thị và chỉnh sửa scene text hiện tại (scene + scene_version).
+// - Nếu scene version "sai nội dung" thì nguyên nhân thường nằm ở data pipeline:
+//   - analysis snapshot (`writing_snapshot_v3`: degraded_mode, ready_for_writing, fact_status, is_stale)
+//   - memory stats (`story_memory_stats`: vetted facts)
+// - Trước khi kết luận đây là "display bug" hoặc lỗi editor,
+//   hãy dùng query trong `docs/DEBUGGING_SCENE_VERSION.md` để kiểm tra các cờ trên.
 export default function DraftRunner({
   sceneId,
   sceneStatus,

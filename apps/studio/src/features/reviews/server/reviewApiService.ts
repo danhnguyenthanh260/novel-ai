@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
 import { pool } from "@/server/db/pool";
 import { resolveStoryId, resolveStoryIdForWrite } from "@/features/scenes/server/workflow/routeUtils";
+import { ReviewV3Service } from "./reviewV3Service";
 
-type ReviewAction = "submit_response" | "apply_response";
+type ReviewAction = "submit_response" | "apply_response" | "accept_ledger" | "apply_patch";
 
 function parsePositiveInt(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) return Math.floor(value);
@@ -128,6 +129,8 @@ export async function getReviewsResponse(req: NextRequest, storySlug: string): P
          r.id,
          r.story_id,
          r.scene_version_id,
+         r.chapter_id,
+         r.is_v3,
          r.job_id,
          r.status,
          r.rubric_version,
@@ -135,11 +138,11 @@ export async function getReviewsResponse(req: NextRequest, storySlug: string): P
          v.scene_id,
          v.version_no,
          s.workunit_id,
-         s.chapter_id,
+         s.chapter_id as legacy_chapter_id,
          s.idx
        FROM public.review_request r
-       JOIN public.narrative_scene_version v ON v.id = r.scene_version_id
-       JOIN public.narrative_scene s ON s.id = v.scene_id
+       LEFT JOIN public.narrative_scene_version v ON v.id = r.scene_version_id
+       LEFT JOIN public.narrative_scene s ON s.id = v.scene_id
        WHERE ${where.join(" AND ")}
        ORDER BY r.created_at DESC
        LIMIT $${params.length}`,
@@ -166,11 +169,34 @@ export async function getReviewsResponse(req: NextRequest, storySlug: string): P
       responses = responseRes.rows;
     }
 
+    let v3Data: any = null;
+    if (requestId !== null && listRes.rows[0]?.is_v3) {
+      const row = listRes.rows[0];
+      const ledgerRes = await pool.query(
+        `SELECT added_facts, modified_states, unresolved_loops, is_stale, stale_reason
+         FROM public.chapter_ledger
+         WHERE story_id = $1 AND chapter_id = $2`,
+        [storyId, row.chapter_id]
+      );
+      const issuesRes = await pool.query(
+        `SELECT id, issue_type, severity, description, payload, status, auto_patch_available, patch_suggestion
+         FROM public.chapter_continuity_issue
+         WHERE story_id = $1 AND chapter_id = $2 AND status != 'IGNORED'
+         ORDER BY severity DESC, created_at DESC`,
+        [storyId, row.chapter_id]
+      );
+      v3Data = {
+        ledger: ledgerRes.rows[0] || null,
+        issues: issuesRes.rows,
+      };
+    }
+
     return NextResponse.json({
       ok: true,
       story_id: storyId,
       requests: listRes.rows,
       responses,
+      v3_data: v3Data,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "GET_REVIEWS_FAILED";
@@ -248,6 +274,31 @@ export async function postReviewsResponse(req: NextRequest, storySlug: string): 
         request_id: requestId,
         response_id: Number(insertRes.rows[0]?.id ?? 0),
       });
+    }
+
+    // --- V3 ACTIONS ---
+    if (action === "accept_ledger") {
+        const chapterId = String(requestRow.chapter_id);
+        const res = await ReviewV3Service.resolveLedgerToCanon(client, storyId, chapterId);
+
+        await client.query(
+            `UPDATE public.review_request SET status = 'APPLIED' WHERE id = $1`,
+            [requestId]
+        );
+
+        await client.query("COMMIT");
+        return NextResponse.json({ ok: true, action, count: res.count });
+    }
+
+    if (action === "apply_patch") {
+        const chapterId = String(requestRow.chapter_id);
+        const issueId = parsePositiveInt(body.response_id); // Reusing response_id field for issueId in patch action
+        if (issueId === null) throw new Error("MISSING_ISSUE_ID");
+
+        await ReviewV3Service.applyChapterPatch(client, storyId, chapterId, issueId);
+
+        await client.query("COMMIT");
+        return NextResponse.json({ ok: true, action });
     }
 
     const responseId = parsePositiveInt(body.response_id);

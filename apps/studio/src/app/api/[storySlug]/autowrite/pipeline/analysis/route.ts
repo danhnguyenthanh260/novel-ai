@@ -24,7 +24,8 @@ export async function POST(
         return NextResponse.json({
             ok: true,
             job_id: result.jobId,
-            task_id: result.taskId,
+            task_id: "taskId" in result ? result.taskId : null,
+            chapter_id: "chapterId" in result ? result.chapterId : null,
         });
     } catch (error: any) {
         console.error("[pipeline/analysis] error:", error);

@@ -151,13 +151,22 @@ export async function getStoryChaptersResponse(slug: string): Promise<NextRespon
          WHERE st.story_id = $1
          UNION
          SELECT
+           sc.story_id,
+           sc.chapter_id::text AS chapter_id,
+           0::int AS scene_count,
+           0::int AS first_scene_idx,
+           sc.updated_at::text AS updated_at
+         FROM public.story_chapter sc
+         WHERE sc.story_id = $1
+         UNION
+         SELECT
            sd.story_id,
            COALESCE(
-             sd.origin->>'chapter_id', 
-             CASE 
+             sd.origin->>'chapter_id',
+             CASE
                WHEN (sd.origin->>'source_path') IS NOT NULL AND (sd.origin->>'source_path') ~ 'CHAPTER \d+'
                THEN 'ch' || LPAD(regexp_replace(sd.origin->>'source_path', '.*CHAPTER (\d+).*', '\\1'), 2, '0')
-               ELSE 'ch01' 
+               ELSE 'ch01'
              END
            ) AS chapter_id,
            0::int AS scene_count,
@@ -393,13 +402,18 @@ export async function getStoryChapterReadResponse(slug: string, chapterId: strin
        WHERE st.story_id = $1
        GROUP BY st.chapter_id
        UNION
-       SELECT 
+       SELECT sc.chapter_id::text AS chapter_id
+       FROM public.story_chapter sc
+       WHERE sc.story_id = $1
+       GROUP BY sc.chapter_id
+       UNION
+       SELECT
          COALESCE(
-           sd.origin->>'chapter_id', 
-           CASE 
+           sd.origin->>'chapter_id',
+           CASE
              WHEN (sd.origin->>'source_path') IS NOT NULL AND (sd.origin->>'source_path') ~ 'CHAPTER \d+'
              THEN 'ch' || LPAD(regexp_replace(sd.origin->>'source_path', '.*CHAPTER (\d+).*', '\\1'), 2, '0')
-             ELSE 'ch01' 
+             ELSE 'ch01'
            END
          ) AS chapter_id
        FROM public.source_doc sd
@@ -483,7 +497,7 @@ export async function getStoryChapterReadResponse(slug: string, chapterId: strin
          AND is_stable = true
          AND (
            COALESCE(origin->>'chapter_id', '') = $2
-           OR 
+           OR
            NULLIF(regexp_replace($2, '[^0-9]', '', 'g'), '')::int
            =
            NULLIF(regexp_replace(

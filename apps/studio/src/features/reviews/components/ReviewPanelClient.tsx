@@ -24,6 +24,9 @@ export default function ReviewPanelClient({ storySlug }: { storySlug: string }) 
       onRefresh={state.loadRequests}
       onSubmitResponse={state.submitResponse}
       onApplyLatest={state.applyLatest}
+      onAcceptLedger={state.acceptLedger}
+      onApplyPatch={state.applyPatch}
+      v3Data={state.v3Data}
     />
   );
 }
