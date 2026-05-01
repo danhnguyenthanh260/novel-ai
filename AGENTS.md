@@ -38,6 +38,19 @@ Avoid running project toolchains from Windows `CMD` or PowerShell directly on UN
 - Do not perform unrelated refactors.
 - For UI work, prefer minimal necessary controls and avoid adding noise to primary workflows.
 
+## Decision Gate Rule
+
+When a task requires a product, architecture, data model, workflow, or issue-planning decision that is not already approved, stop and notify the user before encoding it into code, docs, or GitHub issues.
+
+Decision requests must separate:
+
+1. Evidence found.
+2. Recommendation.
+3. Decision needed from the user.
+4. Risk if the decision is wrong.
+
+Do not silently treat assumptions as approved. Continue only after the user explicitly approves the assumption or decision.
+
 ## Analysis Before Editing
 
 Before edits, clarify:
