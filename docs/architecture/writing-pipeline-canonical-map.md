@@ -15,6 +15,18 @@ analysis -> memory/truth snapshot -> chapter/scene planning -> prose generation 
 
 Provisional canonical owner should be the chapter-first flow that creates durable chapter draft output through `CHAPTER_WRITE_V3`, then later bridges approved prose into the editor and scene/version model. The current scene workflow remains necessary as compatibility and manual scene-version tooling, but it is not a complete automated writing pipeline.
 
+## Approval Blockers
+
+These items must be resolved before #2 approval because they change downstream feature scope.
+
+| Blocker | Blocks | Required decision / action | Current evidence |
+|---|---|---|---|
+| `VersionRepo.createVersion` durable write path | #2 approval | Classify `WorkflowEngine` and `versionRepo.ts` together before deprecating the alternate scene-version writer. | `git grep` finds `VersionRepo.createVersion` used only by `workflowEngine.ts`; `git grep WorkflowEngine` finds no tracked call sites outside its own file. |
+| Uncommitted writing-related files | #2 approval | Confirm whether these files are active intended work, generated scratch, or abandoned changes before approving the map. | Working tree contains new/modified writing surfaces listed in `Uncommitted Writing-Surface Risk`. |
+| Kept surfaces mapped to flow steps | #2 approval | Review `Canonical Flow Integration Map` and approve or correct placement. | Added below. |
+| `NARRATIVE_*` fate | #3 scope | Decide whether narrative stages remain explicit canonical stages or are merged inside `CHAPTER_WRITE_V3` internals. | TS and Python both contain `NARRATIVE_*` execution surfaces; Python worker appears more complete. |
+| Prose source of truth | #5 and DB task scope | Decide whether generated prose source of truth is `chapter_draft`, `narrative_scene_version`, future document blocks, or a controlled bridge. | Current writes are split across `chapter_draft`, `narrative_chapter_staging`, and `narrative_scene_version`. |
+
 ## Classification Rubric Used
 
 - `keep`: Future canonical or required supporting surface.
@@ -81,7 +93,7 @@ Tooling note: `rg` was not executable in this WSL/UNC session because it resolve
 | `apps/studio/src/features/scenes/server/workflow/steps/chapterPlanning.ts` | `runChapterPlanning`, `buildPlanningMemoryPackV5`, `renderPlanningPrompt` | `buildStoryContextPack`, `callChatCompletionJson` | Direct TS LLM | No durable prose; reads snapshots/context | keep | Planning is part of canonical flow; should consume future `WritingContext`. |
 | `apps/studio/src/features/scenes/server/workflow/steps/chapterWriting.ts` | `runChapterWriting` enqueues `NARRATIVE_START` | `ensureIngestWorkerRunning` | Python worker later | `ingest_job`, `ingest_task` | merge | Launches narrative worker flow but overlaps `writingPipelineService.enqueueChapterWriteV3`. |
 | `apps/studio/src/features/scenes/server/workflow/repoScene.ts` | Scene repository and active TS `insertVersion` | SQL queries | None | Active `narrative_scene_version` write | keep | Current durable scene-version writer. |
-| `apps/studio/src/features/scenes/server/workflow/versionRepo.ts` | Alternate `VersionRepo.createVersion` | SQL insert | None | Alternate `narrative_scene_version` write without `story_id` | deprecate | Appears older/dormant versus active `repoScene.insertVersion`; needs call-site confirmation before deletion. |
+| `apps/studio/src/features/scenes/server/workflow/versionRepo.ts` | Alternate `VersionRepo.createVersion` | SQL insert | None | Alternate `narrative_scene_version` write without `story_id` | unknown / needs decision | Call-site check: `VersionRepo.createVersion` is used by `workflowEngine.ts`; `WorkflowEngine` has no tracked call sites outside its own file. Classify the engine and repo together before deprecation. |
 | `apps/studio/src/features/autowrite/server/autowriteRunService.ts` | Direct writer/critic/judge autowrite loop | `buildStoryContextPack`, prompt builders, `callChatCompletionJson`, `runDraft` | Direct TS LLM, multiple calls | Final save through `runDraft` -> `insertVersion` | deprecate | Duplicate generation path outside canonical worker/task model. |
 | `apps/studio/src/features/autowrite/server/writingPipelineService.ts` | Legacy and V3 task orchestration | Enqueues `WRITING_*`, `NARRATIVE_*`, `CHAPTER_WRITE_V3` | Python worker later | `ingest_job`, `ingest_task`, some staging/status tables | merge | Contains key orchestration but has multiple competing flows in one file. |
 | `apps/studio/src/features/autowrite/server/narrativeWorkerService.ts` | TS poller for `NARRATIVE_%` tasks | `processNarrativeTask` | TS executor later | `ingest_task` status | deprecate | Competes with Python worker, which also handles `NARRATIVE_*`. |
@@ -146,10 +158,10 @@ Tooling note: `rg` was not executable in this WSL/UNC session because it resolve
 | Data | File | Function / SQL | Classification | Notes |
 |---|---|---|---|---|
 | `narrative_scene_version` active TS write | `apps/studio/src/features/scenes/server/workflow/repoScene.ts` | `insertVersion` | keep | Current scene-version commit path for draft/outline/rewrite. |
-| `narrative_scene_version` alternate TS write | `apps/studio/src/features/scenes/server/workflow/versionRepo.ts` | `VersionRepo.createVersion` | deprecate | Appears older/dormant; lacks `story_id` in insert column list. Needs call-site check before removal. |
+| `narrative_scene_version` alternate TS write | `apps/studio/src/features/scenes/server/workflow/versionRepo.ts` | `VersionRepo.createVersion` via `workflowEngine.ts` | unknown / needs decision | Dormant behind `WorkflowEngine`; no tracked `WorkflowEngine` call sites found. Must be classified before approval because this is a durable write boundary. |
 | `narrative_scene_version` Python ingest write | `services/memory-bridge/worker_ingest_repo.py` | `insert_scene_with_version` | keep | Used by ingest/split scene creation and `SCENE_CREATE`. |
 | `chapter_draft` | `services/memory-bridge/worker_task_handlers.py` | `process_chapter_write_v3_task` insert | keep | Current chapter-first generated prose store. |
-| `narrative_chapter_staging` | `apps/studio/src/features/autowrite/server/narrativeTaskExecutor.ts`, `services/memory-bridge/worker_narrative_handlers.py`, `scenesApiService.ts` | final/staging inserts | merge | Transitional staging; should be reconciled with document editor and chapter draft ownership. |
+| `narrative_chapter_staging` | `apps/studio/src/features/autowrite/server/narrativeTaskExecutor.ts`, `services/memory-bridge/worker_narrative_handlers.py`, `scenesApiService.ts` | final/staging inserts | merge | Interim owner should be the Python narrative finalization path in `worker_narrative_handlers.py`; TS `narrativeTaskExecutor.ts` should receive no new writes until ownership is resolved. `scenesApiService.ts` remains a compatibility reader/bridge. |
 | `writing_snapshot_v3` | `services/memory-bridge/worker_task_handlers.py` | `process_writing_analysis_task` insert | keep | Important memory/truth snapshot for generation. |
 | `writing_scope_snapshot_v1` | `services/memory-bridge/worker_memory_rollup.py`, `historianAnalysisService.ts` | rollup/activation writes | keep | Needed for long-range memory. |
 | `ingest_job`, `ingest_task` | `writingPipelineService.ts`, `chapterWriting.ts`, `scenesApiService.ts`, Python repo | queue orchestration | keep | Canonical worker queue can stay, but task taxonomy must be simplified. |
@@ -176,13 +188,67 @@ Recommended near-term path:
 4. Keep scene workflow as compatibility/manual version history until the document editor model is defined.
 5. Deprecate direct TS autowrite v1 and TS narrative task executor after replacement paths exist.
 
+## Canonical Flow Integration Map
+
+| Flow step | Kept / candidate surface | Placement contract | Open question |
+|---|---|---|---|
+| 1. Analyze source/chapter | `WRITING_ANALYSIS`, historian analysis, future source analysis | Produces `writing_snapshot_v3` or scope snapshot inputs, not prose. | Whether `WRITING_ANALYSIS` remains as task type or is renamed under a cleaner taxonomy. |
+| 2. Persist memory/truth snapshot | `writing_snapshot_v3`, `writing_scope_snapshot_v1`, `chapter_ledger`, `MEMORY_ROLLUP_V3` | Stores durable facts, rollups, ledger, and readiness state for generation. | Exact DB source of truth for event/emotion/relationship state remains #3/#DB scope. |
+| 3. Build canonical `WritingContext` | `buildStoryContextPack`, `buildPlanningMemoryPackV5`, `worker_memory_context.py`, `truthPackGovernance.ts` | These should become adapters into one shared contract, not independent prompt-specific context builders. | #3 must expand scope to reconcile TS and Python context divergence. |
+| 4. Plan chapter/scene | `runChapterPlanning`, `WRITING_PLANNING`, future canonical planner | Produces structured plan/beat map from canonical context. | Decide TS planner vs Python planner ownership. |
+| 5. Generate prose | `CHAPTER_WRITE_V3`, possible merged `NARRATIVE_STYLIST/REFINE` internals | Writes generated chapter draft or intermediate prose result. | Decide if `NARRATIVE_*` stays explicit or is internalized. |
+| 6. Human document editor | future document editor, scene-version compatibility bridge, Muse assist | Human-approved editing and formatting happens here; `repoScene.insertVersion` can act as compatibility history until editor model exists. | #5 decides document block model and scene-version bridge. |
+| 7. Continuity/evaluation gates | `CHAPTER_LEDGER_EXTRACT`, `MEMORY_ROLLUP_V3`, `WRITING_CONTINUITY`, `WRITING_SUPERVISOR`, scene evaluate concept | Runs after generated/edited prose and before approval; writes ledger/issues/scores, not final prose source of truth. | Decide which gates are mandatory before lock. |
+| 8. Approve/lock | `runLock`, future document approval endpoint | Marks prose/version/document as approved. `repoScene.insertVersion` is not the approval step; it is history/persistence used before approval. | Decide lock target: scene, chapter draft, document revision, or bridge. |
+| 9. Publishing handoff | future export/publish adapters | Consumes approved document/export state only. | Out of scope until editor model is approved. |
+
 ## Unknown / Needs Decision
+
+Critical blockers before approval:
+
+- `VersionRepo.createVersion` / `WorkflowEngine`: classify the dormant engine and alternate durable write path before approving deprecation.
+- Uncommitted writing-related files: classify intended ownership before approval because they may add or change writing surfaces.
+- Canonical flow-step placement: approve or correct `Canonical Flow Integration Map`.
+
+Blocks #3 / #5 / DB scope:
+
+- Whether `NARRATIVE_*` multi-agent stages should be kept as canonical stages or merged into `CHAPTER_WRITE_V3` worker internals.
+- Whether `chapter_draft`, `narrative_chapter_staging`, or future document blocks become the durable generated-prose source of truth.
+
+Follow-up trace before implementation:
 
 - `apps/studio/src/app/api/pipeline/draft/stream/route.ts`: found as draft-like route but not traced in this pass.
 - Exact route/service ownership for `apps/studio/src/app/api/stories/[slug]/chapters/[chapterId]/plan/route.ts` and execute/control routes should be traced before implementation work.
-- Whether `NARRATIVE_*` multi-agent stages should be kept as canonical stages or merged into `CHAPTER_WRITE_V3` worker internals.
-- Whether `chapter_draft`, `narrative_chapter_staging`, or future document blocks become the durable generated-prose source of truth.
-- Existing uncommitted working-tree files include new writing-related files; their intended ownership should be confirmed before final approval.
+
+## Uncommitted Writing-Surface Risk
+
+These files were present in the working tree during inventory and may make the map stale if they are intended product work.
+
+| File / group | Risk | Required action before approval |
+|---|---|---|
+| `apps/studio/src/features/autowrite/server/chapterContextService.ts` | May add or replace chapter context assembly. | Confirm whether it supersedes existing `buildWorkingSet` behavior and classify in context-builder section. |
+| `apps/studio/src/features/autowrite/server/chapterFirstTypes.ts` | May define new canonical types for chapter-first flow. | Confirm whether #3 should start from these types. |
+| `apps/studio/src/features/autowrite/server/virtualSceneProvider.ts` | May affect scene compatibility bridge from chapter drafts. | Confirm whether it is compatibility-only bridge or canonical display layer. |
+| `services/memory-bridge/worker_chapter_writer.py` | May be the active `CHAPTER_WRITE_V3` implementation. | Confirm it is intended canonical writer before #2 approval. |
+| `services/memory-bridge/worker_chapter_auditor.py` | May add canonical validation/audit stage. | Decide whether this belongs to step 7 continuity/evaluation gates. |
+| `services/memory-bridge/worker_chapter_ledger_extractor.py` | May add ledger extraction for long-story consistency. | Decide if it is kept as canonical step 7 input. |
+| `services/memory-bridge/worker_memory_rollup_v3.py` | May add memory rollup required for canonical context. | Decide if it is kept as canonical step 2 memory persistence. |
+| `apps/studio/src/app/api/stories/[slug]/status/`, `apps/studio/src/features/story-status/` | May add status/readiness model for chapter-first flow. | Classify as operations/status support or canonical readiness gate. |
+| Review V3 files under `features/reviews` | May add approval/review surface. | Decide relation to step 7/8 validation and approval. |
+| `docs/architecture/chapter_first_v3_spec.md`, `docs/examples/workingset_v3_kuro.json` | May already describe intended canonical path. | Review before #2 approval and reconcile with this map. |
+| Modified tracked writing files (`writingPipelineService.ts`, `scenesApiService.ts`, `memory_bridge_worker.py`, `worker_task_handlers.py`) | May change route/worker inventory. | Re-run focused inventory after these changes are committed or discarded. |
+
+## Queue Taxonomy Dependency
+
+The `ingest_job` / `ingest_task` queue is shared by kept, merge, and deprecate paths. It cannot be simplified until task taxonomy is approved.
+
+Current task families:
+
+- Keep candidate: `CHAPTER_WRITE_V3`, `CHAPTER_LEDGER_EXTRACT`, `MEMORY_ROLLUP_V3`.
+- Merge candidates: `WRITING_ANALYSIS`, `WRITING_PLANNING`, `WRITING_PROSE`, `WRITING_CONTINUITY`, `WRITING_SUPERVISOR`, `NARRATIVE_*`.
+- Compatibility/deprecation candidates: TS `NARRATIVE_*` executor and direct autowrite v1 path.
+
+Required follow-up: create a task taxonomy decision issue before changing queue schema, worker dispatch, or pipeline UI node config.
 
 ## Follow-Up Issues To Create After Approval
 
