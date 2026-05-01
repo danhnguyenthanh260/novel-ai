@@ -38,6 +38,13 @@ apps/studio/*.tsbuildinfo
 
 # Docker local data
 infra/*.local.yml
+
+# Local runtime state
+.runtime/
+**/.runtime/
+*.pid
+
+# Local scratch/security-sensitive artifacts
 _debug*
 _fix_data.sql
 _staging*
