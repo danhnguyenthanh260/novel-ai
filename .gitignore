@@ -42,5 +42,3 @@ _debug*
 _fix_data.sql
 _staging*
 *.sql
-
-AGENT.md
