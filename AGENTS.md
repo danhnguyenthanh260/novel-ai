@@ -38,6 +38,13 @@ Avoid running project toolchains from Windows `CMD` or PowerShell directly on UN
 - Do not perform unrelated refactors.
 - For UI work, prefer minimal necessary controls and avoid adding noise to primary workflows.
 
+## Git And PR Target Rules
+
+- Default pull request target is `staging`.
+- Do not open pull requests directly into `product` unless the user explicitly requests it or the change has already landed in `staging` and is being promoted.
+- Promotion flow is feature branch -> `staging` first, then `staging` -> `product` when needed.
+- If a GitHub tool or CLI defaults to `product`, override the base branch to `staging` for normal work.
+
 ## Decision Gate Rule
 
 When a task requires a product, architecture, data model, workflow, or issue-planning decision that is not already approved, stop and notify the user before encoding it into code, docs, or GitHub issues.
