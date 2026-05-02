@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import os
 from typing import Any, Dict, Optional
 from worker_common import call_llm_json
 
@@ -11,11 +12,16 @@ REQUIRED_CONTEXT_SECTIONS = {
     "debug_source_metadata",
 }
 
+def _env_truthy(name: str) -> bool:
+    return str(os.getenv(name) or "").strip().lower() in {"1", "true", "yes", "on"}
+
 def _validate_present_writing_context(
     writing_context: Optional[Dict[str, Any]],
     writing_context_preflight: Optional[Dict[str, Any]],
 ) -> str:
     if writing_context is None:
+        if _env_truthy("WRITING_CONTEXT_REQUIRED"):
+            raise ValueError("WRITING_CONTEXT_REQUIRED")
         return "compatibility_absent"
     if not isinstance(writing_context, dict):
         raise ValueError("WRITING_CONTEXT_MALFORMED")
