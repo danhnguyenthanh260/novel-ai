@@ -2,6 +2,41 @@
 
 DO $$
 DECLARE
+  mode_attnum smallint;
+  rec record;
+BEGIN
+  SELECT attnum INTO mode_attnum
+  FROM pg_attribute
+  WHERE attrelid = 'public.ingest_job'::regclass
+    AND attname = 'mode'
+    AND NOT attisdropped;
+
+  IF mode_attnum IS NOT NULL THEN
+    FOR rec IN
+      SELECT c.conname
+      FROM pg_constraint c
+      WHERE c.conrelid = 'public.ingest_job'::regclass
+        AND c.contype = 'c'
+        AND c.conkey = ARRAY[mode_attnum]
+    LOOP
+      EXECUTE format('ALTER TABLE public.ingest_job DROP CONSTRAINT IF EXISTS %I', rec.conname);
+    END LOOP;
+  END IF;
+END $$;
+
+ALTER TABLE public.ingest_job
+  ADD CONSTRAINT ingest_job_mode_check
+  CHECK (
+    mode IN (
+      'AUTO_LOCK',
+      'REVIEW_GATE',
+      'AUTO_CHAPTER',
+      'AUTO_CHAPTER_V3'
+    )
+  );
+
+DO $$
+DECLARE
   task_type_attnum smallint;
   rec record;
 BEGIN

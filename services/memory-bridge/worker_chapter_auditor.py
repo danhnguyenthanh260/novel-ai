@@ -55,7 +55,7 @@ def audit_chapter(full_text: str, working_set: Dict[str, Any], chapter_goal: str
         {"role": "user", "content": prompt}
     ]
 
-    response = call_llm_json(messages, max_tokens=2000)
+    response = call_llm_json(messages, max_tokens=2000, temperature=0.1)
 
     if not isinstance(response, list):
         # Handle case where LLM returns a dict or wrap error

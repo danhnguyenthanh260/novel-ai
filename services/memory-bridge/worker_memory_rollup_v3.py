@@ -47,12 +47,30 @@ def run_memory_rollup_v3(conn, story_id: int, chapter_id: str) -> Dict[str, Any]
 
         # Merge Facts
         existing_facts = new_milestone.get("facts", [])
-        new_facts = existing_facts + ledger["added_facts"]
+        new_facts = list(dict.fromkeys(existing_facts + ledger["added_facts"]))
         new_milestone["facts"] = new_facts[-100:] # Keep last 100 facts for brevity
 
         # Update State
         current_state = new_milestone.get("world_state", {})
-        for entity_id, props in ledger["modified_states"].items():
+        modified_states = ledger["modified_states"]
+        if isinstance(modified_states, dict):
+            state_items = modified_states.items()
+        elif isinstance(modified_states, list):
+            normalized = {}
+            for item in modified_states:
+                if not isinstance(item, dict):
+                    continue
+                entity_id = str(item.get("entity") or item.get("entity_id") or "").strip()
+                prop = str(item.get("property") or item.get("prop") or "").strip()
+                if not entity_id or not prop:
+                    continue
+                normalized.setdefault(entity_id, {})[prop] = item.get("new_value")
+            state_items = normalized.items()
+        else:
+            state_items = []
+        for entity_id, props in state_items:
+            if not isinstance(props, dict):
+                continue
             if entity_id not in current_state:
                 current_state[entity_id] = {}
             current_state[entity_id].update(props)
@@ -69,7 +87,9 @@ def run_memory_rollup_v3(conn, story_id: int, chapter_id: str) -> Dict[str, Any]
             INSERT INTO public.story_milestone
             (story_id, chapter_from, chapter_to, summary_json, source_hash, created_by)
             VALUES (%s, %s, %s, %s::jsonb, %s, 'memory_rollup_v3')
-            ON CONFLICT (story_id, chapter_from, chapter_to, source_hash) DO UPDATE SET
+            ON CONFLICT (story_id, chapter_from, chapter_to, source_hash)
+            WHERE source_hash IS NOT NULL AND source_hash <> ''
+            DO UPDATE SET
                 summary_json = EXCLUDED.summary_json,
                 updated_at = now()
             RETURNING id

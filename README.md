@@ -95,14 +95,14 @@ docker compose -f infra/docker-compose.yml up -d postgres neo4j qdrant historian
 
 ### Apply database migrations
 
-Repo hiện tại không kèm migration runner tự động ở root. Hãy apply các file trong `db/migrations/` theo thứ tự tên file.
+Repo hiện tại không kèm migration runner tự động ở root. Fresh DBs apply the active baseline and any post-baseline migrations in `db/migrations/*.sql` by filename order. Historical migrations live under `db/migrations/archive/` for reference only.
 
 ```powershell
 $env:DATABASE_URL = "postgresql://novel:novelpass@localhost:5433/novel"
 
 Get-ChildItem db/migrations/*.sql |
   Sort-Object Name |
-  ForEach-Object { psql "$env:DATABASE_URL" -f $_.FullName }
+  ForEach-Object { psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f $_.FullName }
 
 ```
 
@@ -248,4 +248,3 @@ python -m py_compile services/memory-bridge/memory_bridge_worker.py services/mem
 ## License
 
 Dự án sử dụng giấy phép [MIT](https://www.google.com/search?q=./LICENSE.txt).
-
