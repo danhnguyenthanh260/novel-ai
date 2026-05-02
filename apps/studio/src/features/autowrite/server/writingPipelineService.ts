@@ -11,6 +11,7 @@ import {
     resolvePackBudgetPolicy,
 } from "@/features/analysis/server/truthPackGovernance";
 import { buildWorkingSet } from "./chapterContextService";
+import { assembleChapterWritingContext } from "./chapterWritingContextAssembler";
 
 export interface WritingPipelineConfig {
     storyId: number;
@@ -535,6 +536,15 @@ export async function enqueueChapterWriteV3(config: WritingPipelineConfig) {
 
         // 1. Build WorkingSet
         const workingSet = await buildWorkingSet(client, config.storyId, chapterId);
+        const assembledWritingContext = assembleChapterWritingContext({
+            workingSet,
+            userIntent: config.instructions,
+            targetWordCount: config.targetWordCount,
+            mode: "prose",
+        });
+        if (assembledWritingContext.preflight.status === "blocked") {
+            throw new Error(`CHAPTER_WRITE_V3 context blocked: ${assembledWritingContext.preflight.block_reasons.join(", ")}`);
+        }
 
         // 2. Create Ingest Job
         const jobRes = await client.query<{ id: number }>(
@@ -565,6 +575,9 @@ export async function enqueueChapterWriteV3(config: WritingPipelineConfig) {
                     chapter_id: chapterId,
                     chapter_goal: config.instructions,
                     working_set: workingSet,
+                    writing_context: assembledWritingContext.context,
+                    writing_context_preflight: assembledWritingContext.preflight,
+                    writing_context_debug: assembledWritingContext.debug,
                     style_options: {
                       target_word_count: config.targetWordCount || 2500
                     }
