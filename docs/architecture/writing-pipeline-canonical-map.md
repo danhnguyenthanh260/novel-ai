@@ -2,8 +2,8 @@
 
 Issue: #7
 Parent epic: #2
-Status: Draft inventory with chapter-first V3 stabilization in progress
-Last updated: 2026-05-01
+Status: Draft inventory with chapter-first V3 stabilized and migration baseline cleanup in progress
+Last updated: 2026-05-02
 
 ## Decision Summary
 
@@ -17,6 +17,7 @@ Approved assumptions:
 
 - The chapter-first files in the current working tree are real product direction, not scratch work.
 - `CHAPTER_WRITE_V3` is the initial canonical automated prose entry.
+- `000_baseline_20260502.sql` is the active fresh-DB baseline while historical migrations are reference-only archive files.
 - Future generated prose source of truth should be document/chapter blocks, not `narrative_scene_version`.
 - `narrative_scene_version` remains compatibility/history until the editor model exists.
 - `WorkflowEngine` and `versionRepo.ts` are treated as dormant legacy unless a later route/UI trace proves active usage.
