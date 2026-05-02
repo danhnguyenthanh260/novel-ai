@@ -185,7 +185,7 @@ Flow rules:
 
 - Only approved document revisions can enqueue or trigger memory extraction.
 - Draft editor revisions are `draft-only` for memory purposes.
-- If an approved revision conflicts with existing memory, #12 owns conflict classification and promotion behavior.
+- If an approved revision conflicts with existing memory, `docs/architecture/post-write-memory-promotion-flow.md` owns conflict classification and promotion behavior.
 - Analysis workers should consume plain text extracted from approved blocks plus source metadata, not raw rich formatting.
 
 ### Editor Document To Publishing

@@ -8,7 +8,7 @@ Last updated: 2026-05-02
 
 Story memory is the durable narrative record that future planning, writing, validation, and review use to preserve continuity. This contract defines memory categories and state semantics only. It does not define a database schema, migration, promotion algorithm, task queue taxonomy, editor storage model, or prompt format.
 
-#11 will assemble current memory into `WritingContext`. #12 will define how post-write outputs are promoted into durable memory. #5 owns editor/document storage and approval boundaries.
+#11 assembles current memory into `WritingContext` through `docs/architecture/chapter-writing-context-assembler.md`. #12 promotion semantics live in `docs/architecture/post-write-memory-promotion-flow.md`. #5 owns editor/document storage and approval boundaries.
 
 ## Durable Categories
 
@@ -104,7 +104,6 @@ Known current equivalents:
 
 - #11 must define the concrete adapter output and where it lives.
 - #11 must decide how to merge TS and Python layer priorities without creating two competing contracts.
-- #12 must define promotion, rejection, supersession, and conflict-resolution rules.
-- #12 must decide how approved generated prose creates durable event and state memory.
+- Future #12 child implementation tasks must convert `docs/architecture/post-write-memory-promotion-flow.md` into concrete schema, worker, and UI manifests.
 - #5 must define the approval boundary for edited document/chapter blocks before draft-only memory can become durable.
 - A later queue taxonomy issue must decide how `WRITING_*`, `NARRATIVE_*`, and V3 tasks are named and exposed.
