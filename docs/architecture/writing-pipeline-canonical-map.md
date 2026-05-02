@@ -2,8 +2,14 @@
 
 Issue: #7
 Parent epic: #2
-Status: Draft inventory with chapter-first V3 stabilized and migration baseline cleanup in progress
+Status: Post-baseline verified
 Last updated: 2026-05-02
+
+Evidence sources:
+
+- PR #10 landed the chapter-first V3 stabilization foundation.
+- PR #14 landed the V3 runtime proof fix and migration baseline squash.
+- Fresh baseline replay was verified on 2026-05-02 against `db/migrations/000_baseline_20260502.sql`.
 
 ## Decision Summary
 
@@ -16,7 +22,7 @@ analysis -> memory/truth snapshot -> chapter/scene planning -> prose generation 
 Approved assumptions:
 
 - The chapter-first files in the current working tree are real product direction, not scratch work.
-- `CHAPTER_WRITE_V3` is the initial canonical automated prose entry.
+- `CHAPTER_WRITE_V3 -> CHAPTER_LEDGER_EXTRACT -> MEMORY_ROLLUP_V3` is the near-term canonical automated prose path.
 - `000_baseline_20260502.sql` is the active fresh-DB baseline while historical migrations are reference-only archive files.
 - Future generated prose source of truth should be document/chapter blocks, not `narrative_scene_version`.
 - `narrative_scene_version` remains compatibility/history until the editor model exists.
@@ -31,7 +37,7 @@ These decisions resolve the main #2 approval blockers. Remaining checks are evid
 | Item | Decision | Remaining check | Current evidence |
 |---|---|---|---|
 | `VersionRepo.createVersion` durable write path | Treat `WorkflowEngine` and `versionRepo.ts` as dormant legacy / deprecate. | Do one final route/UI trace before any deletion task. | `git grep` finds `VersionRepo.createVersion` used only by `workflowEngine.ts`; `git grep WorkflowEngine` finds no tracked call sites outside its own file. |
-| Chapter-first writing-related files | Treat chapter-first writing files as intended product direction. | Re-run focused inventory after the #9 stabilization PR lands. | #9 stabilizes the new/modified writing surfaces listed in `Approved Product-Direction Files To Integrate`. |
+| Chapter-first writing-related files | Treat chapter-first writing files as intended product direction. | Complete; #9 and #13 have landed. | PR #10 stabilized the product files; PR #14 carried the runtime proof fix and baseline into `staging`. |
 | Kept surfaces mapped to flow steps | Approve current `Canonical Flow Integration Map` as the working integration contract. | Correct only if implementation evidence contradicts the map. | Added below. |
 | `NARRATIVE_*` fate | Merge useful narrative stages into `CHAPTER_WRITE_V3` internals or validation gates; do not keep as a separate public pipeline. | Decide exact worker function ownership during task taxonomy work. | TS and Python both contain `NARRATIVE_*` execution surfaces; Python worker appears more complete. |
 | Prose source of truth | Future source of truth is document/chapter blocks; `narrative_scene_version` is compatibility/history. | #5 must define the document block schema and bridge rules. | Current writes are split across `chapter_draft`, `narrative_chapter_staging`, and `narrative_scene_version`. |
@@ -199,7 +205,7 @@ flowchart TD
 
 Recommended near-term path:
 
-1. Keep `CHAPTER_WRITE_V3` as the initial canonical automated prose entry.
+1. Keep `CHAPTER_WRITE_V3 -> CHAPTER_LEDGER_EXTRACT -> MEMORY_ROLLUP_V3` as the near-term canonical automated prose path.
 2. Keep `writing_snapshot_v3` / scope snapshots as memory inputs until #3 defines the central contract.
 3. Merge useful planning/continuity/narrative critic behavior into one orchestration model.
 4. Keep scene workflow as compatibility/manual version history until the document editor model is defined.
@@ -224,7 +230,7 @@ Recommended near-term path:
 Resolved assumptions:
 
 - `VersionRepo.createVersion` / `WorkflowEngine`: deprecate as dormant legacy, but do not delete without a final route/UI trace.
-- Chapter-first writing files: treat as intended product direction and stabilize through #9 before closing #7.
+- Chapter-first writing files: treat as intended product direction; stabilized by PR #10 and re-verified after PR #14.
 - Canonical flow-step placement: approved as the working integration contract.
 - `NARRATIVE_*`: merge useful behavior into `CHAPTER_WRITE_V3` internals or validation gates instead of preserving a separate public pipeline.
 - Prose source of truth: future document/chapter blocks own edited/generated prose; `narrative_scene_version` remains compatibility/history.
@@ -236,7 +242,7 @@ Follow-up trace before implementation:
 
 Remaining implementation guardrail:
 
-- Do not close #7 as fully branch-reproducible until the #9 stabilization PR is merged or the V3 product files are intentionally removed.
+- #7 is branch-reproducible after PR #10 and PR #14. Implementation remains gated by #2 approval, then #3/#5/#11/#12.
 
 ## Focused Trace Closure 2026-05-01
 
@@ -247,7 +253,20 @@ Remaining implementation guardrail:
 | Chapter execute route | `POST /api/stories/[slug]/chapters/[chapterId]/execute` calls `postChapterExecuteResponse` -> `runChapterWriting`; current path enqueues `NARRATIVE_START`. | Explicit `merge` entry because narrative execution must be absorbed into the canonical chapter-first path. |
 | Chapter execute control route | `POST /api/stories/[slug]/chapters/[chapterId]/execute/control` updates `ingest_job` / `ingest_task` to `PAUSED` or `CANCELLED`. | Explicit `keep` operational control entry. |
 | `WorkflowEngine` / `versionRepo.ts` | `git grep` finds `VersionRepo.createVersion` only inside `workflowEngine.ts`; no tracked `WorkflowEngine` call sites outside its own file. | Confirms dormant legacy / deprecate classification, with final route/UI trace before deletion. |
-| Local V3 product-direction files | #9 wires `buildWorkingSet`, `CHAPTER_WRITE_V3`, `CHAPTER_LEDGER_EXTRACT`, and `MEMORY_ROLLUP_V3` through modified TS/Python files. | Supports approved canonical direction; branch becomes reproducible after #9 merges. |
+| Local V3 product-direction files | #9 wires `buildWorkingSet`, `CHAPTER_WRITE_V3`, `CHAPTER_LEDGER_EXTRACT`, and `MEMORY_ROLLUP_V3` through modified TS/Python files. | Supports approved canonical direction; branch is reproducible after PR #10 and PR #14. |
+
+## Post-Baseline Re-Verification 2026-05-02
+
+| Check | Result | Evidence |
+|---|---|---|
+| PR state | PR #10 and PR #14 are merged into `staging`. | PR #10 merge commit `d7e1bdd`; PR #14 merge commit `a12faf1`. |
+| Active migration path | Active root migration path contains `db/migrations/000_baseline_20260502.sql` plus `db/migrations/README.md`; historical migrations are under `db/migrations/archive/pre_baseline_20260502/`. | `find db/migrations -maxdepth 2 -type f` returned only the baseline and README. |
+| Archive exclusion | Archived migrations are reference-only and not in the active root migration glob. | 81 SQL files exist under `db/migrations/archive/pre_baseline_20260502/`. |
+| Baseline schema replay | Fresh DB replay with `ON_ERROR_STOP=1` passed. | Test DB `novel_issue7_verify` was created, baseline applied, queried, then dropped. |
+| V3 schema objects | `chapter_draft`, `chapter_ledger`, `chapter_continuity_issue`, `story_milestone`, `ingest_task`, and `pipeline_node_event` exist after replay. | Fresh DB query returned all six tables. |
+| V3 indexes and unique constraints | Runtime-sensitive indexes and unique constraints exist after replay. | Query returned `idx_chapter_draft_lookup`, `idx_chapter_ledger_story`, `idx_chapter_continuity_lookup`, `story_milestone_story_range_source_hash_uniq`, `uq_chapter_draft_chapter`, `uq_chapter_ledger_chapter`, `uq_ingest_task_job_seq`, and queue/pipeline indexes. |
+| V3 task chain | TS enqueue/status code and Python worker dispatch reference `CHAPTER_WRITE_V3`, `CHAPTER_LEDGER_EXTRACT`, and `MEMORY_ROLLUP_V3`. | `grep` found references in `writingPipelineService.ts`, `memory_bridge_worker.py`, and `worker_ingest_repo.py`. |
+| Scratch scope | `apps/studio/scripts/simulate_v3_flow.ts` remains scratch/local tooling and is not product scope for #7. | File is present locally, but #9/#13 product verification did not depend on it. |
 
 Line counts for newly traced files:
 
@@ -311,7 +330,7 @@ Required follow-up: create a task taxonomy decision issue before changing queue 
 
 ## Maintainer Approval
 
-Approval status: assumptions approved; final #7 closure pending #9 stabilization PR and issue update.
+Approval status: assumptions approved; post-baseline verification complete.
 
 Approver: repository maintainer
 
