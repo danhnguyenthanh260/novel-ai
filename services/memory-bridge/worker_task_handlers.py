@@ -2012,6 +2012,20 @@ def process_writing_supervisor_task(conn, task: Dict[str, Any]) -> None:
     finally:
         cur.close()
 
+def _save_v3_task_result(conn, task: Dict[str, Any], result: Dict[str, Any]) -> None:
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            UPDATE public.ingest_task
+            SET result_json = %s::jsonb
+            WHERE id = %s
+            """,
+            (Json(result), int(task["id"]))
+        )
+    finally:
+        cur.close()
+
 def process_chapter_write_v3_task(conn, task: Dict[str, Any]) -> None:
     from worker_chapter_writer import generate_chapter_v3
     payload = task.get("payload_json") or {}
@@ -2055,8 +2069,20 @@ def process_chapter_write_v3_task(conn, task: Dict[str, Any]) -> None:
             (story_id, chapter_id, prose, Json(llm_response))
         )
 
-        # Mark task as done
-        mark_task_done(conn, int(task["id"]), int(task["job_id"]), result_json=llm_response)
+        cur.execute(
+            """
+            UPDATE public.ingest_task
+            SET result_json = %s::jsonb
+            WHERE id = %s
+            """,
+            (Json(llm_response), int(task["id"]))
+        )
+        mark_task_done(
+            conn,
+            int(task["id"]),
+            int(task["job_id"]),
+            int(task.get("attempts") or 0),
+        )
     finally:
         cur.close()
 def process_chapter_ledger_task(conn, task: Dict[str, Any]) -> None:
@@ -2100,6 +2126,16 @@ def process_chapter_ledger_task(conn, task: Dict[str, Any]) -> None:
             INSERT INTO public.chapter_ledger
             (story_id, chapter_id, added_facts, modified_states, resolved_loops, unresolved_loops, metadata_json)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (story_id, chapter_id)
+            DO UPDATE SET
+                added_facts = EXCLUDED.added_facts,
+                modified_states = EXCLUDED.modified_states,
+                resolved_loops = EXCLUDED.resolved_loops,
+                unresolved_loops = EXCLUDED.unresolved_loops,
+                metadata_json = EXCLUDED.metadata_json,
+                is_stale = false,
+                stale_reason = NULL,
+                updated_at = now()
             """,
             (
                 story_id,
@@ -2144,7 +2180,20 @@ def process_chapter_ledger_task(conn, task: Dict[str, Any]) -> None:
                 )
             )
 
-        mark_task_done(conn, int(task["id"]), int(task["job_id"]), result_json={"ledger": ledger_data, "issues_count": len(audit_issues)})
+        cur.execute(
+            """
+            UPDATE public.ingest_task
+            SET result_json = %s::jsonb
+            WHERE id = %s
+            """,
+            (Json({"ledger": ledger_data, "issues_count": len(audit_issues)}), int(task["id"]))
+        )
+        mark_task_done(
+            conn,
+            int(task["id"]),
+            int(task["job_id"]),
+            int(task.get("attempts") or 0),
+        )
     finally:
         cur.close()
 def process_memory_rollup_v3_task(conn, task: Dict[str, Any]) -> None:
@@ -2160,7 +2209,19 @@ def process_memory_rollup_v3_task(conn, task: Dict[str, Any]) -> None:
     result = run_memory_rollup_v3(conn, story_id, chapter_id)
 
     if result.get("status") == "OK":
-        mark_task_done(conn, int(task["id"]), int(task["job_id"]), result_json=result)
+        _save_v3_task_result(conn, task, result)
+        mark_task_done(
+            conn,
+            int(task["id"]),
+            int(task["job_id"]),
+            int(task.get("attempts") or 0),
+        )
     else:
         # If skipped, we still mark as done but with info
-        mark_task_done(conn, int(task["id"]), int(task["job_id"]), result_json=result)
+        _save_v3_task_result(conn, task, result)
+        mark_task_done(
+            conn,
+            int(task["id"]),
+            int(task["job_id"]),
+            int(task.get("attempts") or 0),
+        )

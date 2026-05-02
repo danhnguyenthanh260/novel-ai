@@ -13,13 +13,30 @@ CREATE TABLE IF NOT EXISTS public.chapter_draft (
     full_text       text NOT NULL,
     scene_markers   jsonb NOT NULL DEFAULT '[]'::jsonb, -- [{ "idx": number, "title": string, "offset": number }]
     status          text NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'FINAL', 'ARCHIVED')),
+    metadata_json   jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_by      text NOT NULL DEFAULT 'system',
     created_at      timestamp without time zone NOT NULL DEFAULT now(),
     updated_at      timestamp without time zone NOT NULL DEFAULT now(),
 
     CONSTRAINT chapter_draft_story_id_fkey FOREIGN KEY (story_id) REFERENCES public.story_series(id) ON DELETE CASCADE,
+    CONSTRAINT uq_chapter_draft_chapter UNIQUE(story_id, chapter_id),
     CONSTRAINT uq_chapter_draft_version UNIQUE(story_id, chapter_id, version_no)
 );
+
+ALTER TABLE public.chapter_draft
+ADD COLUMN IF NOT EXISTS metadata_json jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.chapter_draft'::regclass
+      AND conname = 'uq_chapter_draft_chapter'
+  ) THEN
+    ALTER TABLE public.chapter_draft
+      ADD CONSTRAINT uq_chapter_draft_chapter UNIQUE(story_id, chapter_id);
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_chapter_draft_lookup ON public.chapter_draft(story_id, chapter_id, status);
 
@@ -35,6 +52,7 @@ CREATE TABLE IF NOT EXISTS public.chapter_ledger (
     unresolved_loops    jsonb NOT NULL DEFAULT '[]'::jsonb, -- [{ "description": string, "urgency": number }]
     is_stale            boolean NOT NULL DEFAULT false,
     stale_reason        text,
+    metadata_json       jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at          timestamp without time zone NOT NULL DEFAULT now(),
     updated_at          timestamp without time zone NOT NULL DEFAULT now(),
 
@@ -42,6 +60,9 @@ CREATE TABLE IF NOT EXISTS public.chapter_ledger (
     CONSTRAINT chapter_ledger_draft_id_fkey FOREIGN KEY (draft_id) REFERENCES public.chapter_draft(id) ON DELETE SET NULL,
     CONSTRAINT uq_chapter_ledger_chapter UNIQUE(story_id, chapter_id)
 );
+
+ALTER TABLE public.chapter_ledger
+ADD COLUMN IF NOT EXISTS metadata_json jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_chapter_ledger_story ON public.chapter_ledger(story_id);
 

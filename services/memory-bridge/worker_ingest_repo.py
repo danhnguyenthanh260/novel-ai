@@ -45,6 +45,9 @@ WRITING_TASK_TYPES = (
     "WRITING_PROSE",
     "WRITING_CONTINUITY",
     "WRITING_SUPERVISOR",
+    "CHAPTER_WRITE_V3",
+    "CHAPTER_LEDGER_EXTRACT",
+    "MEMORY_ROLLUP_V3",
     "NARRATIVE_START",
     "NARRATIVE_STYLIST",
     "NARRATIVE_CRITIC",
@@ -181,6 +184,8 @@ def _infer_flow_type(task_type: str, payload_raw: Any) -> Optional[str]:
     if task in ("WRITING_ANALYSIS", "MEMORY_ROLLUP"):
         return "WRITING_ANALYSIS"
     if task in ("WRITING_PLANNING", "WRITING_PROSE", "WRITING_CONTINUITY", "WRITING_SUPERVISOR"):
+        return "AUTOWRITE"
+    if task in ("CHAPTER_WRITE_V3", "CHAPTER_LEDGER_EXTRACT", "MEMORY_ROLLUP_V3"):
         return "AUTOWRITE"
     if task.startswith("NARRATIVE_"):
         return "AUTOWRITE"

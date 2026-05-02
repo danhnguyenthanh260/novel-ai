@@ -45,7 +45,7 @@ def extract_ledger(full_text: str, working_set: Dict[str, Any], chapter_goal: st
         {"role": "user", "content": prompt}
     ]
 
-    response = call_llm_json(messages, max_tokens=1500)
+    response = call_llm_json(messages, max_tokens=1500, temperature=0.1)
 
     if not isinstance(response, dict):
         response = {
