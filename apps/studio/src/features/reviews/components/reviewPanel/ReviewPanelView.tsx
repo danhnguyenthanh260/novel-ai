@@ -2,6 +2,7 @@ import ReviewRequestsList from "@/features/reviews/components/reviewPanel/Review
 import ReviewResponsesList from "@/features/reviews/components/reviewPanel/ReviewResponsesList";
 import ReviewSubmitForm from "@/features/reviews/components/reviewPanel/ReviewSubmitForm";
 import type { ReviewFormState, ReviewRequest, ReviewResponse, ReviewStatus } from "@/features/reviews/components/reviewPanel/types";
+import ChapterReviewForm from "@/features/reviews/components/reviewPanel/ChapterReviewForm";
 
 type ReviewPanelViewProps = {
   storySlug: string;
@@ -20,6 +21,9 @@ type ReviewPanelViewProps = {
   onRefresh: () => Promise<void>;
   onSubmitResponse: () => Promise<void>;
   onApplyLatest: () => Promise<void>;
+  onAcceptLedger: () => Promise<void>;
+  onApplyPatch: (issueId: number) => Promise<void>;
+  v3Data: any;
 };
 
 export default function ReviewPanelView({
@@ -39,7 +43,11 @@ export default function ReviewPanelView({
   onRefresh,
   onSubmitResponse,
   onApplyLatest,
+  onAcceptLedger,
+  onApplyPatch,
+  v3Data,
 }: ReviewPanelViewProps) {
+  const selectedRequest = requests.find((r) => r.id === selectedRequestId);
   return (
     <main className="space-y-4 p-2 md:p-4">
       <div className="surface-card flex items-center justify-between p-3">
@@ -70,14 +78,24 @@ export default function ReviewPanelView({
       <ReviewRequestsList requests={requests} selectedRequestId={selectedRequestId} onSelectRequest={onSelectRequest} />
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <ReviewSubmitForm
-          form={form}
-          setForm={setForm}
-          selectedRequestId={selectedRequestId}
-          acting={acting}
-          onSubmitResponse={onSubmitResponse}
-          onApplyLatest={onApplyLatest}
-        />
+        {selectedRequest?.is_v3 ? (
+          <ChapterReviewForm
+            selectedRequest={selectedRequest}
+            v3Data={v3Data}
+            acting={acting}
+            onAcceptLedger={onAcceptLedger}
+            onApplyPatch={onApplyPatch}
+          />
+        ) : (
+          <ReviewSubmitForm
+            form={form}
+            setForm={setForm}
+            selectedRequestId={selectedRequestId}
+            acting={acting}
+            onSubmitResponse={onSubmitResponse}
+            onApplyLatest={onApplyLatest}
+          />
+        )}
         <ReviewResponsesList responses={responses} selectedRequestId={selectedRequestId} />
       </section>
     </main>

@@ -1,4 +1,4 @@
-/* eslint-disable max-lines */
+﻿/* eslint-disable max-lines */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { pool } from "@/server/db/pool";
 import type { PoolClient } from "pg";
@@ -10,6 +10,7 @@ import {
     buildPreChapterProfileV1,
     resolvePackBudgetPolicy,
 } from "@/features/analysis/server/truthPackGovernance";
+import { buildWorkingSet } from "./chapterContextService";
 
 export interface WritingPipelineConfig {
     storyId: number;
@@ -70,7 +71,23 @@ async function loadActiveCleanSnapshot(
 export async function createWritingAnalysisTask(config: WritingPipelineConfig) {
     const client = await pool.connect();
     try {
+        // 0. Check for V3 feature flag
+        const storyRes = await client.query<{ settings_json: any }>(
+            `SELECT settings_json FROM public.story_series WHERE id = $1`,
+            [config.storyId]
+        );
+        const settings = storyRes.rows[0]?.settings_json || {};
+        const useV3 = settings.use_v3_core === true && process.env.V3_CORE_DISABLED !== 'true';
+
+        if (useV3) {
+            // If V3 is enabled, redirect to the New Chapter-First Workflow
+            console.log(`[WRITING_PIPELINE] Routing to V3 Core for storyId=${config.storyId} chapterNo=${config.chapterNo}`);
+            client.release();
+            return await enqueueChapterWriteV3(config);
+        }
+
         await client.query("BEGIN");
+
         const chapterId = Number.isFinite(Number(config.chapterNo)) && Number(config.chapterNo) > 0
             ? `ch${String(Math.floor(Number(config.chapterNo))).padStart(2, "0")}`
             : null;
@@ -84,7 +101,7 @@ export async function createWritingAnalysisTask(config: WritingPipelineConfig) {
 
         // 1. Create a specialized ingest_job for the writing pipeline
         const jobRes = await client.query<{ id: number }>(
-            `INSERT INTO public.ingest_job 
+            `INSERT INTO public.ingest_job
         (story_id, status, mode, config_json, total_tasks)
        VALUES ($1, 'RUNNING', 'AUTO_LOCK', $2, 1)
        RETURNING id`,
@@ -250,11 +267,15 @@ export async function advanceWritingPipeline(jobId: number, story_id: number) {
             return await advanceDeepNarrativePipeline(client, jobId, story_id, job);
         }
 
+        if (job.config_json?.pipeline_type === 'CHAPTER_WRITE_V3') {
+            return await advanceChapterWriteV3Pipeline(client, jobId);
+        }
+
         // Standard legacy/auto-chapter logic
         const tasks = await client.query<{ id: number, task_type: string, status: string, result_json: any, payload_json: any }>(
-            `SELECT id, task_type, status, result_json, payload_json 
-             FROM public.ingest_task 
-             WHERE job_id = $1 
+            `SELECT id, task_type, status, result_json, payload_json
+             FROM public.ingest_task
+             WHERE job_id = $1
              ORDER BY seq_no DESC, id DESC`,
             [jobId]
         );
@@ -401,9 +422,9 @@ export async function advanceWritingPipeline(jobId: number, story_id: number) {
 
 async function advanceDeepNarrativePipeline(client: PoolClient, jobId: number, storyId: number, job: any) {
     const tasks = await client.query<{ id: number, task_type: string, status: string, result_json: any, payload_json: any }>(
-        `SELECT id, task_type, status, result_json, payload_json 
-         FROM public.ingest_task 
-         WHERE job_id = $1 
+        `SELECT id, task_type, status, result_json, payload_json
+         FROM public.ingest_task
+         WHERE job_id = $1
          ORDER BY id DESC`,
         [jobId]
     );
@@ -502,4 +523,139 @@ async function enqueueNarrativeTask(client: PoolClient, jobId: number, storyId: 
         [jobId, storyId, type, JSON.stringify(fullPayload)]
     );
     await ensureIngestWorkerRunning();
+}
+
+export async function enqueueChapterWriteV3(config: WritingPipelineConfig) {
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+        const chapterId = Number.isFinite(Number(config.chapterNo)) && Number(config.chapterNo) > 0
+            ? `ch${String(Math.floor(Number(config.chapterNo))).padStart(2, "0")}`
+            : "draft";
+
+        // 1. Build WorkingSet
+        const workingSet = await buildWorkingSet(client, config.storyId, chapterId);
+
+        // 2. Create Ingest Job
+        const jobRes = await client.query<{ id: number }>(
+            `INSERT INTO public.ingest_job
+        (story_id, status, mode, config_json, total_tasks)
+       VALUES ($1, 'RUNNING', 'AUTO_CHAPTER_V3', $2, 1)
+       RETURNING id`,
+            [
+                config.storyId,
+                JSON.stringify({
+                    pipeline_type: "CHAPTER_WRITE_V3",
+                    chapter_id: chapterId,
+                    instructions: config.instructions,
+                }),
+            ]
+        );
+        const jobId = jobRes.rows[0].id;
+
+        // 3. Create Task
+        await client.query(
+            `INSERT INTO public.ingest_task
+        (job_id, story_id, task_type, unit_type, status, payload_json, seq_no)
+       VALUES ($1, $2, 'CHAPTER_WRITE_V3', 'chapter', 'READY', $3, 1)`,
+            [
+                jobId,
+                config.storyId,
+                JSON.stringify({
+                    chapter_id: chapterId,
+                    chapter_goal: config.instructions,
+                    working_set: workingSet,
+                    style_options: {
+                      target_word_count: config.targetWordCount || 2500
+                    }
+                }),
+            ]
+        );
+
+        await client.query("COMMIT");
+        await ensureIngestWorkerRunning();
+
+        return { jobId, chapterId };
+    } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
+export async function advanceChapterWriteV3Pipeline(client: PoolClient, jobId: number) {
+    console.log(`[WRITING_PIPELINE] Advancing V3 Pipeline for jobId=${jobId}`);
+    const tasks = await client.query<{ status: string, story_id: number, payload_json: any }>(
+        `SELECT status, story_id, payload_json FROM public.ingest_task WHERE job_id = $1 AND task_type = 'CHAPTER_WRITE_V3'`,
+        [jobId]
+    );
+    const writeTask = tasks.rows[0];
+    if (writeTask && writeTask.status === 'DONE') {
+        const ledgerTasks = await client.query<{ status: string }>(
+            `SELECT status FROM public.ingest_task WHERE job_id = $1 AND task_type = 'CHAPTER_LEDGER_EXTRACT'`,
+            [jobId]
+        );
+
+        if ((ledgerTasks.rowCount ?? 0) === 0) {
+            await client.query(
+                `INSERT INTO public.ingest_task
+                (job_id, story_id, task_type, unit_type, status, payload_json, seq_no)
+                VALUES ($1, $2, 'CHAPTER_LEDGER_EXTRACT', 'chapter', 'READY', $3, (SELECT COALESCE(MAX(seq_no), 0) + 1 FROM public.ingest_task WHERE job_id = $1))`,
+                [
+                    jobId,
+                    writeTask.story_id,
+                    JSON.stringify(writeTask.payload_json)
+                ]
+            );
+            await ensureIngestWorkerRunning();
+        } else if (ledgerTasks.rows[0].status === 'DONE') {
+            const rollupTasks = await client.query<{ status: string }>(
+                `SELECT status FROM public.ingest_task WHERE job_id = $1 AND task_type = 'MEMORY_ROLLUP_V3'`,
+                [jobId]
+            );
+
+            if ((rollupTasks.rowCount ?? 0) === 0) {
+                await client.query(
+                    `INSERT INTO public.ingest_task
+                    (job_id, story_id, task_type, unit_type, status, payload_json, seq_no)
+                    VALUES ($1, $2, 'MEMORY_ROLLUP_V3', 'chapter', 'READY', $3, (SELECT COALESCE(MAX(seq_no), 0) + 1 FROM public.ingest_task WHERE job_id = $1))`,
+                    [
+                        jobId,
+                        writeTask.story_id,
+                        JSON.stringify(writeTask.payload_json)
+                    ]
+                );
+                await ensureIngestWorkerRunning();
+            } else if (rollupTasks.rows[0].status === 'DONE') {
+                await client.query(
+                    `UPDATE public.ingest_job SET status = 'DONE', updated_at = now() WHERE id = $1`,
+                    [jobId]
+                );
+            }
+        }
+    }
+}
+
+export async function invalidateDownstream(client: PoolClient, storyId: number, chapterId: string) {
+    const chapterNo = parseInt(chapterId.replace(/\D/g, "") || "0");
+    if (chapterNo === 0) return;
+
+    console.log(`[RETCON] Invalidating downstream of storyId=${storyId} chapterNo=${chapterNo}`);
+
+    // 1. Mark ledgers as stale for chapters AFTER this one
+    await client.query(
+        `UPDATE public.chapter_ledger
+         SET is_stale = true, stale_reason = $1, updated_at = now()
+         WHERE story_id = $2 AND NULLIF(regexp_replace(chapter_id, '[^0-9]', '', 'g'), '')::int > $3`,
+        [`RETCON_FROM_${chapterId}`, storyId, chapterNo]
+    );
+
+    // 2. Mark milestones as stale for chapters FROM this one onwards
+    await client.query(
+        `UPDATE public.story_milestone
+         SET is_stale = true, stale_reason = $1, updated_at = now()
+         WHERE story_id = $2 AND NULLIF(regexp_replace(chapter_to, '[^0-9]', '', 'g'), '')::int >= $3`,
+        [`RETCON_FROM_${chapterId}`, storyId, chapterNo]
+    );
 }

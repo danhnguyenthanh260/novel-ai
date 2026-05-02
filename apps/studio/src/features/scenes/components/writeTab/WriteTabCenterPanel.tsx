@@ -34,6 +34,7 @@ type WriteTabCenterPanelProps = {
   onAutoWriteComplete: (prose: string) => Promise<void>;
   onSaveChapterDraft: (prose: string) => Promise<void>;
   onResplitChapter: (prose: string) => Promise<void>;
+  v3Draft?: { full_text: string; status: string; virtual_scenes: any[] } | null;
 };
 
 type SceneHeaderProps = {
@@ -160,6 +161,7 @@ type SceneBodyProps = {
   stagingData: { user_prose: string; llm_prose: string; status: string } | null;
   onSaveChapterDraft: (prose: string) => Promise<void>;
   onResplitChapter: (prose: string) => Promise<void>;
+  v3Draft: { full_text: string; status: string; virtual_scenes: any[] } | null;
 };
 
 function SceneBody({
@@ -178,6 +180,7 @@ function SceneBody({
   stagingData,
   onSaveChapterDraft,
   onResplitChapter,
+  v3Draft,
 }: SceneBodyProps) {
   if (error) return <div className="p-4 text-sm text-[#ff8f8f]">{error}</div>;
 
@@ -192,6 +195,7 @@ function SceneBody({
           stagingData={stagingData}
           onSave={onSaveChapterDraft}
           onResplit={onResplitChapter}
+          v3Draft={v3Draft}
         />
       </div>
     );
@@ -255,6 +259,7 @@ export default function WriteTabCenterPanel(props: WriteTabCenterPanelProps) {
         stagingData={props.stagingData}
         onSaveChapterDraft={props.onSaveChapterDraft}
         onResplitChapter={props.onResplitChapter}
+        v3Draft={props.v3Draft ?? null}
       />
       {props.showAutoWrite && props.selectedChapterId && (
         <AutoWriteWizard

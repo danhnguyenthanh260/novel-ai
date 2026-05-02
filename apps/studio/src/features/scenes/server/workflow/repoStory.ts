@@ -1,4 +1,4 @@
-﻿import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 type Queryable = Pool | PoolClient;
 
@@ -40,6 +40,9 @@ function normalizeSettingsJson(value: Record<string, unknown> | undefined): Reco
   const out = value && typeof value === "object" ? { ...value } : {};
   const rawLang = typeof out.writing_language === "string" ? out.writing_language.trim().toLowerCase() : "en";
   out.writing_language = rawLang === "vi" ? "vi" : "en";
+  if (out.use_v3_core !== undefined) {
+    out.use_v3_core = Boolean(out.use_v3_core);
+  }
   return out;
 }
 

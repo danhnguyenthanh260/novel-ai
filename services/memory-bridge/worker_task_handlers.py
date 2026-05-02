@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 import json
@@ -695,7 +695,7 @@ def process_chapter_split_task(conn, task: Dict[str, Any]) -> None:
         existing_key=str(task.get("idempotency_key") or ""),
     )
 
-    # Skip cache when a specific strategy is explicitly forced — different strategy must re-run.
+    # Skip cache when a specific strategy is explicitly forced â€” different strategy must re-run.
     _skip_cache = bool(split_controls.get("forced_strategy"))
     cached = None if _skip_cache else load_cached_split_result(
         conn=conn,
@@ -1230,7 +1230,7 @@ def process_split_profile_correction_task(conn, task: Dict[str, Any]) -> None:
     chapter_id = str(payload.get("chapter_id") or "").strip()
     story_id = int(task.get("story_id") or payload.get("story_id") or 0)
     strategy = str(payload.get("strategy") or "").strip()
-    # correction_reward sent by TS: -0.5 (negative) → we use 0.0 for loss
+    # correction_reward sent by TS: -0.5 (negative) â†’ we use 0.0 for loss
     # (update_profile_stats clamps reward to [0, 1])
     correction_lr = 0.5  # smaller than default chapter_lr to avoid over-correction
 
@@ -1354,7 +1354,7 @@ def process_writing_analysis_task(conn, task: Dict[str, Any]) -> None:
         truth_adjudication_pass,
     )
     import json as _json
-    
+
     payload = parse_jsonb(task.get("payload_json"))
     story_id = int(task["story_id"])
     instructions = str(payload.get("instructions") or "Analyze context for a new chapter.").strip()
@@ -1637,7 +1637,7 @@ def process_writing_analysis_task(conn, task: Dict[str, Any]) -> None:
             "duplicate_pre_trace_count": duplicate_pre_trace_count,
         },
     )
-    
+
     cur = conn.cursor()
     try:
         # Persist staging as best-effort (legacy environments may not have the table).
@@ -1712,7 +1712,7 @@ def process_writing_analysis_task(conn, task: Dict[str, Any]) -> None:
         cur.execute(
             """
             UPDATE public.ingest_task
-            SET status = 'DONE', 
+            SET status = 'DONE',
                 updated_at = now(),
                 result_json = %s::jsonb
             WHERE id = %s
@@ -1847,7 +1847,7 @@ def process_writing_planning_task(conn, task: Dict[str, Any]) -> None:
     from worker_ingest_repo import mark_task_wait_review
     from worker_memory_context import build_planning_context_v5
     import json as _json
-    
+
     payload = parse_jsonb(task.get("payload_json"))
     story_id = int(task["story_id"])
     analysis_result = payload.get("analysis_result")
@@ -1871,7 +1871,7 @@ def process_writing_planning_task(conn, task: Dict[str, Any]) -> None:
         memory_context=memory_context,
         truth_context_pack=truth_context_pack,
     )
-    
+
     cur = conn.cursor()
     try:
         cur.execute(
@@ -1885,14 +1885,15 @@ def process_writing_planning_task(conn, task: Dict[str, Any]) -> None:
         )
     finally:
         cur.close()
-        
+
     # Move to WAIT_REVIEW for the Interactive Planning Chat
     mark_task_wait_review(conn, int(task["id"]), int(task["job_id"]), int(task.get("attempts") or 0))
 
 def process_writing_prose_task(conn, task: Dict[str, Any]) -> None:
     from worker_writing_prose import process_prose_generation
+    from worker_constants import SPLIT_MAX_CHARS
     import json as _json
-    
+
     payload = parse_jsonb(task.get("payload_json"))
     story_id = int(task["story_id"])
     scene_id = int(payload.get("scene_id") or 0)
@@ -1919,7 +1920,7 @@ def process_writing_prose_task(conn, task: Dict[str, Any]) -> None:
     else:
         prose_text = str(prose_result or "").strip()
         prose_result = {"prose": prose_text}
-    
+
     cur = conn.cursor()
     try:
         cur.execute(
@@ -1939,7 +1940,7 @@ def process_writing_continuity_task(conn, task: Dict[str, Any]) -> None:
     from worker_writing_continuity import extract_state_delta, merge_delta_to_snapshot, save_scene_state
     from worker_writing_prose import load_previous_snapshot
     import json as _json
-    
+
     payload = parse_jsonb(task.get("payload_json"))
     story_id = int(task["story_id"])
     scene_id = int(payload.get("scene_id") or 0)
@@ -1985,7 +1986,7 @@ def process_writing_continuity_task(conn, task: Dict[str, Any]) -> None:
 def process_writing_supervisor_task(conn, task: Dict[str, Any]) -> None:
     from worker_writing_supervisor import supervise_prose
     import json as _json
-    
+
     payload = parse_jsonb(task.get("payload_json"))
     story_id = int(task["story_id"])
     prose = str(payload.get("prose") or "").strip()
@@ -1993,9 +1994,9 @@ def process_writing_supervisor_task(conn, task: Dict[str, Any]) -> None:
     instructions = str(payload.get("instructions") or "Polish the final chapter.").strip()
     continuity_flags = payload.get("continuity_flags") or []
     chapter_no = payload.get("chapter_no") or payload.get("seq_no")
-    
+
     result = supervise_prose(conn, story_id, prose, target_wc, instructions, continuity_flags=continuity_flags, chapter_no=chapter_no)
-    
+
     cur = conn.cursor()
     try:
         cur.execute(
@@ -2010,3 +2011,217 @@ def process_writing_supervisor_task(conn, task: Dict[str, Any]) -> None:
         )
     finally:
         cur.close()
+
+def _save_v3_task_result(conn, task: Dict[str, Any], result: Dict[str, Any]) -> None:
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            UPDATE public.ingest_task
+            SET result_json = %s::jsonb
+            WHERE id = %s
+            """,
+            (Json(result), int(task["id"]))
+        )
+    finally:
+        cur.close()
+
+def process_chapter_write_v3_task(conn, task: Dict[str, Any]) -> None:
+    from worker_chapter_writer import generate_chapter_v3
+    payload = task.get("payload_json") or {}
+    story_id = int(task.get("story_id") or 0)
+    chapter_id = payload.get("chapter_id")
+    chapter_goal = payload.get("chapter_goal")
+    working_set = payload.get("working_set")
+    style_options = payload.get("style_options")
+
+    if not story_id or not chapter_id or not working_set:
+        raise ValueError("MISSING_REQUIRED_V3_PAYLOAD_FIELDS")
+
+    # Generate Prose
+    llm_response = generate_chapter_v3(
+        conn,
+        story_id,
+        chapter_id,
+        working_set,
+        chapter_goal,
+        style_options
+    )
+
+    prose = llm_response.get("prose")
+    if not prose:
+        raise RuntimeError("LLM_PROSE_GENERATION_FAILED")
+
+    cur = conn.cursor()
+    try:
+        # Save to chapter_draft
+        cur.execute(
+            """
+            INSERT INTO public.chapter_draft (story_id, chapter_id, full_text, status, metadata_json)
+            VALUES (%s, %s, %s, 'DRAFT', %s)
+            ON CONFLICT (story_id, chapter_id)
+            DO UPDATE SET
+                full_text = EXCLUDED.full_text,
+                status = 'DRAFT',
+                metadata_json = EXCLUDED.metadata_json,
+                updated_at = now()
+            """,
+            (story_id, chapter_id, prose, Json(llm_response))
+        )
+
+        cur.execute(
+            """
+            UPDATE public.ingest_task
+            SET result_json = %s::jsonb
+            WHERE id = %s
+            """,
+            (Json(llm_response), int(task["id"]))
+        )
+        mark_task_done(
+            conn,
+            int(task["id"]),
+            int(task["job_id"]),
+            int(task.get("attempts") or 0),
+        )
+    finally:
+        cur.close()
+def process_chapter_ledger_task(conn, task: Dict[str, Any]) -> None:
+    from worker_chapter_ledger_extractor import extract_ledger
+    from worker_chapter_auditor import audit_chapter
+
+    payload = task.get("payload_json") or {}
+    story_id = int(task.get("story_id") or 0)
+    chapter_id = payload.get("chapter_id")
+    chapter_goal = payload.get("chapter_goal")
+    working_set = payload.get("working_set")
+
+    # 1. Load prose from chapter_draft
+    cur = conn.cursor()
+    prose = None
+    try:
+        cur.execute(
+            "SELECT full_text FROM public.chapter_draft WHERE story_id = %s AND chapter_id = %s",
+            (story_id, chapter_id)
+        )
+        row = cur.fetchone()
+        if row:
+            prose = row[0]
+    finally:
+        cur.close()
+
+    if not prose:
+        raise ValueError("PROSE_NOT_FOUND_FOR_LEDGER_EXTRACTION")
+
+    # 2. Extract Ledger
+    ledger_data = extract_ledger(prose, working_set, chapter_goal)
+
+    # 3. Audit Chapter
+    audit_issues = audit_chapter(prose, working_set, chapter_goal)
+
+    cur = conn.cursor()
+    try:
+        # Save Ledger
+        cur.execute(
+            """
+            INSERT INTO public.chapter_ledger
+            (story_id, chapter_id, added_facts, modified_states, resolved_loops, unresolved_loops, metadata_json)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (story_id, chapter_id)
+            DO UPDATE SET
+                added_facts = EXCLUDED.added_facts,
+                modified_states = EXCLUDED.modified_states,
+                resolved_loops = EXCLUDED.resolved_loops,
+                unresolved_loops = EXCLUDED.unresolved_loops,
+                metadata_json = EXCLUDED.metadata_json,
+                is_stale = false,
+                stale_reason = NULL,
+                updated_at = now()
+            """,
+            (
+                story_id,
+                chapter_id,
+                Json(ledger_data.get("added_facts", [])),
+                Json(ledger_data.get("modified_states", [])),
+                Json(ledger_data.get("resolved_loops", [])),
+                Json(ledger_data.get("unresolved_loops", [])),
+                Json(ledger_data.get("metadata", {}))
+            )
+        )
+
+        # Save Continuity Issues
+        for issue in audit_issues:
+            raw_severity = str(issue.get("severity") or "LOW").upper()
+            severity = {
+                "CRITICAL": "CRITICAL",
+                "MAJOR": "HIGH",
+                "HIGH": "HIGH",
+                "MEDIUM": "MEDIUM",
+                "MINOR": "LOW",
+                "LOW": "LOW",
+            }.get(raw_severity, "LOW")
+            cur.execute(
+                """
+                INSERT INTO public.chapter_continuity_issue
+                (story_id, chapter_id, issue_type, severity, description, payload, auto_patch_available, patch_suggestion)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    story_id,
+                    chapter_id,
+                    issue.get("issue_code") or issue.get("issue_type") or "UNKNOWN",
+                    severity,
+                    issue.get("message") or issue.get("description") or "",
+                    Json({
+                        "location": issue.get("location", {}),
+                        "raw_issue": issue,
+                    }),
+                    issue.get("auto_patch_available", False),
+                    issue.get("patch_suggestion"),
+                )
+            )
+
+        cur.execute(
+            """
+            UPDATE public.ingest_task
+            SET result_json = %s::jsonb
+            WHERE id = %s
+            """,
+            (Json({"ledger": ledger_data, "issues_count": len(audit_issues)}), int(task["id"]))
+        )
+        mark_task_done(
+            conn,
+            int(task["id"]),
+            int(task["job_id"]),
+            int(task.get("attempts") or 0),
+        )
+    finally:
+        cur.close()
+def process_memory_rollup_v3_task(conn, task: Dict[str, Any]) -> None:
+    from worker_memory_rollup_v3 import run_memory_rollup_v3
+    payload = task.get("payload_json") or {}
+    story_id = int(task.get("story_id") or 0)
+    chapter_id = payload.get("chapter_id")
+
+    if not story_id or not chapter_id:
+        raise ValueError("MISSING_REQUIRED_V3_ROLLUP_FIELDS")
+
+    # Run Rollup
+    result = run_memory_rollup_v3(conn, story_id, chapter_id)
+
+    if result.get("status") == "OK":
+        _save_v3_task_result(conn, task, result)
+        mark_task_done(
+            conn,
+            int(task["id"]),
+            int(task["job_id"]),
+            int(task.get("attempts") or 0),
+        )
+    else:
+        # If skipped, we still mark as done but with info
+        _save_v3_task_result(conn, task, result)
+        mark_task_done(
+            conn,
+            int(task["id"]),
+            int(task["job_id"]),
+            int(task.get("attempts") or 0),
+        )

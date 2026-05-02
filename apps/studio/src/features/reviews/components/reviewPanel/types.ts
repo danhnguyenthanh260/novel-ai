@@ -11,6 +11,8 @@ export type ReviewRequest = {
   version_no: number;
   workunit_id: string | null;
   chapter_id: string | null;
+  legacy_chapter_id: string | null;
+  is_v3: boolean;
   idx: number;
 };
 

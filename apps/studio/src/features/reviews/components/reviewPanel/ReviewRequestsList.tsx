@@ -19,7 +19,7 @@ export default function ReviewRequestsList({ requests, selectedRequestId, onSele
             onClick={() => onSelectRequest(req.id)}
           >
             <div className="font-medium">
-              Request #{req.id} | {req.status} | scene {req.workunit_id ?? req.scene_id}
+              Request #{req.id} | {req.status} | {req.is_v3 ? `chapter ${req.chapter_id}` : `scene ${req.workunit_id ?? req.scene_id}`}
             </div>
             <div className="muted">
               job: {req.job_id ?? "-"} | version: v{req.version_no} | rubric: {req.rubric_version}

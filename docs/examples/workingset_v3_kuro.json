@@ -1,0 +1,47 @@
+{
+  "story_id": 42,
+  "chapter_id": "ch05",
+  "snapshot_hash": "sha256:7e8a9...[auto-generated]",
+  "version": "3.0.0",
+  "anchor": {
+    "story_pitch": "Kuro, a cyber-monk, must protect the last digital seedling from the Extroma hivemind.",
+    "style_dna": {
+      "tone": "Noir-Cyberpunk",
+      "pacing": "Suspenseful",
+      "perspective": "Third Person Limited (POV: Kuro)"
+    },
+    "world_rules": [
+      { "id": 101, "content": "Digital seedlings cannot survive without a tethered organic host." }
+    ]
+  },
+  "active_state": {
+    "cast": [
+      { "name": "Kuro", "status": "Injured (Left arm malfunctioning)", "motivation": "Reach the Safe Zone before the battery dies.", "last_seen_chapter": "ch04" },
+      { "name": "Mike", "status": "Traitor (Unknown to Kuro)", "motivation": "Steal the seedling for the Syndicate.", "last_seen_chapter": "ch04" },
+      { "name": "Hollow/Extroma", "status": "Sieging the Outer Rim", "motivation": "Assimilation of all organic tethers.", "last_seen_chapter": "ch03" }
+    ],
+    "world_flags": {
+      "is_night": true,
+      "sector_7_locked": true,
+      "seedling_integrity": 85
+    },
+    "timeline_facts": [
+      "Kuro escaped the Sector 6 ambush at 04:00.",
+      "Mike provided a map that led Kuro through the tunnels."
+    ]
+  },
+  "meso_context": {
+    "unresolved_loops": [
+      { "id": "loop_01", "description": "Who sent the signal that compromised the Sector 6 base?", "started_at": "ch02" }
+    ],
+    "milestone_summaries": [
+      "Chapters 1-3: The fall of the Neo-Monastery and the initial flight with the seedling."
+    ]
+  },
+  "ephemeral": {
+    "recent_changes": [
+      "Kuro's cyber-arm took a direct hit from a pulse rifle.",
+      "Mike stole an encrypted keycard while Kuro was resting."
+    ]
+  }
+}
