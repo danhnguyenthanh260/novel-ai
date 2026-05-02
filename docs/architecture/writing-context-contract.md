@@ -8,7 +8,7 @@ Last updated: 2026-05-02
 
 `WritingContext` is the canonical context contract for automated chapter writing. It defines what the planner and writer are allowed to know, what they must protect, what can be omitted under budget pressure, and how sources are traced.
 
-This contract is semantic only. It does not change runtime behavior, task payloads, database schema, prompts, or UI. #11 owns implementation adapters that assemble this contract. #12 owns post-write memory promotion rules.
+This contract is semantic only. It does not change runtime behavior, task payloads, database schema, prompts, or UI. `docs/architecture/chapter-writing-context-assembler.md` owns the #11 assembly, source-priority, preflight, and debug payload contract. #12 owns post-write memory promotion rules.
 
 Approved near-term consumer path:
 
@@ -86,10 +86,15 @@ Minimum viable AutoWrite requires `intent`, at least one usable immediate contin
 | Writing analysis snapshots | Historical and current analysis source with readiness state. | `process_writing_analysis_task` inserts `writing_snapshot_v3` with `fact_status`, `open_loops`, `degraded_mode`, `ready_for_writing`, pre-chapter profile, truth context pack, and analysis delta at `services/memory-bridge/worker_task_handlers.py:1684`; baseline schema confirms columns at `db/migrations/000_baseline_20260502.sql:3575`. | Snapshot JSON category semantics remain broader than this contract and need adapter normalization. |
 | V3 ledger and rollup outputs | Post-write deltas that later become future `current_state` and `historical_memory`. | Ledger extraction inserts `chapter_ledger` with added facts, modified states, resolved/unresolved loops, metadata, and continuity issues at `services/memory-bridge/worker_task_handlers.py:2088`; rollup consolidates ledger into `story_milestone` at `services/memory-bridge/worker_memory_rollup_v3.py:8`. | #12 must decide promotion, conflict resolution, and approval semantics before these outputs become authoritative current state. |
 
+## Downstream Contracts
+
+- #11 assembler contract: `docs/architecture/chapter-writing-context-assembler.md`.
+- #12 promotion contract: future `docs/architecture/post-write-memory-promotion-flow.md`.
+- #5 editor boundary: `docs/architecture/document-editor-boundary.md`.
+
 ## Unknowns For Follow-Up
 
-- #11 must decide the concrete serialized shape, adapter module boundaries, and exact field names.
-- #11 must decide how many blockers exist beyond the examples in this contract.
+- Future #11 child implementation tasks must decide concrete module boundaries and exact TypeScript/Python ownership.
 - #12 must decide how `chapter_ledger` facts and states are promoted, superseded, or rejected.
 - #5 must decide whether future continuity reads come from document/chapter blocks instead of legacy scene versions.
 - Task taxonomy must decide whether `WRITING_*` and `NARRATIVE_*` remain public queue types or merge under the V3 path.
