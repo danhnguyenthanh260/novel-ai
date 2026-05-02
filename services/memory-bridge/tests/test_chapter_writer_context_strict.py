@@ -47,11 +47,16 @@ class TestChapterWriterContextStrictness(unittest.TestCase):
         os.environ.pop("WRITING_CONTEXT_REQUIRED", None)
 
     def test_absent_context_uses_explicit_compatibility_mode_by_default(self):
-        with patch("worker_chapter_writer.call_llm_json", return_value={"prose": "ok"}):
+        with patch("worker_chapter_writer.call_llm_json", return_value={"prose": "ok"}) as call:
             result = generate_chapter_v3(None, 1, "ch02", working_set(), "continue")
 
         self.assertEqual(result["metadata"]["writing_context_mode"], "compatibility_absent")
         self.assertFalse(result["metadata"]["writing_context_used"])
+        self.assertEqual(result["metadata"]["fallback_reason_code"], "LEGACY_PAYLOAD_COMPAT")
+        self.assertEqual(result["metadata"]["fallback_source"], "working_set")
+        prompt = call.call_args.args[0][1]["content"]
+        self.assertIn("WORKINGSET COMPATIBILITY CONTEXT:", prompt)
+        self.assertIn("Pitch: A test story", prompt)
 
     def test_required_flag_blocks_absent_context(self):
         os.environ["WRITING_CONTEXT_REQUIRED"] = "1"
@@ -67,8 +72,54 @@ class TestChapterWriterContextStrictness(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "WRITING_CONTEXT_PREFLIGHT_MALFORMED"):
             generate_chapter_v3(None, 1, "ch02", working_set(), "continue", writing_context=writing_context())
 
-    def test_valid_context_records_contract_mode(self):
+    def test_present_context_requires_known_preflight_status(self):
+        with self.assertRaisesRegex(ValueError, "WRITING_CONTEXT_PREFLIGHT_STATUS_INVALID"):
+            generate_chapter_v3(
+                None,
+                1,
+                "ch02",
+                working_set(),
+                "continue",
+                writing_context=writing_context(),
+                writing_context_preflight={"status": "mystery"},
+            )
+
+    def test_blocked_preflight_does_not_fallback(self):
+        with self.assertRaisesRegex(ValueError, "WRITING_CONTEXT_PREFLIGHT_BLOCKED"):
+            generate_chapter_v3(
+                None,
+                1,
+                "ch02",
+                working_set(),
+                "continue",
+                writing_context=writing_context(),
+                writing_context_preflight={"status": "blocked", "block_reasons": ["MISSING_CURRENT_STATE"]},
+            )
+
+    def test_degraded_context_records_contract_mode(self):
         with patch("worker_chapter_writer.call_llm_json", return_value={"prose": "ok"}):
+            result = generate_chapter_v3(
+                None,
+                1,
+                "ch02",
+                working_set(),
+                "continue",
+                writing_context=writing_context(),
+                writing_context_preflight={
+                    "status": "degraded",
+                    "degraded_reasons": ["LOW_CONFIDENCE_RELATIONSHIP_STATE"],
+                    "block_reasons": [],
+                },
+            )
+
+        self.assertEqual(result["metadata"]["writing_context_mode"], "contract")
+        self.assertTrue(result["metadata"]["writing_context_used"])
+        self.assertEqual(result["metadata"]["writing_context_preflight_status"], "degraded")
+        self.assertIsNone(result["metadata"]["fallback_reason_code"])
+        self.assertIsNone(result["metadata"]["fallback_source"])
+
+    def test_valid_context_records_contract_mode_without_working_set_prompt_blend(self):
+        with patch("worker_chapter_writer.call_llm_json", return_value={"prose": "ok"}) as call:
             result = generate_chapter_v3(
                 None,
                 1,
@@ -83,6 +134,11 @@ class TestChapterWriterContextStrictness(unittest.TestCase):
         self.assertEqual(result["metadata"]["writing_context_mode"], "contract")
         self.assertTrue(result["metadata"]["writing_context_used"])
         self.assertEqual(result["metadata"]["writing_context_preflight_status"], "proceed")
+        self.assertIsNone(result["metadata"]["fallback_reason_code"])
+        self.assertIsNone(result["metadata"]["fallback_source"])
+        prompt = call.call_args.args[0][1]["content"]
+        self.assertIn("Disabled because a valid WritingContext is present", prompt)
+        self.assertNotIn("Pitch: A test story", prompt)
 
 
 if __name__ == "__main__":

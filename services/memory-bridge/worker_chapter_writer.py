@@ -39,6 +39,19 @@ def _validate_present_writing_context(
         raise ValueError("WRITING_CONTEXT_PREFLIGHT_BLOCKED")
     return "contract"
 
+def _fallback_metadata(context_mode: str) -> Dict[str, Any]:
+    if context_mode == "compatibility_absent":
+        return {
+            "writing_context_used": False,
+            "fallback_reason_code": "LEGACY_PAYLOAD_COMPAT",
+            "fallback_source": "working_set",
+        }
+    return {
+        "writing_context_used": True,
+        "fallback_reason_code": None,
+        "fallback_source": None,
+    }
+
 def _compact_fact_list(items: Any, *, limit: int = 8) -> list[str]:
     if not isinstance(items, list):
         return []
@@ -88,6 +101,36 @@ def _render_writing_context_block(
     ]
     return "\n".join(lines) + "\n"
 
+def _render_working_set_compatibility_block(working_set: Dict[str, Any], context_mode: str) -> str:
+    if context_mode != "compatibility_absent":
+        return (
+            "WORKINGSET COMPATIBILITY CONTEXT:\n"
+            "Disabled because a valid WritingContext is present. Do not infer canon from WorkingSet.\n"
+        )
+
+    anchor = working_set.get("anchor", {})
+    active = working_set.get("active_state", {})
+    meso = working_set.get("meso_context", {})
+    ephemeral = working_set.get("ephemeral", {})
+    return f"""WORKINGSET COMPATIBILITY CONTEXT:
+Fallback reason: LEGACY_PAYLOAD_COMPAT
+
+STORY ANCHOR:
+Pitch: {anchor.get('story_pitch')}
+Style: {json.dumps(anchor.get('style_dna'))}
+
+ACTIVE WORLD STATE & CAST:
+Cast: {json.dumps(active.get('cast'))}
+Timeline: {json.dumps(active.get('timeline_facts'))}
+
+CONTINUITY (MESO CONTEXT):
+Unresolved Loops: {json.dumps(meso.get('unresolved_loops'))}
+Recent History: {json.dumps(meso.get('milestone_summaries'))}
+
+RECENT CHANGES (EPHEMERAL):
+{json.dumps(ephemeral.get('recent_changes'))}
+"""
+
 def generate_chapter_v3(
     conn,
     story_id: int,
@@ -105,10 +148,6 @@ def generate_chapter_v3(
     """
 
     # Prompt Construction
-    anchor = working_set.get("anchor", {})
-    active = working_set.get("active_state", {})
-    meso = working_set.get("meso_context", {})
-    ephemeral = working_set.get("ephemeral", {})
     context_mode = _validate_present_writing_context(writing_context, writing_context_preflight)
     preflight_status = (
         writing_context_preflight.get("status")
@@ -116,25 +155,14 @@ def generate_chapter_v3(
         else None
     )
     writing_context_block = _render_writing_context_block(writing_context, writing_context_preflight)
+    working_set_block = _render_working_set_compatibility_block(working_set, context_mode)
+    fallback_metadata = _fallback_metadata(context_mode)
 
     prompt = f"""You are a master novelist writing a long-form fiction chapter.
 
 {writing_context_block}
 
-STORY ANCHOR:
-Pitch: {anchor.get('story_pitch')}
-Style: {json.dumps(anchor.get('style_dna'))}
-
-ACTIVE WORLD STATE & CAST:
-Cast: {json.dumps(active.get('cast'))}
-Timeline: {json.dumps(active.get('timeline_facts'))}
-
-CONTINUITY (MESO CONTEXT):
-Unresolved Loops: {json.dumps(meso.get('unresolved_loops'))}
-Recent History: {json.dumps(meso.get('milestone_summaries'))}
-
-RECENT CHANGES (EPHEMERAL):
-{json.dumps(ephemeral.get('recent_changes'))}
+{working_set_block}
 
 CHAPTER OBJECTIVE:
 {chapter_goal}
@@ -169,8 +197,10 @@ Return JSON:
     response.setdefault("metadata", {})
     if isinstance(response["metadata"], dict):
         response["metadata"]["writing_context_mode"] = context_mode
-        response["metadata"]["writing_context_used"] = isinstance(writing_context, dict)
+        response["metadata"]["writing_context_used"] = fallback_metadata["writing_context_used"]
         response["metadata"]["writing_context_preflight_status"] = preflight_status or "not_provided"
+        response["metadata"]["fallback_reason_code"] = fallback_metadata["fallback_reason_code"]
+        response["metadata"]["fallback_source"] = fallback_metadata["fallback_source"]
         response["metadata"]["writing_context_debug_version"] = (
             writing_context_debug.get("assembler_version")
             if isinstance(writing_context_debug, dict)
