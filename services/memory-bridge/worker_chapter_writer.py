@@ -3,13 +3,65 @@ import json
 from typing import Any, Dict, Optional
 from worker_common import call_llm_json
 
+def _compact_fact_list(items: Any, *, limit: int = 8) -> list[str]:
+    if not isinstance(items, list):
+        return []
+    out: list[str] = []
+    for item in items[:limit]:
+        if isinstance(item, dict):
+            label = str(item.get("label") or "").strip()
+            value = str(item.get("value") or "").strip()
+            if label and value:
+                out.append(f"{label}: {value}")
+            elif label:
+                out.append(label)
+        elif item:
+            out.append(str(item).strip())
+    return [line for line in out if line]
+
+def _render_writing_context_block(
+    writing_context: Optional[Dict[str, Any]],
+    writing_context_preflight: Optional[Dict[str, Any]],
+) -> str:
+    if not isinstance(writing_context, dict):
+        return "WRITING CONTEXT CONTRACT:\nNot provided; use WorkingSet compatibility context.\n"
+
+    preflight = writing_context_preflight if isinstance(writing_context_preflight, dict) else {}
+    immediate = writing_context.get("immediate_continuity") or {}
+    current = writing_context.get("current_state") or {}
+    constraints = writing_context.get("constraints") or {}
+    forbidden = writing_context.get("forbidden_reveals") or {}
+    style = writing_context.get("style_anchors") or {}
+    debug = writing_context.get("debug_source_metadata") or {}
+    uncertainties = writing_context.get("uncertainties") or []
+
+    lines = [
+        "WRITING CONTEXT CONTRACT:",
+        f"Preflight: {preflight.get('status') or debug.get('readiness', {}).get('status') or 'unknown'}",
+        f"Degraded reasons: {json.dumps(preflight.get('degraded_reasons') or debug.get('degraded_reasons') or [])}",
+        f"Block reasons: {json.dumps(preflight.get('block_reasons') or [])}",
+        f"Continuity refs: {json.dumps(immediate.get('recent_snapshot_refs') or [])}",
+        f"Active cast: {json.dumps(_compact_fact_list(current.get('active_cast')))}",
+        f"Character state: {json.dumps(_compact_fact_list(current.get('character_states')))}",
+        f"Open loops: {json.dumps(_compact_fact_list(immediate.get('open_loops')))}",
+        f"Carry-forward hooks: {json.dumps(_compact_fact_list(immediate.get('carry_forward_hooks')))}",
+        f"Allowed characters: {json.dumps(_compact_fact_list(constraints.get('allowed_characters')))}",
+        f"Forbidden reveals: {json.dumps(_compact_fact_list(forbidden.get('rules')))}",
+        f"Style anchors: {json.dumps(_compact_fact_list(style.get('facts'), limit=5))}",
+        f"Uncertainties: {json.dumps(_compact_fact_list(uncertainties, limit=10))}",
+    ]
+    return "\n".join(lines) + "\n"
+
 def generate_chapter_v3(
     conn,
     story_id: int,
     chapter_id: str,
     working_set: Dict[str, Any],
     chapter_goal: str,
-    style_options: Optional[Dict[str, Any]] = None
+    style_options: Optional[Dict[str, Any]] = None,
+    writing_context: Optional[Dict[str, Any]] = None,
+    writing_context_preflight: Optional[Dict[str, Any]] = None,
+    writing_context_debug: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Core Chapter Writer V3 logic.
@@ -21,8 +73,18 @@ def generate_chapter_v3(
     active = working_set.get("active_state", {})
     meso = working_set.get("meso_context", {})
     ephemeral = working_set.get("ephemeral", {})
+    preflight_status = (
+        writing_context_preflight.get("status")
+        if isinstance(writing_context_preflight, dict)
+        else None
+    )
+    if preflight_status == "blocked":
+        raise ValueError("WRITING_CONTEXT_PREFLIGHT_BLOCKED")
+    writing_context_block = _render_writing_context_block(writing_context, writing_context_preflight)
 
     prompt = f"""You are a master novelist writing a long-form fiction chapter.
+
+{writing_context_block}
 
 STORY ANCHOR:
 Pitch: {anchor.get('story_pitch')}
@@ -69,5 +131,14 @@ Return JSON:
 
     if not isinstance(response, dict):
         response = {"prose": str(response), "error": "NON_JSON_LLM_RESPONSE"}
+    response.setdefault("metadata", {})
+    if isinstance(response["metadata"], dict):
+        response["metadata"]["writing_context_used"] = isinstance(writing_context, dict)
+        response["metadata"]["writing_context_preflight_status"] = preflight_status or "not_provided"
+        response["metadata"]["writing_context_debug_version"] = (
+            writing_context_debug.get("assembler_version")
+            if isinstance(writing_context_debug, dict)
+            else None
+        )
 
     return response
