@@ -23,6 +23,7 @@ import {
     type PreChapterProfileV1,
     type TruthContextPackV1,
 } from "@/features/analysis/server/truthPackGovernance";
+import { buildWritingContextFromPlanning } from "@/features/writing-context/server/writingContextAdapter";
 
 export type ChapterPlanArgs = {
     storyId: number;
@@ -1600,6 +1601,26 @@ export async function runChapterPlanning(
     try {
         const writingIntentMode = args.writingIntentMode === "RETCON_REWRITE" ? "RETCON_REWRITE" : "CONTINUE_CANON";
         let pack = await buildPlanningMemoryPackV5(pool, args);
+        let writingContext = buildWritingContextFromPlanning({
+            storyId: args.storyId,
+            storySlug: args.storySlug,
+            chapterId: args.chapterId,
+            targetWordCount: args.targetWordCount,
+            userPrompt: args.userPrompt,
+            writingIntentMode,
+            pack,
+        });
+        console.info(
+            "[writing.context.diagnostic]",
+            JSON.stringify({
+                story_id: args.storyId,
+                chapter_id: args.chapterId,
+                readiness: writingContext.debug_source_metadata.readiness.status,
+                reasons: writingContext.debug_source_metadata.readiness.reasons,
+                evidence_refs_count: writingContext.debug_source_metadata.evidence_refs.length,
+                degraded_reasons: writingContext.debug_source_metadata.degraded_reasons,
+            })
+        );
         if (pack.allowedCharacters.length === 0) {
             throw new Error("PLAN_INVALID_NO_ALLOWED_CHARACTERS");
         }
@@ -1705,6 +1726,27 @@ export async function runChapterPlanning(
             };
             if (!analysisInsufficient) {
                 pack = await buildPlanningMemoryPackV5(pool, args);
+                writingContext = buildWritingContextFromPlanning({
+                    storyId: args.storyId,
+                    storySlug: args.storySlug,
+                    chapterId: args.chapterId,
+                    targetWordCount: args.targetWordCount,
+                    userPrompt: args.userPrompt,
+                    writingIntentMode,
+                    pack,
+                });
+                console.info(
+                    "[writing.context.diagnostic]",
+                    JSON.stringify({
+                        story_id: args.storyId,
+                        chapter_id: args.chapterId,
+                        readiness: writingContext.debug_source_metadata.readiness.status,
+                        reasons: writingContext.debug_source_metadata.readiness.reasons,
+                        evidence_refs_count: writingContext.debug_source_metadata.evidence_refs.length,
+                        degraded_reasons: writingContext.debug_source_metadata.degraded_reasons,
+                        refreshed: true,
+                    })
+                );
                 continuity = evaluateContinuityGate({
                     plan: finalPlan,
                     pack,
