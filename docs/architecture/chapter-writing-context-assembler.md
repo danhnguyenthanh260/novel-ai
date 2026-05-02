@@ -180,7 +180,9 @@ The assembler should consume current sources through adapters before changing st
 ## Failure And Fallback Rules
 
 - Optional external retrieval failures degrade; they do not block if SQL/current continuity is safe.
-- Legacy context fallback must set `LEGACY_CONTEXT_FALLBACK_APPLIED`.
+- Legacy context fallback must be explicit, traceable, and limited to old-payload compatibility. It must set compatibility metadata or a reason code such as `LEGACY_CONTEXT_FALLBACK_APPLIED`.
+- Worker compatibility mode is allowed only when `writing_context` is absent. If `writing_context` is present but malformed, missing required sections, malformed preflight, invalid preflight status, or blocked, the worker must fail fast instead of falling back to `working_set`.
+- `WRITING_CONTEXT_REQUIRED=1` disables old-payload compatibility mode and makes absent `writing_context` fail with `WRITING_CONTEXT_REQUIRED`.
 - Draft-only continuity may be used for the target chapter only when the caller allows degraded writing and no approved continuity exists.
 - If the assembler cannot preserve source trace for a high-impact retained fact, it must block or drop the fact and record `SOURCE_TRACE_REQUIRED_BUT_MISSING`.
 - Budget trimming must preserve high-impact metadata before optional historical detail.
