@@ -2034,6 +2034,9 @@ def process_chapter_write_v3_task(conn, task: Dict[str, Any]) -> None:
     chapter_goal = payload.get("chapter_goal")
     working_set = payload.get("working_set")
     style_options = payload.get("style_options")
+    writing_context = payload.get("writing_context")
+    writing_context_preflight = payload.get("writing_context_preflight")
+    writing_context_debug = payload.get("writing_context_debug")
 
     if not story_id or not chapter_id or not working_set:
         raise ValueError("MISSING_REQUIRED_V3_PAYLOAD_FIELDS")
@@ -2045,7 +2048,10 @@ def process_chapter_write_v3_task(conn, task: Dict[str, Any]) -> None:
         chapter_id,
         working_set,
         chapter_goal,
-        style_options
+        style_options,
+        writing_context,
+        writing_context_preflight,
+        writing_context_debug,
     )
 
     prose = llm_response.get("prose")
