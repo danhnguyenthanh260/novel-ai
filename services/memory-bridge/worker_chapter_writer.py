@@ -3,6 +3,36 @@ import json
 from typing import Any, Dict, Optional
 from worker_common import call_llm_json
 
+VALID_PREFLIGHT_STATUSES = {"proceed", "degraded", "blocked"}
+REQUIRED_CONTEXT_SECTIONS = {
+    "intent",
+    "immediate_continuity",
+    "current_state",
+    "debug_source_metadata",
+}
+
+def _validate_present_writing_context(
+    writing_context: Optional[Dict[str, Any]],
+    writing_context_preflight: Optional[Dict[str, Any]],
+) -> str:
+    if writing_context is None:
+        return "compatibility_absent"
+    if not isinstance(writing_context, dict):
+        raise ValueError("WRITING_CONTEXT_MALFORMED")
+
+    missing = sorted(section for section in REQUIRED_CONTEXT_SECTIONS if not isinstance(writing_context.get(section), dict))
+    if missing:
+        raise ValueError(f"WRITING_CONTEXT_MISSING_SECTIONS:{','.join(missing)}")
+
+    if not isinstance(writing_context_preflight, dict):
+        raise ValueError("WRITING_CONTEXT_PREFLIGHT_MALFORMED")
+    status = writing_context_preflight.get("status")
+    if status not in VALID_PREFLIGHT_STATUSES:
+        raise ValueError("WRITING_CONTEXT_PREFLIGHT_STATUS_INVALID")
+    if status == "blocked":
+        raise ValueError("WRITING_CONTEXT_PREFLIGHT_BLOCKED")
+    return "contract"
+
 def _compact_fact_list(items: Any, *, limit: int = 8) -> list[str]:
     if not isinstance(items, list):
         return []
@@ -73,13 +103,12 @@ def generate_chapter_v3(
     active = working_set.get("active_state", {})
     meso = working_set.get("meso_context", {})
     ephemeral = working_set.get("ephemeral", {})
+    context_mode = _validate_present_writing_context(writing_context, writing_context_preflight)
     preflight_status = (
         writing_context_preflight.get("status")
         if isinstance(writing_context_preflight, dict)
         else None
     )
-    if preflight_status == "blocked":
-        raise ValueError("WRITING_CONTEXT_PREFLIGHT_BLOCKED")
     writing_context_block = _render_writing_context_block(writing_context, writing_context_preflight)
 
     prompt = f"""You are a master novelist writing a long-form fiction chapter.
@@ -133,6 +162,7 @@ Return JSON:
         response = {"prose": str(response), "error": "NON_JSON_LLM_RESPONSE"}
     response.setdefault("metadata", {})
     if isinstance(response["metadata"], dict):
+        response["metadata"]["writing_context_mode"] = context_mode
         response["metadata"]["writing_context_used"] = isinstance(writing_context, dict)
         response["metadata"]["writing_context_preflight_status"] = preflight_status or "not_provided"
         response["metadata"]["writing_context_debug_version"] = (
