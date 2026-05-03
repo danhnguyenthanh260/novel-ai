@@ -174,6 +174,7 @@ Refactor direction for large modules:
 ### LLM streaming
 
 - `POST /api/pipeline/draft/stream` (proxy SSE tới `LLM_API_BASE`)
+- `npm run doctor:llm` checks the configured OpenAI-compatible LLM endpoint with a tiny JSON-only request.
 - `POST /api/muse/stream` (Ghost Muse SSE, mode `bullets|block`)
 - `POST /api/muse/chat/compress` (Chapter compress, JSON strict non-stream, soft limit 350KB)
 - `POST /api/muse/chat/synthesis` (Muse Chat synthesis, JSON strict non-stream)
@@ -251,6 +252,7 @@ Thực thể chính:
 - `LLM_API_BASE`
 - `LLM_MODEL`
 - `LLM_API_KEY`
+- `LLM_MAX_TOKENS` (optional; conservative output cap for local/provider testing)
 - `WRITING_V2_PRODUCTION` (optional, default `1`; set `0` to disable `/stories/[slug]/chapters/*` AutoWrite v2 plan/execute/status endpoints during rollout/rollback)
 - `WRITING_COOL_OFF_SECONDS` (optional, default `2`; controls cool-off between `NARRATIVE_*` tasks for chapter writing)
 - `LLAMA_MANUAL_ONLY` (optional, default `1`; when enabled, `/ingest/worker` API will not start/stop llama-server and expects manual terminal operation)
@@ -280,6 +282,7 @@ Run:
 ```bash
 npm install
 npm run dev
+npm run doctor:llm -- --dry-run
 npm run doctor:split-maturity -- --story <story_slug>
 npm run doctor:split-maturity -- --story <story_slug> --process-legacy
 npm run doctor:split-feedback-insights -- --story <story_slug> --days 30

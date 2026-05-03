@@ -17,7 +17,7 @@ Nếu bạn muốn hiểu nhanh theo góc nhìn business, xem thêm [docs/operat
 - Knowledge / retrieval: Neo4j 5, Qdrant 1.13
 - Worker / pipeline: Python 3.12, psycopg2
 - Infrastructure: Docker Compose, Grafana
-- LLM integration: OpenAI-compatible API endpoint qua `LLM_API_BASE` (mặc định `http://localhost:8080/v1`)
+- LLM integration: OpenAI-compatible API endpoint qua `LLM_API_BASE` (mặc định `http://localhost:8080/v1`; Groq/dev provider setup ở [docs/operations/llm-providers.md](./docs/operations/llm-providers.md))
 
 ## Mục tiêu của repo
 
@@ -149,6 +149,7 @@ Lưu ý:
 * Không nên chạy `npm run dev` cùng lúc với `grafana` nếu cả hai cùng dùng cổng `3000`
 * `infra/docker-compose.yml` không tự động apply migration DB, vì vậy vẫn cần setup schema trước
 * LLM server không nằm trong repo này; `novel-studio` container mong chờ một endpoint tại `host.docker.internal:8080`
+* Nếu không muốn chạy local llama-server, có thể dùng Groq hoặc provider OpenAI-compatible khác bằng `LLM_API_BASE`, `LLM_API_KEY`, và `LLM_MODEL`; xem [LLM Provider Profiles](./docs/operations/llm-providers.md)
 
 ## Biến môi trường
 
@@ -167,6 +168,7 @@ Những biến quan trọng nhất:
 | `LLM_API_BASE` | Có | Base URL của OpenAI-compatible endpoint |
 | `LLM_MODEL` | Có | Tên model mặc định |
 | `LLM_API_KEY` | Có | API key hoặc token local |
+| `LLM_MAX_TOKENS` | Tùy chọn | Conservative output cap for local/provider testing |
 | `HISTORIAN_MCP_BASE_URL` | Nên có | Địa chỉ bridge cho external historian adapters |
 | `HISTORIAN_QDRANT_ENABLED` | Tùy chọn | Bật semantic retrieval từ Qdrant |
 | `HISTORIAN_NEO4J_ENABLED` | Tùy chọn | Bật graph retrieval từ Neo4j |
@@ -179,6 +181,7 @@ Những biến quan trọng nhất:
 Lưu ý:
 
 * `.env.example` trong `apps/studio/` là nguồn tham chiếu đầy đủ cho local setup
+* Không commit API key thật. Với Groq/free-tier, bắt đầu bằng `LLM_MAX_TOKENS=512` và dùng `npm run doctor:llm -- --dry-run` trước khi gọi API thật
 * Khi chạy `qdrant + neo4j + historian-mcp-bridge`, hãy bật `HISTORIAN_QDRANT_ENABLED=1` và `HISTORIAN_NEO4J_ENABLED=1`
 * Nếu không có LLM server, các tính năng ingest/split/write/muse sẽ không hoạt động đầy đủ
 
