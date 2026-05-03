@@ -22,8 +22,10 @@ The "Write" workspace is a dynamic 3-column grid:
 3.  **Right (Artifact Workspace - 1.18fr)**: The "Output" zone. Owns editable prose, review actions, and the inspector rail.
 
 ### Toggle Behavior (Issue #46)
-- **Pipeline Toggle**: The Artifact Workspace is hidden by default. Use the "Pipeline" text button in the Topbar to toggle its visibility.
-- **Expansion**: When the Artifact Workspace is hidden, the Command Work Stream expands to fill the remaining space (`grid-template-columns: 236px 1fr 0px`).
+- **Pipeline Toggle**: The Artifact Workspace has two modes:
+  - **Context Mode (Default)**: Shows the `ArtifactInspectorRail` (320px width).
+  - **Artifact Mode (Active)**: Shows the `ArtifactSurface` (Document view, 1.18fr width).
+- **Expansion**: Grid layout dynamically adjusts: `grid-template-columns: 236px 1fr [320px | 1.18fr]`.
 
 ## 3. Visual Tokens
 
@@ -37,14 +39,14 @@ The "Write" workspace is a dynamic 3-column grid:
 - **Accent 2 (Amber)**: `#F2B35F` (Used for warnings and partial states)
 
 ### Typography (Space Grotesk / JetBrains Mono)
-- **Body**: 14px (`text-sm`)
-- **Labels/Meta**: 12px (`text-xs`)
-- **Progress/Status**: 11px
-- **Page Title**: 20px (`text-xl`)
+- **Baseline**: 13px (Reduced for higher information density)
+- **Secondary**: 11px
+- **Metadata/Status**: 10px
+- **Page Title**: 18px
 
 ### Spacing & Grid
-- **Scale**: 8px (`4/8/12/16/24`)
-- **Gaps**: `gap-2` (8px), `gap-3` (12px), `gap-4` (16px).
+- **Separation**: Use explicit `1px solid var(--border-subtle)` borders on columns. Avoid grid-gap background leaks.
+- **Backgrounds**: Sidebar and Right-Zone (Context) use solid `var(--bg-sidebar)` (#101720).
 
 ## 4. Components & Interaction
 
