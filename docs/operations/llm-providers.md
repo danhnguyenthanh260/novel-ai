@@ -15,6 +15,36 @@ LLM_MAX_TOKENS=512
 
 Any provider that exposes an OpenAI-compatible `/chat/completions` endpoint can be tested through this shape.
 
+## Runtime Provider Selector
+
+Studio exposes a local/dev provider selector in the top-bar `Controls` menu.
+
+Supported profiles:
+
+- `Local API`: OpenAI-compatible local endpoint, default `http://localhost:8080/v1`.
+- `Groq`: OpenAI-compatible Groq endpoint, default `https://api.groq.com/openai/v1`.
+- `Custom API`: any OpenAI-compatible provider.
+
+The selector writes a local override file:
+
+```text
+.runtime/llm-provider.json
+```
+
+This file is ignored by Git and may contain a real API key. Do not copy it into commits, issues, logs, or screenshots.
+
+Runtime override precedence:
+
+```text
+1. .runtime/llm-provider.json
+2. apps/studio/.env.local or apps/studio/.env
+3. Local API default
+```
+
+The browser never receives the raw stored API key from `GET /api/llm/provider`; it only receives a redacted preview. Health checks run server-side through `POST /api/llm/provider`.
+
+Local still uses the old OpenAI-compatible API path. It does not launch or call a llama binary directly.
+
 ## Groq Free/Developer Profile
 
 Groq can be used for low-cost local testing because it exposes an OpenAI-compatible API.
@@ -126,6 +156,8 @@ For a no-network config check:
 ```bash
 npm run doctor:llm -- --dry-run
 ```
+
+`doctor:llm` reads `.runtime/llm-provider.json` first when present, then falls back to `LLM_API_BASE`, `LLM_API_KEY`, `LLM_MODEL`, and `LLM_MAX_TOKENS`.
 
 The doctor sends a tiny JSON-only request:
 

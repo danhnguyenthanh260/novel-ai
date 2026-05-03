@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
+import { LlmProviderSelector } from "@/features/llm/components/LlmProviderSelector";
 import { useStory } from "./StoryContext";
 
 type StoryItem = {
@@ -261,7 +262,7 @@ export default function StorySelector() {
 
         <details className="relative">
           <summary className={`shell-link cursor-pointer list-none px-2 py-1 ${disabledLinkClass}`}>Controls</summary>
-          <div className="absolute right-0 z-50 mt-1 min-w-[200px] rounded border border-[#2a3441] bg-[#0d1524] p-1 shadow-lg">
+          <div className="absolute right-0 z-50 mt-1 min-w-[320px] rounded border border-[#2a3441] bg-[#0d1524] p-2 shadow-lg">
             <button
               type="button"
               className="block w-full rounded px-2 py-1 text-left hover:bg-[#162236] disabled:pointer-events-none disabled:opacity-50"
@@ -270,6 +271,7 @@ export default function StorySelector() {
             >
               Language: {writingLanguage === "en" ? "English" : "Tiếng Việt"}
             </button>
+            <LlmProviderSelector />
             <button
               type="button"
               className="block w-full rounded px-2 py-1 text-left hover:bg-[#162236] disabled:pointer-events-none disabled:opacity-50"
