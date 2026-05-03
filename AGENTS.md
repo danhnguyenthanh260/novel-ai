@@ -45,6 +45,38 @@ Avoid running project toolchains from Windows `CMD` or PowerShell directly on UN
 - Promotion flow is feature branch -> `staging` first, then `staging` -> `product` when needed.
 - If a GitHub tool or CLI defaults to `product`, override the base branch to `staging` for normal work.
 
+## Branch Naming Convention
+
+Before starting implementation work, create a branch from the correct base branch using the convention below. If the task comes from a GitHub issue, prefer naming the branch with the issue number and short slug.
+
+Branch names must:
+
+- Use lowercase kebab-case.
+- Be short but descriptive.
+- Prefer including the issue number when available.
+- Avoid vague names like `fix`, `update`, `changes`, `new-ui`, or `test-branch`.
+- Not include spaces, uppercase letters, Vietnamese accents, or special symbols.
+
+Use one of these prefixes based on work type:
+
+- `feature/...` for new features or UI additions.
+- `bug/...` for bug fixes.
+- `refactor/...` for internal cleanup or restructuring with no behavior change.
+- `docs/...` for documentation-only changes.
+- `chore/...` for maintenance, config, tooling, dependency, or repository housekeeping.
+- `test/...` for test-only changes.
+
+Examples:
+
+- `feature/40-artifact-toggle`
+- `feature/write-workspace-progress-rail`
+- `bug/context-partial-width`
+- `bug/artifact-toggle-state`
+- `refactor/write-tab-layout`
+- `docs/update-agent-branch-rules`
+- `chore/eslint-config`
+- `test/write-workspace-layout`
+
 ## Decision Gate Rule
 
 When a task requires a product, architecture, data model, workflow, or issue-planning decision that is not already approved, stop and notify the user before encoding it into code, docs, or GitHub issues.
