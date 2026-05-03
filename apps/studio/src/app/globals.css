@@ -389,6 +389,12 @@ body {
   z-index: 5;
   padding: 10px;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  animation: slashMenuAppear 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slashMenuAppear {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .slash-menu__section {
@@ -406,10 +412,13 @@ body {
   border-radius: 6px;
   padding: 7px 8px;
   text-align: left;
+  transition: background-color 140ms ease;
 }
 
-.slash-menu-row:hover {
+.slash-menu-row:hover,
+.slash-menu-row--active {
   background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .slash-menu-row--muted {
