@@ -22,11 +22,13 @@ Bridge the gap between background context tracking and active document editing b
 - Changing the functionality of slash commands or artifact inspector rail contents.
 
 ### Acceptance criteria
-- [ ] `ArtifactSurface` is hidden by default on first load of the Write workspace.
-- [ ] Clicking the "Pipeline" button in the Topbar toggles the visibility of the right Artifact panel.
-- [ ] When Artifacts are hidden, the center Command stream expands to fill the space.
-- [ ] "Context Partial" indicator is visually slim and resembles a progress bar (Codex-inspired).
-- [ ] Workspace remains usable and responsive during and after toggling.
+- [x] `ArtifactSurface` is hidden by default on first load of the Write workspace.
+- [x] Clicking the "Pipeline" button (now an Icon) in the Topbar toggles the visibility.
+- [x] When Artifacts are hidden, the center Command stream expands to fill the space.
+- [x] "Context Partial" indicator is visually slim and resembles a progress bar (Codex-inspired).
+- [x] Workspace remains usable and responsive during and after toggling.
+- [x] Slash Menu supports keyboard navigation and dynamic expansion.
+- [x] Global typography reduced to 13px/12px for high-density information.
 
 ### File manifest
 
@@ -51,8 +53,10 @@ MODIFY:
 - Tests:
   - [ ] `npm run typecheck` passes.
 - Manual:
-  - [ ] Verify toggle behavior on Desktop resolution.
-  - [ ] Verify "Context Partial" looks like a progress bar.
+  - [x] Verify toggle behavior on Desktop resolution.
+  - [x] Verify "Context Partial" looks like a progress bar.
+  - [x] Verify Slash Menu keyboard navigation (Arrows + Enter).
+  - [x] Verify Topbar Icon aesthetics and tooltips.
 
 ### Estimate
 Total: 3-4 hours
@@ -79,7 +83,8 @@ We are moving the workspace towards a "Command First" focus. By hiding the Artif
 | Decision | Option chosen | Option rejected | Reason |
 |---|---|---|---|
 | Toggle State | Global Context | Component Local | Need to control visibility from the Topbar (global) to the Workspace (deep child) |
-| UI Control | Text Label "Pipeline" | Icon | Prohibited by repo rules (No SVG/Icons) |
+| UI Control | Minimalist Icons | Text-Only Label | User requested high-fidelity, professional icons for Topbar and Run button |
+| Typography | 13px Baseline | 14px Default | Improve information density for professional "Studio" look |
 
 ### What a reviewer should focus on
 - Ensure the `NovelLabWorkspace` grid doesn't break when columns are removed.
