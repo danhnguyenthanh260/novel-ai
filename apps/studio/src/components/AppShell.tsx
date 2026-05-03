@@ -17,7 +17,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <span>Lab</span>
             </Link>
             <CompactContextBar />
-            <StorySelector />
+            <div className="flex items-center gap-3">
+              <PipelineToggle />
+              <StorySelector />
+            </div>
           </div>
         </header>
         <div className="app-body">{children}</div>
@@ -40,7 +43,7 @@ function routeLabel(pathname: string): string {
 
 function CompactContextBar() {
   const pathname = usePathname();
-  const { headerContext } = useStory();
+  const { headerContext, isArtifactVisible } = useStory();
   const areaLabel = routeLabel(pathname);
   const chapter = headerContext.chapterLabel ?? "No chapter";
 
@@ -51,9 +54,26 @@ function CompactContextBar() {
       <span>{areaLabel}</span>
       <span className="app-context-bar__slash">/</span>
       <span>{chapter}</span>
-      <span className="status-pill status-pill--partial">Context Partial</span>
-      <span className="status-pill status-pill--other">Worker Idle</span>
-      <span className="status-pill status-pill--other">Draft Saved</span>
+      <span className="muted text-[10px] uppercase tracking-wider ml-4">Worker Idle</span>
+      <span className="muted text-[10px] uppercase tracking-wider ml-2">Draft Saved</span>
     </div>
+  );
+}
+
+function PipelineToggle() {
+  const { isArtifactVisible, setIsArtifactVisible } = useStory();
+  const pathname = usePathname();
+
+  if (!pathname.includes("/write") && pathname !== "/") return null;
+
+  return (
+    <button
+      onClick={() => setIsArtifactVisible(!isArtifactVisible)}
+      className={`text-xs transition-all hover:text-[var(--accent)] ${
+        isArtifactVisible ? "text-[var(--accent)] font-semibold" : "text-[var(--text-secondary)]"
+      }`}
+    >
+      Pipeline
+    </button>
   );
 }

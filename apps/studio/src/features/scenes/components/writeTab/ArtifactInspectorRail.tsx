@@ -100,11 +100,14 @@ export default function ArtifactInspectorRail({ readiness, continuityQueued }: A
   };
 
   return (
-    <aside className="artifact-inspector" style={{ width: inspectorWidth }} aria-label="Artifact inspector">
+    <aside className="artifact-inspector" aria-label="Artifact inspector">
       <div className="inspector-resize-handle" onMouseDown={startResize} aria-hidden />
       <div className="inspector-topline">
         <span className={readinessClass(readiness)}>{readinessLabels[readiness]}</span>
-        <span className="muted">2 warnings</span>
+        <div className="context-progress-container !m-0 !max-w-none flex-1">
+          <div className="context-progress-fill" style={{ width: "65%" }} />
+        </div>
+        <span className="muted text-[10px]">2 warnings</span>
       </div>
       <div className="inspector-tabs" role="tablist">
         {(["Progress", "Context", "Issues", "Memory", "Versions"] as InspectorTab[]).map((tab) => (
