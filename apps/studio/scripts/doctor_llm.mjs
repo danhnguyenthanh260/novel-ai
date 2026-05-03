@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { performance } from "node:perf_hooks";
 
 const args = new Set(process.argv.slice(2));
@@ -31,6 +32,35 @@ function redact(value) {
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
+function formatBaseForLog(value) {
+  if (!value) return "<missing>";
+  if (!/^https?:\/\//i.test(value)) return "<invalid-url>";
+  return value;
+}
+
+function validateBaseUrl(value) {
+  if (!value) throw new Error("LLM_API_BASE is required");
+  if (!/^https?:\/\//i.test(value)) throw new Error("LLM_API_BASE must start with http:// or https://");
+}
+
+function runtimeProviderPath() {
+  return path.resolve(process.cwd(), "../../.runtime/llm-provider.json");
+}
+
+function loadRuntimeProvider() {
+  const file = runtimeProviderPath();
+  if (!existsSync(file)) return null;
+  const parsed = JSON.parse(readFileSync(file, "utf8"));
+  return {
+    provider: String(parsed.provider || "custom_openai_compatible"),
+    base: String(parsed.baseUrl || "").replace(/\/+$/, ""),
+    apiKey: String(parsed.apiKey || ""),
+    model: String(parsed.model || ""),
+    maxTokens: Number(parsed.maxTokens || 64),
+    source: "runtime",
+  };
+}
+
 function parseJsonFromText(text) {
   const trimmed = String(text || "").trim();
   try {
@@ -46,20 +76,23 @@ async function main() {
   loadEnvFile(".env.local");
   loadEnvFile(".env");
 
-  const base = String(process.env.LLM_API_BASE || "").replace(/\/+$/, "");
-  const apiKey = String(process.env.LLM_API_KEY || "");
-  const model = String(process.env.LLM_MODEL || "");
-  const maxTokens = Number(process.env.LLM_MAX_TOKENS || 64);
+  const runtimeProvider = loadRuntimeProvider();
+  const base = runtimeProvider?.base || String(process.env.LLM_API_BASE || "http://localhost:8080/v1").replace(/\/+$/, "");
+  const apiKey = runtimeProvider?.apiKey || String(process.env.LLM_API_KEY || "local");
+  const model = runtimeProvider?.model || String(process.env.LLM_MODEL || "local-model");
+  const maxTokens = runtimeProvider?.maxTokens || Number(process.env.LLM_MAX_TOKENS || 64);
   const healthMaxTokens = Math.min(Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : 64, 64);
 
-  if (!base) throw new Error("LLM_API_BASE is required");
-  if (!model) throw new Error("LLM_MODEL is required");
-  if (!apiKey) throw new Error("LLM_API_KEY is required");
-
-  console.log("[doctor:llm] base:", base);
+  console.log("[doctor:llm] source:", runtimeProvider?.source || (process.env.LLM_API_BASE ? "env" : "default"));
+  if (runtimeProvider?.provider) console.log("[doctor:llm] provider:", runtimeProvider.provider);
+  console.log("[doctor:llm] base:", formatBaseForLog(base));
   console.log("[doctor:llm] model:", model);
   console.log("[doctor:llm] api_key:", redact(apiKey));
   console.log("[doctor:llm] max_tokens:", healthMaxTokens);
+
+  validateBaseUrl(base);
+  if (!model) throw new Error("LLM_MODEL is required");
+  if (!apiKey) throw new Error("LLM_API_KEY is required");
 
   if (dryRun) {
     console.log("[doctor:llm] dry_run=true; request not sent");
