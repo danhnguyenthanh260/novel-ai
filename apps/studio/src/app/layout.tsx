@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import AppShell from "@/components/AppShell";
 import "./globals.css";
 
-const appSans = Space_Grotesk({
+const appSans = Inter({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });

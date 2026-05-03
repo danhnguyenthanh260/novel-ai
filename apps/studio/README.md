@@ -40,9 +40,11 @@ Refactor direction for large modules:
 - Scenes UI:
   - `src/app/scenes/page.tsx`
   - `src/app/scenes/[sceneId]/page.tsx`
+  - `src/app/stories/[slug]/write/page.tsx`
   - `src/features/scenes/components/ScenesPageClient.tsx`
   - `src/features/scenes/components/SceneDetailClient.tsx`
   - `src/features/scenes/components/DraftRunner.tsx`
+  - `src/features/scenes/components/writeTab/NovelLabWorkspace.tsx` (Novel Lab command/artifact Write slice)
 - Dictionary & Shelf:
   - `src/features/dictionary/components/DictionaryManager.tsx`
   - `src/app/shelf/page.tsx`
@@ -245,17 +247,6 @@ Thực thể chính:
 - `narrative_scene_version`
 - `narrative_pipeline_run`
 - `timeline_event`
-- `story_worldbuilding_note`
-- `story_style_profile`
-- `canon_fact`
-- `timeline_anchor`
-- `style_profile_scene`
-- `memory_enrich_task`
-
-## 6) Env và chạy local
-
-`.env` tối thiểu:
-
 - `DATABASE_URL`
 - `LLM_API_BASE`
 - `LLM_MODEL`
@@ -313,11 +304,15 @@ This section is the canonical UI reference for Map/Write surfaces until a separa
 
 Primary references:
 
-1. `docs/architecture/stage3_structure_contract.md` (product + interaction contract)
-2. `apps/studio/src/features/map/components/MapPageClient.tsx` (current map UX patterns)
-3. `apps/studio/src/features/scenes/components/DraftRunner.tsx` (write UX patterns)
-4. `apps/studio/README.md` section 8 (visual rules below)
-5. `db/migrations/009_stage3_structure_mapping.sql` (Stage 3 schema)
+1. `docs/architecture/ui-information-architecture.md` (surface ownership and Write IA)
+2. `docs/architecture/conversational-command-orchestrator.md` (Novel Lab command/control contract)
+3. `docs/architecture/conversational-command-mvp-map.md` (MVP slash command mapping)
+4. `apps/studio/src/features/scenes/components/writeTab/NovelLabWorkspace.tsx` (current Novel Lab Write workspace composition)
+5. `apps/studio/src/features/scenes/components/writeTab/CommandWorkStream.tsx` (center command/task stream)
+6. `apps/studio/src/features/scenes/components/writeTab/ArtifactSurface.tsx` (right artifact editor/review surface)
+7. `apps/studio/src/features/scenes/components/writeTab/ArtifactInspectorRail.tsx` (right inspector summary rail)
+8. `apps/studio/src/features/map/components/MapPageClient.tsx` (current map UX patterns)
+9. `apps/studio/README.md` section 8 (visual rules below)
 
 ### Visual rules (must follow)
 
@@ -355,6 +350,11 @@ Primary references:
 - `MAP_LOCKED` blocks all map writes, but export remains enabled
 - Show state badge clearly: `DRAFT` / `COMMITTED` / `LOCKED`
 - Use one `busy` state to prevent double-submit on header actions
+- Novel Lab Write uses `Context Clean` -> `proceed`, `Context Partial` -> `degraded`, and `Context Blocked` -> `blocked`.
+- The center work stream owns commands, task progress, and result summaries only; long generated prose belongs in the right artifact workspace.
+- Slash commands appear from the composer when invoked, not as a permanent command palette.
+- The right artifact workspace owns editable prose, review actions, and the inspector rail.
+- `Approve revision` stays locked until continuity validation passes; `Run continuity check` is primary while validation is pending.
 
 ## 9) UI Philosophy (Global)
 

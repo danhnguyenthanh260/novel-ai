@@ -37,6 +37,7 @@ export default function WriteTabClient({ storySlug }: { storySlug: string }) {
       pendingChapterProse={state.pendingChapterProse}
       onAutoWriteComplete={state.handleAutoWriteComplete}
       stagingData={state.stagingData}
+      v3Draft={state.v3Draft}
       onSaveChapterDraft={state.saveChapterDraft}
       onResplitChapter={state.resplitChapter}
     />

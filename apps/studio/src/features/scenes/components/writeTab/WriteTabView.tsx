@@ -1,7 +1,5 @@
-import type { CurrentVersion, DockTab, SceneItem } from "@/features/scenes/components/writeTab/types";
-import TriPanelLayout from "@/components/layout/TriPanelLayout";
-import WriteDockPanel from "@/features/scenes/components/writeTab/WriteDockPanel";
-import WriteTabCenterPanel from "@/features/scenes/components/writeTab/WriteTabCenterPanel";
+import type { ChapterSceneItem, CurrentVersion, DockTab, SceneItem } from "@/features/scenes/components/writeTab/types";
+import NovelLabWorkspace from "@/features/scenes/components/writeTab/NovelLabWorkspace";
 
 type WriteTabViewProps = {
   storySlug: string;
@@ -24,7 +22,7 @@ type WriteTabViewProps = {
   selectedChapterId: string;
   onChapterIdChange: (id: string) => void;
   viewMode: "scene" | "chapter";
-  chapterScenes: any[];
+  chapterScenes: ChapterSceneItem[];
   loadingChapter: boolean;
   onCreateNewChapter: () => Promise<void>;
   onUnlockScene: () => Promise<void>;
@@ -32,94 +30,34 @@ type WriteTabViewProps = {
   setShowAutoWrite: (v: boolean) => void;
   pendingChapterProse: { id: string; prose: string } | null;
   stagingData: { user_prose: string; llm_prose: string; status: string } | null;
+  v3Draft: { full_text: string; status: string; virtual_scenes: unknown[] } | null;
   onAutoWriteComplete: (prose: string) => Promise<void>;
   onSaveChapterDraft: (prose: string) => Promise<void>;
   onResplitChapter: (prose: string) => Promise<void>;
 };
 
-export default function WriteTabView({
-  storySlug,
-  scenes,
-  chapterIds,
-  sceneId,
-  onSceneIdChange,
-  scene,
-  current,
-  loadingScenes,
-  loadingDetail,
-  error,
-  dockTab,
-  onDockTabChange,
-  ghostSuggestionReady,
-  seedPrompt,
-  onCommitted,
-  onGhostSuggestionReadyChange,
-  selectedChapterId,
-  onChapterIdChange,
-  viewMode,
-  chapterScenes,
-  loadingChapter,
-  onCreateNewChapter,
-  onUnlockScene,
-  showAutoWrite,
-  setShowAutoWrite,
-  pendingChapterProse,
-  stagingData,
-  onAutoWriteComplete,
-  onSaveChapterDraft,
-  onResplitChapter,
-}: WriteTabViewProps) {
+export default function WriteTabView(props: WriteTabViewProps) {
   return (
-    <main className="p-1">
-      <TriPanelLayout
-        center={
-          <WriteTabCenterPanel
-            storySlug={storySlug}
-            scenes={scenes}
-            chapterIds={chapterIds}
-            sceneId={sceneId}
-            onSceneIdChange={onSceneIdChange}
-            scene={scene}
-            current={current}
-            loadingScenes={loadingScenes}
-            loadingDetail={loadingDetail}
-            error={error}
-            seedPrompt={seedPrompt}
-            onCommitted={onCommitted}
-            onGhostSuggestionReadyChange={onGhostSuggestionReadyChange}
-            selectedChapterId={selectedChapterId}
-            onChapterIdChange={onChapterIdChange}
-            viewMode={viewMode}
-            chapterScenes={chapterScenes}
-            loadingChapter={loadingChapter}
-            onCreateNewChapter={onCreateNewChapter}
-            onUnlockScene={onUnlockScene}
-            showAutoWrite={showAutoWrite}
-            setShowAutoWrite={setShowAutoWrite}
-            pendingChapterProse={pendingChapterProse}
-            stagingData={stagingData}
-            onAutoWriteComplete={onAutoWriteComplete}
-            onSaveChapterDraft={onSaveChapterDraft}
-            onResplitChapter={onResplitChapter}
-          />
-        }
-        right={
-          <WriteDockPanel
-            scene={scene}
-            current={current}
-            dockTab={dockTab}
-            onDockTabChange={onDockTabChange}
-            ghostSuggestionReady={ghostSuggestionReady}
-          />
-        }
-        leftMode="hidden"
-        rightMode="pinned"
-        leftTitle="Navigator"
-        centerTitle="Write"
-        rightTitle="Context"
-        rightTabletWidthClass="w-96 min-w-96"
-        rightDesktopWidthClass="w-96 min-w-96"
-      />
-    </main>
+    <NovelLabWorkspace
+      storySlug={props.storySlug}
+      chapterIds={props.chapterIds}
+      scene={props.scene}
+      current={props.current}
+      loadingScenes={props.loadingScenes}
+      loadingDetail={props.loadingDetail}
+      error={props.error}
+      selectedChapterId={props.selectedChapterId}
+      onChapterIdChange={props.onChapterIdChange}
+      chapterScenes={props.chapterScenes}
+      loadingChapter={props.loadingChapter}
+      onCreateNewChapter={props.onCreateNewChapter}
+      showAutoWrite={props.showAutoWrite}
+      setShowAutoWrite={props.setShowAutoWrite}
+      pendingChapterProse={props.pendingChapterProse}
+      stagingData={props.stagingData}
+      v3Draft={props.v3Draft}
+      onAutoWriteComplete={props.onAutoWriteComplete}
+      onSaveChapterDraft={props.onSaveChapterDraft}
+    />
   );
 }

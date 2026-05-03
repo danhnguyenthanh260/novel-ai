@@ -30,6 +30,8 @@ Reference inputs:
 - `docs/architecture/document-editor-boundary.md` owns future editor document approval and export source-of-truth.
 - `docs/architecture/post-write-memory-promotion-flow.md` owns post-write memory candidate promotion.
 - `docs/architecture/story-memory-contract.md` owns memory truth boundaries.
+- `docs/architecture/conversational-command-orchestrator.md` owns Novel Lab command intent, typed workflow requests, artifact handoff, approval gates, and command trace semantics.
+- `docs/architecture/conversational-command-mvp-map.md` maps the first slash commands to existing workflows or explicit missing contracts.
 
 ## Surface Map
 
@@ -96,7 +98,19 @@ Classification keys:
 
 ## Simplified Write Surface
 
-The first simplified Write surface should have four stable zones.
+The first simplified Write surface should become the Novel Lab command artifact workspace. It keeps a chapter-first writing loop while separating command work, artifact work, and inspector state.
+
+The workspace has three stable global zones:
+
+| Zone | Job | Must not do |
+|---|---|---|
+| Left navigation | Select story, chapter, and product surface. | Execute tasks or show raw pipeline diagnostics. |
+| Center work stream | Capture commands, task progress, result summaries, next-action CTAs, and the bottom composer. | Display long generated prose, stay as a permanent command palette, or show raw diagnostics. |
+| Right artifact workspace | Show the active artifact, editable chapter draft, review actions, and attached inspector. | Parse commands, silently approve/promote memory, or own global navigation. |
+
+Slash commands are invoked from the center composer by typing `/` or opening the command menu. They should not render as a static command list when the author is idle. The right artifact workspace owns a resizable inspector with `Progress`, `Context`, `Issues`, `Memory`, and `Versions` tabs, but the default view summarizes state and expands details on demand.
+
+The previous simplified Write surface can still be interpreted as four internal responsibilities.
 
 | Zone | Primary content | Secondary content | Hidden or moved |
 |---|---|---|---|
@@ -121,9 +135,15 @@ Select chapter
 
 Write readiness display:
 
-- `proceed`: show concise confidence, selected continuity source, and primary write action.
-- `degraded`: show degraded reason codes and a conservative recommendation before write starts.
-- `blocked`: show blocker reason codes and the exact surface that can resolve them, such as Memory conflict review or Operations job recovery.
+- `proceed`: render `Context Clean`, show concise confidence, selected continuity source, and primary write action.
+- `degraded`: render `Context Partial`, show degraded reason codes and a conservative recommendation before write starts.
+- `blocked`: render `Context Blocked`, show blocker reason codes and the exact surface that can resolve them, such as Memory conflict review or Operations job recovery.
+
+Approval display rule:
+
+- `Run continuity check` is the enabled primary action while validation is pending.
+- `Approve revision` is visible but locked/disabled until continuity validation passes or an approved override contract exists.
+- The generated chapter draft remains draft-only until approval; it must not feed memory, reader, or publish output directly.
 
 Fallback display rule:
 
