@@ -14,6 +14,7 @@ Tai lieu duoc nhom theo taxonomy de de tim va giam trung lap.
 - Business Handbook:
   - [system-business-handbook.md](./operations/specs/system-business-handbook.md)
 - Operations Specs:
+  - [llm-providers.md](./operations/llm-providers.md)
   - [pipeline-first-ia-spec.md](./operations/specs/pipeline-first-ia-spec.md)
   - [agent-governance-ux-evolution-v1.md](./operations/specs/agent-governance-ux-evolution-v1.md)
 - Implementation & Rollout:

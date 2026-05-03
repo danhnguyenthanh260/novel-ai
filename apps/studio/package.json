@@ -10,6 +10,7 @@
     "lint:line-budgets": "node scripts/check_line_budgets.mjs",
     "typecheck": "tsc --noEmit",
     "doctor:pipeline": "node scripts/doctor_pipeline.mjs",
+    "doctor:llm": "node scripts/doctor_llm.mjs",
     "doctor:memory-bridge": "node scripts/doctor_memory_bridge.mjs",
     "doctor:ingest-validate": "node scripts/doctor_ingest_validate.mjs",
     "doctor:ingest-validate-matrix": "node scripts/doctor_ingest_validate_matrix.mjs",
