@@ -590,14 +590,14 @@ body {
 .work-stream__intro h1 {
   margin-top: 8px;
   color: var(--text-primary);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 650;
 }
 
 .work-stream__intro p {
   margin-top: 8px;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -644,27 +644,28 @@ body {
   justify-content: space-between;
   gap: 12px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 10px;
+  text-transform: uppercase;
 }
 
 .work-task-card__title {
   margin-top: 8px;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
 }
 
 .work-task-card p {
   margin-top: 6px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
 .work-task-card button {
   margin-top: 12px;
   color: var(--accent);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .work-composer-wrap {
@@ -693,7 +694,7 @@ body {
   border: 0;
   background: transparent;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13px;
   outline: none;
 }
 
