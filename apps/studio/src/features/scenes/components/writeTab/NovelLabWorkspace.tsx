@@ -167,6 +167,8 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           onQueueContinuity={() => setContinuityQueued(true)}
         />
         <ArtifactSurface
+          storySlug={props.storySlug}
+          chapterId={props.selectedChapterId}
           chapterTitle={chapterTitle}
           draftKey={draftSource.key}
           draftText={draftSource.text}
