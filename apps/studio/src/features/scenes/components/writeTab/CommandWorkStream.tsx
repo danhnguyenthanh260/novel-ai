@@ -13,7 +13,14 @@ type CommandWorkStreamProps = {
   onQueueContinuity: () => void;
 };
 
-const primaryCommands: Array<{ id: CommandId; description: string }> = [
+type CommandOption = {
+  id: CommandId;
+  description: string;
+};
+
+type CommandMenuItem = CommandOption | { id: "More"; description: "" };
+
+const primaryCommands: CommandOption[] = [
   { id: "/write chapter", description: "Create or continue the active chapter draft" },
   { id: "/analyze chapter", description: "Inspect continuity, context, and risks" },
   { id: "/rewrite selection", description: "Rewrite selected prose in the active artifact" },
@@ -21,12 +28,15 @@ const primaryCommands: Array<{ id: CommandId; description: string }> = [
   { id: "/check continuity", description: "Find canon, timeline, and reveal issues" },
 ];
 
-const moreCommands: Array<{ id: CommandId; description: string }> = [
+const moreCommands: CommandOption[] = [
   { id: "/extract memory", description: "Preview draft-only memory candidates" },
   { id: "/review chapter", description: "Open review checklist and scoring" },
   { id: "/approve draft", description: "Locked until validation passes" },
   { id: "/publish preview", description: "Preview approved reader-facing output" },
 ];
+
+const moreMenuItem: CommandMenuItem = { id: "More", description: "" };
+const allAvailableCommands: CommandMenuItem[] = [...primaryCommands, moreMenuItem, ...moreCommands];
 
 function statusLabel(status: CommandTaskCard["status"]): string {
   if (status === "running") return "Running";
@@ -46,8 +56,6 @@ function SlashCommandMenu({
   isMoreOpen: boolean;
   onToggleMore: () => void;
 }) {
-  const allCommands = [...primaryCommands, { id: "More" as any, description: "" }, ...moreCommands];
-  
   return (
     <div className="slash-menu" role="menu" aria-label="Slash commands">
       <div className="slash-menu__section">Primary commands</div>
@@ -95,6 +103,82 @@ function SlashCommandMenu({
   );
 }
 
+function buildTasks({ chapterId, hasDraft, continuityQueued }: Pick<CommandWorkStreamProps, "chapterId" | "hasDraft" | "continuityQueued">): CommandTaskCard[] {
+  const chapterCommand = chapterId ? `/write chapter ${chapterId}` : "/write chapter";
+
+  return [
+    {
+      id: "draft",
+      command: chapterCommand,
+      title: hasDraft ? "Draft artifact is open" : "No draft artifact yet",
+      status: chapterId ? "completed" : "blocked",
+      detail: chapterId
+        ? "Novel Lab will keep generated prose out of the command stream. The editable artifact lives on the right."
+        : "Choose or create a chapter, then run a writing command.",
+      cta: hasDraft ? "Review artifact" : "Create draft",
+    },
+    {
+      id: "continuity",
+      command: "/check continuity",
+      title: continuityQueued ? "Continuity check queued" : "Continuity validation is waiting",
+      status: continuityQueued ? "running" : "idle",
+      detail: continuityQueued
+        ? "Checking canon, timeline anchors, and forbidden reveal constraints."
+        : "Run validation after the document edit pass. Approval remains locked until this completes.",
+      cta: continuityQueued ? "Open progress" : "Run check",
+    },
+  ];
+}
+
+function getMaxCommandIndex(isMoreOpen: boolean): number {
+  return isMoreOpen ? primaryCommands.length + moreCommands.length : primaryCommands.length;
+}
+
+function handleCommandSubmit(value: string, onQueueContinuity: () => void, onOpenAutoWrite: () => void) {
+  if (value.includes("/check continuity")) onQueueContinuity();
+  if (value.includes("/write chapter")) onOpenAutoWrite();
+}
+
+function handleSlashMenuKeyDown({
+  event,
+  showSlashMenu,
+  activeIndex,
+  maxIndex,
+  onActiveIndexChange,
+  onMoreOpenChange,
+  onSelect,
+  onClose,
+}: {
+  event: React.KeyboardEvent;
+  showSlashMenu: boolean;
+  activeIndex: number;
+  maxIndex: number;
+  onActiveIndexChange: (value: number) => void;
+  onMoreOpenChange: (value: boolean) => void;
+  onSelect: (command: string) => void;
+  onClose: () => void;
+}) {
+  if (!showSlashMenu) return;
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    const nextIndex = (activeIndex + 1) % (maxIndex + 1);
+    onActiveIndexChange(nextIndex);
+    if (nextIndex > primaryCommands.length) onMoreOpenChange(true);
+    return;
+  }
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    onActiveIndexChange(activeIndex === 0 ? maxIndex : activeIndex - 1);
+    return;
+  }
+  if (event.key === "Enter" && activeIndex >= 0) {
+    event.preventDefault();
+    onSelect(allAvailableCommands[activeIndex].id);
+    return;
+  }
+  if (event.key === "Escape") onClose();
+}
+
 function TaskCard({ task }: { task: CommandTaskCard }) {
   return (
     <article className={`work-task-card work-task-card--${task.status}`}>
@@ -114,10 +198,8 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const [isMoreOpen, setIsMoreOpen] = React.useState(false);
   
   const showSlashMenu = props.commandMenuOpen || props.composerValue.trimStart().startsWith("/");
-  const chapterCommand = props.chapterId ? `/write chapter ${props.chapterId}` : "/write chapter";
-  
-  const allAvailableCommands = [...primaryCommands, { id: "More", description: "" }, ...moreCommands];
-  const maxIndex = isMoreOpen ? primaryCommands.length + moreCommands.length : primaryCommands.length;
+  const maxIndex = getMaxCommandIndex(isMoreOpen);
+  const tasks = buildTasks(props);
 
   const handleSelect = (command: string) => {
     if (command === "More") {
@@ -130,52 +212,17 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showSlashMenu) return;
-
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      const nextIndex = (activeIndex + 1) % (maxIndex + 1);
-      setActiveIndex(nextIndex);
-      if (nextIndex > primaryCommands.length) setIsMoreOpen(true);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      const nextIndex = activeIndex === 0 ? maxIndex : activeIndex - 1;
-      setActiveIndex(nextIndex);
-      if (nextIndex <= primaryCommands.length && nextIndex > 0) {
-        // keep current more state or close if moving back to top? 
-        // User choice, but let's keep it simple.
-      }
-    } else if (e.key === "Enter" && activeIndex >= 0) {
-      e.preventDefault();
-      const selected = allAvailableCommands[activeIndex];
-      handleSelect(selected.id);
-    } else if (e.key === "Escape") {
-      props.onCommandMenuOpenChange(false);
-    }
+    handleSlashMenuKeyDown({
+      event: e,
+      showSlashMenu,
+      activeIndex,
+      maxIndex,
+      onActiveIndexChange: setActiveIndex,
+      onMoreOpenChange: setIsMoreOpen,
+      onSelect: handleSelect,
+      onClose: () => props.onCommandMenuOpenChange(false),
+    });
   };
-
-  const tasks: CommandTaskCard[] = [
-    {
-      id: "draft",
-      command: chapterCommand,
-      title: props.hasDraft ? "Draft artifact is open" : "No draft artifact yet",
-      status: props.chapterId ? "completed" : "blocked",
-      detail: props.chapterId
-        ? "Novel Lab will keep generated prose out of the command stream. The editable artifact lives on the right."
-        : "Choose or create a chapter, then run a writing command.",
-      cta: props.hasDraft ? "Review artifact" : "Create draft",
-    },
-    {
-      id: "continuity",
-      command: "/check continuity",
-      title: props.continuityQueued ? "Continuity check queued" : "Continuity validation is waiting",
-      status: props.continuityQueued ? "running" : "idle",
-      detail: props.continuityQueued
-        ? "Checking canon, timeline anchors, and forbidden reveal constraints."
-        : "Run validation after the document edit pass. Approval remains locked until this completes.",
-      cta: props.continuityQueued ? "Open progress" : "Run check",
-    },
-  ];
 
   return (
     <section className="work-stream" aria-label="Command work stream">
@@ -213,8 +260,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
           className="work-composer"
           onSubmit={(event) => {
             event.preventDefault();
-            if (props.composerValue.includes("/check continuity")) props.onQueueContinuity();
-            if (props.composerValue.includes("/write chapter")) props.onOpenAutoWrite();
+            handleCommandSubmit(props.composerValue, props.onQueueContinuity, props.onOpenAutoWrite);
           }}
         >
           <button
