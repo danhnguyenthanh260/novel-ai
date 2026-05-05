@@ -156,6 +156,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           onCreateNewChapter={props.onCreateNewChapter}
         />
         <CommandWorkStream
+          storySlug={props.storySlug}
           chapterId={props.selectedChapterId}
           hasDraft={draftSource.text.trim().length > 0}
           continuityQueued={continuityQueued}
