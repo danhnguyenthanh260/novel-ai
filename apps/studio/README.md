@@ -47,6 +47,7 @@ Refactor direction for large modules:
   - `src/features/scenes/components/DraftRunner.tsx`
   - `src/features/scenes/components/writeTab/NovelLabWorkspace.tsx` (Novel Lab command/artifact Write slice)
   - `src/features/scenes/components/writeTab/ArtifactSurface.tsx` owns state-backed Read/Edit/Analyze/Review/Approve artifact tabs and local approval gate display.
+  - `src/features/scenes/components/writeTab/ArtifactInspectorRail.tsx` renders artifact diagnostics from current workflow state, not static preview content.
 - Dictionary & Shelf:
   - `src/features/dictionary/components/DictionaryManager.tsx`
   - `src/app/shelf/page.tsx`
