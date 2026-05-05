@@ -19,6 +19,8 @@ type StoryContextValue = {
   headerBusy: boolean;
   headerBusyLabel: string | null;
   runHeaderAction: <T>(label: string, action: () => Promise<T>) => Promise<T>;
+  isArtifactVisible: boolean;
+  setIsArtifactVisible: (visible: boolean) => void;
 };
 
 const StoryContext = createContext<StoryContextValue | undefined>(undefined);
@@ -35,6 +37,7 @@ export function StoryProvider({ children }: { children: React.ReactNode }) {
     sceneStatus: null,
   });
   const [headerBusyMap, setHeaderBusyMap] = useState<Record<number, string>>({});
+  const [isArtifactVisible, setIsArtifactVisible] = useState(false);
   const busySeqRef = useRef(0);
 
   useEffect(() => {
@@ -122,6 +125,8 @@ export function StoryProvider({ children }: { children: React.ReactNode }) {
       headerBusy,
       headerBusyLabel,
       runHeaderAction,
+      isArtifactVisible,
+      setIsArtifactVisible,
     }),
     [
       storySlug,
@@ -134,6 +139,8 @@ export function StoryProvider({ children }: { children: React.ReactNode }) {
       headerBusy,
       headerBusyLabel,
       runHeaderAction,
+      isArtifactVisible,
+      setIsArtifactVisible,
     ]
   );
   return <StoryContext.Provider value={value}>{children}</StoryContext.Provider>;

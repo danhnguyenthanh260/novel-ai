@@ -242,8 +242,12 @@ export default function StorySelector() {
 
       <div className="flex flex-wrap items-center gap-1">
         <details className="relative">
-          <summary className={`shell-link cursor-pointer list-none px-2 py-1 ${disabledLinkClass}`}>
-            Navigate: {activeNavItem?.label ?? "Pipelines"}
+          <summary className={`shell-link cursor-pointer list-none px-2 py-1 flex items-center gap-1.5 ${disabledLinkClass}`} title="Navigate">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+            </svg>
+            <span className="text-[11px] font-medium">{activeNavItem?.label ?? "Pipelines"}</span>
           </summary>
           <div className="absolute right-0 z-50 mt-1 min-w-[220px] rounded border border-[#2a3441] bg-[#0d1524] p-1 shadow-lg">
             {navItems.map((item) => (
@@ -261,7 +265,20 @@ export default function StorySelector() {
         </details>
 
         <details className="relative">
-          <summary className={`shell-link cursor-pointer list-none px-2 py-1 ${disabledLinkClass}`}>Controls</summary>
+          <summary className={`shell-link cursor-pointer list-none px-2 py-1 flex items-center gap-1.5 ${disabledLinkClass}`} title="Controls">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="4" y1="21" x2="4" y2="14" />
+              <line x1="4" y1="10" x2="4" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12" y2="3" />
+              <line x1="20" y1="21" x2="20" y2="16" />
+              <line x1="20" y1="12" x2="20" y2="3" />
+              <line x1="1" y1="14" x2="7" y2="14" />
+              <line x1="9" y1="8" x2="15" y2="8" />
+              <line x1="17" y1="16" x2="23" y2="16" />
+            </svg>
+            <span className="text-[11px] font-medium">Controls</span>
+          </summary>
           <div className="absolute right-0 z-50 mt-1 min-w-[320px] rounded border border-[#2a3441] bg-[#0d1524] p-2 shadow-lg">
             <button
               type="button"
@@ -300,14 +317,19 @@ export default function StorySelector() {
 
       <button
         type="button"
-        className="rounded-md border border-[#2f5b58] bg-[#133a37] px-2 py-1 text-sm text-[#8ef2d5] transition hover:border-[#3e867f] disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded-md border border-[#2f5b58] bg-[#133a37] px-2 py-1 transition hover:border-[#3e867f] disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-1"
         onClick={() => {
           setFormError(null);
           setShowNew(true);
         }}
         disabled={actionsDisabled}
+        title="New Story"
       >
-        + New Story
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        <span className="text-[10px] font-bold uppercase tracking-tight text-[#8ef2d5]">Story</span>
       </button>
 
       {portalReady &&

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useStory } from "@/features/story/StoryContext";
 import AutoWriteWizard from "@/features/scenes/components/writeTab/AutoWriteWizard";
 import ArtifactSurface from "@/features/scenes/components/writeTab/ArtifactSurface";
 import CommandWorkStream from "@/features/scenes/components/writeTab/CommandWorkStream";
@@ -130,6 +131,7 @@ function NavigationPanel(
 }
 
 export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
+  const { isArtifactVisible } = useStory();
   const [continuityQueued, setContinuityQueued] = useState(false);
   const [composerValue, setComposerValue] = useState(props.selectedChapterId ? `/write chapter ${props.selectedChapterId} ` : "");
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
@@ -139,7 +141,12 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
 
   return (
     <>
-      <main className="novel-lab-workspace">
+      <main
+        className="novel-lab-workspace"
+        style={{
+          gridTemplateColumns: `236px 1fr ${isArtifactVisible ? "minmax(520px, 1.18fr)" : "320px"}`,
+        }}
+      >
         <NavigationPanel
           storySlug={props.storySlug}
           chapterIds={props.chapterIds}
@@ -165,6 +172,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           draftText={draftSource.text}
           hasChapter={Boolean(props.selectedChapterId)}
           readiness={readiness}
+          isVisible={isArtifactVisible}
           continuityQueued={continuityQueued}
           onOpenAutoWrite={() => props.setShowAutoWrite(true)}
           onQueueContinuity={() => setContinuityQueued(true)}

@@ -49,3 +49,6 @@ _debug*
 _fix_data.sql
 _staging*
 *.sql
+
+# Agent Skills
+.agents/

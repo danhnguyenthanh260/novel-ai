@@ -12,6 +12,7 @@ type ArtifactSurfaceProps = {
   onOpenAutoWrite: () => void;
   onQueueContinuity: () => void;
   onSaveDraft: (text: string) => Promise<void>;
+  isVisible: boolean;
 };
 
 function artifactKindLabel(kind: ArtifactKind): string {
@@ -126,21 +127,24 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
 
   return (
     <section className="artifact-workspace" aria-label="Active artifact workspace">
-      <div className="artifact-main">
-        <ArtifactHeader
-          chapterTitle={props.chapterTitle}
-          hasDraft={hasDraft}
-          continuityQueued={props.continuityQueued}
-          onQueueContinuity={props.onQueueContinuity}
-        />
-        {hasDraft ? <ArtifactTabs /> : null}
-        {hasDraft ? (
-          <DocumentArtifact key={props.draftKey} initialText={props.draftText} onSaveDraft={props.onSaveDraft} />
-        ) : (
-          <EmptyArtifact hasChapter={props.hasChapter} onOpenAutoWrite={props.onOpenAutoWrite} />
-        )}
-      </div>
-      <ArtifactInspectorRail readiness={props.readiness} continuityQueued={props.continuityQueued} />
+      {props.isVisible ? (
+        <div className="artifact-main">
+          <ArtifactHeader
+            chapterTitle={props.chapterTitle}
+            hasDraft={hasDraft}
+            continuityQueued={props.continuityQueued}
+            onQueueContinuity={props.onQueueContinuity}
+          />
+          {hasDraft ? <ArtifactTabs /> : null}
+          {hasDraft ? (
+            <DocumentArtifact key={props.draftKey} initialText={props.draftText} onSaveDraft={props.onSaveDraft} />
+          ) : (
+            <EmptyArtifact hasChapter={props.hasChapter} onOpenAutoWrite={props.onOpenAutoWrite} />
+          )}
+        </div>
+      ) : (
+        <ArtifactInspectorRail readiness={props.readiness} continuityQueued={props.continuityQueued} />
+      )}
     </section>
   );
 }
