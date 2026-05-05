@@ -32,6 +32,7 @@ Refactor direction for large modules:
   - `src/app/stories/[slug]/ingest/page.tsx`
   - `src/app/stories/[slug]/ingest/maturity/page.tsx`
   - `src/features/ingest/components/IngestJobsClient.tsx`
+  - `src/features/ingest/components/ingestJobs/IngestJobsPageView.tsx` keeps source setup first-class and operator controls collapsed.
   - `src/features/ingest/components/IngestMaturityClient.tsx`
   - Includes split-draft preview + approve/reject flow for auto scene split
 - Review panel:

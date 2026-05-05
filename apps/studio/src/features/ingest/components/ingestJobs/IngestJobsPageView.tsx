@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CanonicalSourcePanel } from "@/features/ingest/components/ingestJobs/panels/CanonicalSourcePanel";
 import { ReprocessChaptersPanel } from "@/features/ingest/components/ingestJobs/panels/ReprocessChaptersPanel";
@@ -16,6 +15,29 @@ function workerStatusText(state: IngestJobsControllerState) {
     return `running${state.workerStatus.pid ? ` (pid ${state.workerStatus.pid})` : ""}`;
   }
   return state.workerStatus.enabled ? "stopped" : "disabled";
+}
+
+function splitLaneStatus(state: IngestJobsControllerState) {
+  return state.workerStatus?.lanes?.find((lane) => lane.lane === "split")?.running ? "running" : "off";
+}
+
+function llmStatusText(detail: string | undefined) {
+  const normalized = detail?.toLowerCase() ?? "";
+  if (normalized.includes("ready")) return "ready";
+  if (normalized.includes("offline")) return "offline";
+  return "unknown";
+}
+
+function workerTone(workerState: string) {
+  if (workerState.includes("running")) return "ok";
+  if (workerState === "disabled") return "warn";
+  return "muted";
+}
+
+function llmTone(llmState: string) {
+  if (llmState === "ready") return "ok";
+  if (llmState === "offline") return "bad";
+  return "muted";
 }
 
 type IngestJobsPageViewProps = {
@@ -46,15 +68,28 @@ function statusChip(label: string, value: string, tone: "ok" | "warn" | "bad" | 
   );
 }
 
+function HeaderActions({ storySlug, state }: Pick<HeaderProps, "storySlug" | "state">) {
+  return (
+    <div className="flex flex-wrap items-start justify-end gap-2">
+      <button type="button" className="shell-link min-w-[110px] px-3 py-2 text-sm" onClick={state.loadJobs} disabled={state.loading}>
+        {state.loading ? "Refreshing" : "Refresh"}
+      </button>
+      {state.selectedJobId ? (
+        <Link href={`/stories/${encodeURIComponent(storySlug)}/pipelines/${state.selectedJobId}`} className="shell-link min-w-[110px] px-3 py-2 text-center text-sm">
+          Pipeline View
+        </Link>
+      ) : null}
+      <Link href={`/stories/${encodeURIComponent(storySlug)}/ingest/maturity`} className="shell-link min-w-[110px] px-3 py-2 text-center text-sm">
+        Maturity
+      </Link>
+    </div>
+  );
+}
+
 function IngestJobsHeader({ storySlug, state, lastUpdatedAt }: HeaderProps) {
-  const splitLane = state.workerStatus?.lanes?.find((lane) => lane.lane === "split");
   const workerState = workerStatusText(state);
-  const splitLaneState = splitLane?.running ? "running" : "off";
-  const llmState = state.workerStatus?.detail?.toLowerCase().includes("ready")
-    ? "ready"
-    : state.workerStatus?.detail?.toLowerCase().includes("offline")
-      ? "offline"
-      : "unknown";
+  const splitLaneState = splitLaneStatus(state);
+  const llmState = llmStatusText(state.workerStatus?.detail);
 
   return (
     <div className="surface-card sticky top-0 z-20 p-3">
@@ -68,49 +103,14 @@ function IngestJobsHeader({ storySlug, state, lastUpdatedAt }: HeaderProps) {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {statusChip("worker", workerState, workerState.includes("running") ? "ok" : workerState === "disabled" ? "warn" : "muted")}
+            {statusChip("worker", workerState, workerTone(workerState))}
             {statusChip("split lane", splitLaneState, splitLaneState === "running" ? "ok" : "warn")}
-            {statusChip("llm", llmState, llmState === "ready" ? "ok" : llmState === "offline" ? "bad" : "muted")}
+            {statusChip("llm", llmState, llmTone(llmState))}
             {statusChip("last updated", lastUpdatedAt, "muted")}
           </div>
           {state.workerStatus?.detail ? <div className="muted text-xs">{state.workerStatus.detail}</div> : null}
         </div>
-        <div className="flex flex-wrap items-start justify-end gap-2">
-          <button type="button" className="shell-link min-w-[110px] px-3 py-2 text-sm" onClick={state.loadJobs} disabled={state.loading}>
-            {state.loading ? "Refreshing" : "Refresh"}
-          </button>
-          <button type="button" className="shell-link min-w-[110px] px-3 py-2 text-sm" onClick={() => state.runWorkerAction("start")} disabled={state.workerBusy}>
-            Start Worker
-          </button>
-          <button type="button" className="shell-link min-w-[110px] px-3 py-2 text-sm" onClick={() => state.runWorkerAction("restart")} disabled={state.workerBusy}>
-            Restart Worker
-          </button>
-          <button type="button" className="shell-link min-w-[110px] px-3 py-2 text-sm" onClick={() => state.runWorkerAction("stop")} disabled={state.workerBusy}>
-            Stop Worker
-          </button>
-          <button type="button" className="shell-link min-w-[110px] px-3 py-2 text-sm" onClick={() => state.runWorkerAction("start_llama")} disabled={state.workerBusy}>
-            Start Llama
-          </button>
-          {state.selectedJobId ? (
-            <Link href={`/stories/${encodeURIComponent(storySlug)}/pipelines/${state.selectedJobId}`} className="shell-link min-w-[110px] px-3 py-2 text-center text-sm">
-              Pipeline View
-            </Link>
-          ) : null}
-          <details className="relative inline-block z-30 pointer-events-auto">
-            <summary className="shell-link min-w-[110px] cursor-pointer list-none px-3 py-2 text-center text-sm">More</summary>
-            <div className="absolute right-0 z-40 mt-2 grid min-w-[220px] gap-2 rounded border border-[#223247] bg-[#0c1628] p-2 shadow-xl pointer-events-auto">
-              <button type="button" className="shell-link px-3 py-2 text-xs" onClick={() => state.runWorkerAction("kill")} disabled={state.workerBusy}>
-                Kill Worker
-              </button>
-              <button type="button" className="shell-link px-3 py-2 text-xs" onClick={state.rebuildGlobalProfile} disabled={state.rebuildGlobalBusy}>
-                {state.rebuildGlobalBusy ? "Rebuilding..." : "Rebuild Global Profile"}
-              </button>
-              <Link href={`/stories/${encodeURIComponent(storySlug)}/ingest/maturity`} className="shell-link px-3 py-2 text-center text-xs">
-                Open Maturity
-              </Link>
-            </div>
-          </details>
-        </div>
+        <HeaderActions storySlug={storySlug} state={state} />
       </div>
     </div>
   );
@@ -156,75 +156,108 @@ function IngestJobsValidateSection({ state }: ValidateSectionProps) {
   );
 }
 
-export function IngestJobsPageView({ storySlug, state }: IngestJobsPageViewProps) {
-  const [lastUpdatedAt, setLastUpdatedAt] = useState("-");
+function IngestJobsOperatorSection({ storySlug, state }: IngestJobsPageViewProps) {
+  return (
+    <details className="surface-card p-3">
+      <summary className="cursor-pointer text-sm font-medium text-slate-200">Operator controls</summary>
+      <div className="mt-3 grid gap-3">
+        <section className="rounded border border-[#223247] bg-[#0b1526] p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-medium text-slate-200">Runtime controls</div>
+              <div className="muted mt-1 text-xs">Use these only when worker or local model runtime needs intervention.</div>
+            </div>
+            <Link href={`/stories/${encodeURIComponent(storySlug)}/ingest/maturity`} className="shell-link px-3 py-2 text-center text-xs">
+              Open Maturity
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="shell-link px-3 py-2 text-xs" onClick={() => state.runWorkerAction("start")} disabled={state.workerBusy}>
+              Start Worker
+            </button>
+            <button type="button" className="shell-link px-3 py-2 text-xs" onClick={() => state.runWorkerAction("restart")} disabled={state.workerBusy}>
+              Restart Worker
+            </button>
+            <button type="button" className="shell-link px-3 py-2 text-xs" onClick={() => state.runWorkerAction("stop")} disabled={state.workerBusy}>
+              Stop Worker
+            </button>
+            <button type="button" className="shell-link px-3 py-2 text-xs" onClick={() => state.runWorkerAction("start_llama")} disabled={state.workerBusy}>
+              Start Llama
+            </button>
+            <button type="button" className="shell-link px-3 py-2 text-xs" onClick={() => state.runWorkerAction("kill")} disabled={state.workerBusy}>
+              Kill Worker
+            </button>
+            <button type="button" className="shell-link px-3 py-2 text-xs" onClick={state.rebuildGlobalProfile} disabled={state.rebuildGlobalBusy}>
+              {state.rebuildGlobalBusy ? "Rebuilding..." : "Rebuild Global Profile"}
+            </button>
+          </div>
+        </section>
+        <ReprocessChaptersPanel
+          existingChapters={state.existingChapters}
+          selectedChapterIds={state.selectedChapterIds}
+          reprocessReasonCode={state.reprocessReasonCode}
+          onSetReprocessReasonCode={state.setReprocessReasonCode}
+          reprocessNote={state.reprocessNote}
+          onSetReprocessNote={state.setReprocessNote}
+          forcedStrategy={state.forcedStrategy}
+          onSetForcedStrategy={state.setForcedStrategy}
+          onSelectAll={state.selectAllChapters}
+          onClear={state.clearSelectedChapters}
+          onRefreshChapters={state.loadExistingChapters}
+          onToggleChapter={state.toggleChapterSelection}
+          onRunReprocess={state.runReprocessSelectedChapters}
+          reprocessRunning={state.reprocessRunning}
+        />
+        <CanonicalSourcePanel
+          sourceDocs={state.sourceDocs}
+          sourceDocsLoading={state.sourceDocsLoading}
+          canonicalBusyId={state.canonicalBusyId}
+          onRefreshSources={state.loadSourceDocs}
+          onSetCanonicalSourceDoc={state.setCanonicalSourceDoc}
+        />
+        <WorkerLogViewer baseUrl={state.baseUrl} />
+      </div>
+    </details>
+  );
+}
 
-  useEffect(() => {
-    setLastUpdatedAt(new Date().toLocaleTimeString());
-  }, [state.jobs, state.tasks, state.splitDraft, state.workerStatus]);
+export function IngestJobsPageView({ storySlug, state }: IngestJobsPageViewProps) {
+  const lastUpdatedAt = new Date().toLocaleTimeString();
 
   return (
     <main className="space-y-4 p-2 md:p-4">
       <IngestJobsHeader storySlug={storySlug} state={state} lastUpdatedAt={lastUpdatedAt} />
       <IngestJobsStatusMessages error={state.error} uploadInfo={state.uploadInfo} />
-      <details className="surface-card p-3">
-        <summary className="cursor-pointer text-sm font-medium text-slate-200">Setup Panels</summary>
-        <div className="mt-3 grid gap-3">
-          <UploadSourcePanel
-            uploadMode={state.uploadMode}
-            setUploadMode={state.setUploadMode}
-            splitMode={state.splitMode}
-            setSplitMode={state.setSplitMode}
-            reviewMode={state.reviewMode}
-            setReviewMode={state.setReviewMode}
-            selfHealingEnabled={state.selfHealingEnabled}
-            setSelfHealingEnabled={state.setSelfHealingEnabled}
-            autoRetryEnabled={state.autoRetryEnabled}
-            setAutoRetryEnabled={state.setAutoRetryEnabled}
-            validateBeforeSplit={state.validateBeforeSplit}
-            setValidateBeforeSplit={state.setValidateBeforeSplit}
-            maxLlmCalls={state.maxLlmCalls}
-            setMaxLlmCalls={state.setMaxLlmCalls}
-            createdBy={state.createdBy}
-            setCreatedBy={state.setCreatedBy}
-            setZipFile={state.setZipFile}
-            setMegaFile={state.setMegaFile}
-            pastedName={state.pastedName}
-            setPastedName={state.setPastedName}
-            pastedChapterNo={state.pastedChapterNo}
-            setPastedChapterNo={state.setPastedChapterNo}
-            pastedText={state.pastedText}
-            setPastedText={state.setPastedText}
-            uploading={state.uploading}
-            onValidateUpload={state.validateUpload}
-            onCreateIngestJob={state.createJobFromUpload}
-          />
-          <ReprocessChaptersPanel
-            existingChapters={state.existingChapters}
-            selectedChapterIds={state.selectedChapterIds}
-            reprocessReasonCode={state.reprocessReasonCode}
-            onSetReprocessReasonCode={state.setReprocessReasonCode}
-            reprocessNote={state.reprocessNote}
-            onSetReprocessNote={state.setReprocessNote}
-            forcedStrategy={state.forcedStrategy}
-            onSetForcedStrategy={state.setForcedStrategy}
-            onSelectAll={state.selectAllChapters}
-            onClear={state.clearSelectedChapters}
-            onRefreshChapters={state.loadExistingChapters}
-            onToggleChapter={state.toggleChapterSelection}
-            onRunReprocess={state.runReprocessSelectedChapters}
-            reprocessRunning={state.reprocessRunning}
-          />
-          <CanonicalSourcePanel
-            sourceDocs={state.sourceDocs}
-            sourceDocsLoading={state.sourceDocsLoading}
-            canonicalBusyId={state.canonicalBusyId}
-            onRefreshSources={state.loadSourceDocs}
-            onSetCanonicalSourceDoc={state.setCanonicalSourceDoc}
-          />
-          <WorkerLogViewer baseUrl={state.baseUrl} />
-        </div>
-      </details>
+      <UploadSourcePanel
+        uploadMode={state.uploadMode}
+        setUploadMode={state.setUploadMode}
+        splitMode={state.splitMode}
+        setSplitMode={state.setSplitMode}
+        reviewMode={state.reviewMode}
+        setReviewMode={state.setReviewMode}
+        selfHealingEnabled={state.selfHealingEnabled}
+        setSelfHealingEnabled={state.setSelfHealingEnabled}
+        autoRetryEnabled={state.autoRetryEnabled}
+        setAutoRetryEnabled={state.setAutoRetryEnabled}
+        validateBeforeSplit={state.validateBeforeSplit}
+        setValidateBeforeSplit={state.setValidateBeforeSplit}
+        maxLlmCalls={state.maxLlmCalls}
+        setMaxLlmCalls={state.setMaxLlmCalls}
+        createdBy={state.createdBy}
+        setCreatedBy={state.setCreatedBy}
+        setZipFile={state.setZipFile}
+        setMegaFile={state.setMegaFile}
+        pastedName={state.pastedName}
+        setPastedName={state.setPastedName}
+        pastedChapterNo={state.pastedChapterNo}
+        setPastedChapterNo={state.setPastedChapterNo}
+        pastedText={state.pastedText}
+        setPastedText={state.setPastedText}
+        uploading={state.uploading}
+        onValidateUpload={state.validateUpload}
+        onCreateIngestJob={state.createJobFromUpload}
+      />
+      <IngestJobsOperatorSection storySlug={storySlug} state={state} />
 
       <SplitterCompactPanel state={state} />
 

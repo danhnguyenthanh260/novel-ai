@@ -41,9 +41,27 @@ type UploadActionProps = {
 
 type UploadSourcePanelProps = UploadStateProps & UploadActionProps;
 
-function UploadConfigControls({
+function UploadModeControl({
   uploadMode,
   setUploadMode,
+}: Pick<UploadStateProps, "uploadMode" | "setUploadMode">) {
+  return (
+    <label className="grid gap-1 text-sm">
+      <span>Input Mode</span>
+      <select
+        className="shell-control px-2 py-2 text-sm"
+        value={uploadMode}
+        onChange={(e) => setUploadMode((e.target.value as UploadMode) ?? "ZIP_UPLOAD")}
+      >
+        <option value="ZIP_UPLOAD">ZIP upload</option>
+        <option value="MEGA_FILE">MEGA text file</option>
+        <option value="PASTE_TEXT">Paste text</option>
+      </select>
+    </label>
+  );
+}
+
+function AdvancedUploadControls({
   splitMode,
   setSplitMode,
   reviewMode,
@@ -60,8 +78,6 @@ function UploadConfigControls({
   setCreatedBy,
 }: Pick<
   UploadStateProps,
-  | "uploadMode"
-  | "setUploadMode"
   | "splitMode"
   | "setSplitMode"
   | "reviewMode"
@@ -78,19 +94,7 @@ function UploadConfigControls({
   | "setCreatedBy"
 >) {
   return (
-    <div className="grid gap-2 md:grid-cols-7">
-      <label className="grid gap-1 text-sm">
-        <span>Input Mode</span>
-        <select
-          className="shell-control px-2 py-2 text-sm"
-          value={uploadMode}
-          onChange={(e) => setUploadMode((e.target.value as UploadMode) ?? "ZIP_UPLOAD")}
-        >
-          <option value="ZIP_UPLOAD">ZIP_UPLOAD</option>
-          <option value="MEGA_FILE">MEGA_FILE</option>
-          <option value="PASTE_TEXT">PASTE_TEXT</option>
-        </select>
-      </label>
+    <div className="grid gap-2 md:grid-cols-3">
       <label className="grid gap-1 text-sm">
         <span>Split Mode</span>
         <select
@@ -257,12 +261,12 @@ function UploadPayloadInput({
 
 function UploadActions({ uploading, onValidateUpload, onCreateIngestJob }: UploadActionProps) {
   return (
-    <div className="flex items-center gap-2">
-      <button type="button" className="shell-link px-3 py-2 text-sm" onClick={onValidateUpload} disabled={uploading}>
-        {uploading ? "Working..." : "Validate Upload"}
-      </button>
-      <button type="button" className="shell-link px-3 py-2 text-sm" onClick={onCreateIngestJob} disabled={uploading}>
+    <div className="flex flex-wrap items-center gap-2">
+      <button type="button" className="primary-action px-4 py-2 text-sm" onClick={onCreateIngestJob} disabled={uploading}>
         {uploading ? "Working..." : "Create Ingest Job"}
+      </button>
+      <button type="button" className="shell-link px-3 py-2 text-sm" onClick={onValidateUpload} disabled={uploading}>
+        {uploading ? "Working..." : "Validate Source"}
       </button>
     </div>
   );
@@ -271,25 +275,14 @@ function UploadActions({ uploading, onValidateUpload, onCreateIngestJob }: Uploa
 export function UploadSourcePanel(props: UploadSourcePanelProps) {
   return (
     <section className="surface-card">
-      <div className="border-b border-[#223247] px-4 py-3 text-sm font-medium">Upload Source</div>
+      <div className="border-b border-[#223247] px-4 py-3">
+        <div className="text-sm font-medium">Source Setup</div>
+        <div className="muted mt-1 text-xs">Add source material and create the ingest job before using operator tools.</div>
+      </div>
       <div className="grid gap-3 p-4">
-        <UploadConfigControls
+        <UploadModeControl
           uploadMode={props.uploadMode}
           setUploadMode={props.setUploadMode}
-          splitMode={props.splitMode}
-          setSplitMode={props.setSplitMode}
-          reviewMode={props.reviewMode}
-          setReviewMode={props.setReviewMode}
-          selfHealingEnabled={props.selfHealingEnabled}
-          setSelfHealingEnabled={props.setSelfHealingEnabled}
-          autoRetryEnabled={props.autoRetryEnabled}
-          setAutoRetryEnabled={props.setAutoRetryEnabled}
-          maxLlmCalls={props.maxLlmCalls}
-          setMaxLlmCalls={props.setMaxLlmCalls}
-          validateBeforeSplit={props.validateBeforeSplit}
-          setValidateBeforeSplit={props.setValidateBeforeSplit}
-          createdBy={props.createdBy}
-          setCreatedBy={props.setCreatedBy}
         />
         <UploadPayloadInput
           uploadMode={props.uploadMode}
@@ -302,6 +295,27 @@ export function UploadSourcePanel(props: UploadSourcePanelProps) {
           pastedText={props.pastedText}
           setPastedText={props.setPastedText}
         />
+        <details className="rounded border border-[#223247] bg-[#0b1526] p-3">
+          <summary className="cursor-pointer text-sm font-medium text-slate-200">Advanced ingest options</summary>
+          <div className="mt-3">
+            <AdvancedUploadControls
+              splitMode={props.splitMode}
+              setSplitMode={props.setSplitMode}
+              reviewMode={props.reviewMode}
+              setReviewMode={props.setReviewMode}
+              selfHealingEnabled={props.selfHealingEnabled}
+              setSelfHealingEnabled={props.setSelfHealingEnabled}
+              autoRetryEnabled={props.autoRetryEnabled}
+              setAutoRetryEnabled={props.setAutoRetryEnabled}
+              maxLlmCalls={props.maxLlmCalls}
+              setMaxLlmCalls={props.setMaxLlmCalls}
+              validateBeforeSplit={props.validateBeforeSplit}
+              setValidateBeforeSplit={props.setValidateBeforeSplit}
+              createdBy={props.createdBy}
+              setCreatedBy={props.setCreatedBy}
+            />
+          </div>
+        </details>
         <UploadActions
           uploading={props.uploading}
           onValidateUpload={props.onValidateUpload}
