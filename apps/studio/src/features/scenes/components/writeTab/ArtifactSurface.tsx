@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import ArtifactInspectorRail from "@/features/scenes/components/writeTab/ArtifactInspectorRail";
+import ArtifactInspectorRail, { type ArtifactInspectorDiagnostics } from "@/features/scenes/components/writeTab/ArtifactInspectorRail";
 import type { ContextReadiness } from "@/features/scenes/components/writeTab/types";
 
 type ArtifactMode = "read" | "edit" | "analysis" | "review" | "approve";
@@ -59,6 +59,32 @@ function artifactKindLabel(mode: ArtifactMode): string {
   if (mode === "review") return "Review Artifact";
   if (mode === "approve") return "Approval Gate";
   return "Document Artifact";
+}
+
+function wordCount(text: string) {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function buildInspectorDiagnostics(args: {
+  activeMode: ArtifactMode;
+  chapterId: string;
+  chapterTitle: string;
+  draftText: string;
+  gate: ApprovalGate;
+  hasChapter: boolean;
+  hasDraft: boolean;
+}): ArtifactInspectorDiagnostics {
+  return {
+    activeMode: artifactKindLabel(args.activeMode),
+    chapterId: args.chapterId || "none",
+    chapterTitle: args.chapterTitle,
+    hasChapter: args.hasChapter,
+    hasDraft: args.hasDraft,
+    draftWordCount: wordCount(args.draftText),
+    gateLabel: args.gate.label,
+    gateDetail: args.gate.detail,
+    canApprove: args.gate.canApprove,
+  };
 }
 
 function ArtifactHeader({
@@ -276,6 +302,15 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
     continuityQueued: props.continuityQueued,
     readiness: props.readiness,
   });
+  const inspectorDiagnostics = buildInspectorDiagnostics({
+    activeMode,
+    chapterId: props.chapterId,
+    chapterTitle: props.chapterTitle,
+    draftText: props.draftText,
+    gate,
+    hasChapter: props.hasChapter,
+    hasDraft,
+  });
 
   return (
     <section className="artifact-workspace" aria-label="Active artifact workspace">
@@ -308,7 +343,7 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
           )}
         </div>
       ) : (
-        <ArtifactInspectorRail readiness={props.readiness} continuityQueued={props.continuityQueued} />
+        <ArtifactInspectorRail readiness={props.readiness} continuityQueued={props.continuityQueued} diagnostics={inspectorDiagnostics} />
       )}
     </section>
   );
