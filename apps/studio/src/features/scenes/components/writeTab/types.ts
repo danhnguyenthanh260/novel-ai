@@ -35,11 +35,12 @@ export type CommandTaskStatus = "idle" | "running" | "completed" | "blocked";
 
 export type CommandTaskCard = {
   id: string;
-  command: string;
+  command: CommandId;
   title: string;
   status: CommandTaskStatus;
   detail: string;
   cta?: string;
+  ctaCommand?: CommandId;
 };
 
 export type CommandId =
