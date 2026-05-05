@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useStory } from "@/features/story/StoryContext";
 import AutoWriteWizard from "@/features/scenes/components/writeTab/AutoWriteWizard";
@@ -69,8 +70,22 @@ function buildDraftSource(props: NovelLabWorkspaceProps): DraftSource {
 function NavigationPanel(
   props: Pick<NovelLabWorkspaceProps, "storySlug" | "chapterIds" | "loadingScenes" | "selectedChapterId" | "onChapterIdChange" | "onCreateNewChapter">
 ) {
+  const { isArtifactVisible, setIsArtifactVisible } = useStory();
   const visibleChapters = props.chapterIds.length ? props.chapterIds : [props.selectedChapterId].filter(Boolean);
   const storyLabel = storyLabelFromSlug(props.storySlug);
+  const storyBase = `/stories/${encodeURIComponent(props.storySlug)}`;
+  const readerHref = props.selectedChapterId ? `/read/${encodeURIComponent(props.storySlug)}/${encodeURIComponent(props.selectedChapterId)}` : null;
+  const workspaceLinks = [
+    { label: "Shelf", href: "/shelf" },
+    { label: "Write", href: `${storyBase}/write`, active: true },
+    { label: "Memory", href: `${storyBase}/memory` },
+    { label: "Reviews", href: `${storyBase}/reviews` },
+    ...(readerHref ? [{ label: "Reader", href: readerHref }] : []),
+  ];
+  const operationLinks = [
+    { label: "Pipeline", href: `${storyBase}/pipelines` },
+    { label: "Settings", href: `${storyBase}/settings` },
+  ];
 
   return (
     <aside className="novel-lab-nav" aria-label="Story navigation">
@@ -84,12 +99,27 @@ function NavigationPanel(
       </div>
 
       <nav className="space-y-1 text-sm" aria-label="Workspace views">
-        {["Shelf", "Write", "Artifacts", "Memory", "Reviews", "Reader", "Publish"].map((item) => (
-          <div key={item} className={`novel-lab-nav-row ${item === "Write" ? "novel-lab-nav-row--active" : ""}`}>
-            <span aria-hidden>{item.slice(0, 1)}</span>
-            <span>{item}</span>
-          </div>
+        {workspaceLinks.map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className={`novel-lab-nav-row no-underline hover:bg-white/[0.04] ${item.active ? "novel-lab-nav-row--active" : ""}`}
+          >
+            <span aria-hidden>{item.label.slice(0, 1)}</span>
+            <span>{item.label}</span>
+          </Link>
         ))}
+        <button
+          type="button"
+          className={`novel-lab-nav-row border-0 bg-transparent text-left hover:bg-white/[0.04] ${
+            isArtifactVisible ? "novel-lab-nav-row--active" : ""
+          }`}
+          aria-pressed={isArtifactVisible}
+          onClick={() => setIsArtifactVisible(!isArtifactVisible)}
+        >
+          <span aria-hidden>A</span>
+          <span>Artifacts</span>
+        </button>
       </nav>
 
       <div className="space-y-2">
@@ -118,11 +148,11 @@ function NavigationPanel(
       <details className="novel-lab-operations">
         <summary>Operations</summary>
         <div className="mt-2 space-y-1">
-          {["Pipeline", "Settings"].map((item) => (
-            <div key={item} className="novel-lab-nav-row novel-lab-nav-row--secondary">
-              <span aria-hidden>{item.slice(0, 1)}</span>
-              <span>{item}</span>
-            </div>
+          {operationLinks.map((item) => (
+            <Link key={item.label} href={item.href} className="novel-lab-nav-row novel-lab-nav-row--secondary no-underline hover:bg-white/[0.04]">
+              <span aria-hidden>{item.label.slice(0, 1)}</span>
+              <span>{item.label}</span>
+            </Link>
           ))}
         </div>
       </details>
