@@ -27,6 +27,8 @@ type ApprovalGate = {
   canApprove: boolean;
 };
 
+type PublishState = "idle" | "publishing" | "published" | "failed";
+
 const artifactTabs: Array<{ mode: ArtifactMode; label: string }> = [
   { mode: "read", label: "Read" },
   { mode: "edit", label: "Edit" },
@@ -244,20 +246,50 @@ function ReviewArtifact({ storySlug, chapterId }: { storySlug: string; chapterId
   );
 }
 
-function ApproveArtifact({ gate, storySlug, chapterId }: { gate: ApprovalGate; storySlug: string; chapterId: string }) {
+function ApproveArtifact({
+  gate,
+  storySlug,
+  chapterId,
+  publishState,
+  publishError,
+  onPublishStory,
+}: {
+  gate: ApprovalGate;
+  storySlug: string;
+  chapterId: string;
+  publishState: PublishState;
+  publishError: string | null;
+  onPublishStory: () => void;
+}) {
+  const readerHref = chapterId ? `/read/${encodeURIComponent(storySlug)}/${encodeURIComponent(chapterId)}` : null;
+  const canPublish = gate.canApprove && Boolean(readerHref);
+
   return (
     <div className="document-artifact p-4">
       <div className="grid gap-3 text-sm">
         <div className="font-semibold">{gate.label}</div>
         <p className="muted text-xs">{gate.detail}</p>
-        <button type="button" className="locked-action w-fit px-3 py-2 text-xs" disabled={!gate.canApprove}>
+        <button type="button" className="locked-action w-fit px-3 py-2 text-xs" disabled={!gate.canApprove} title={gate.detail}>
           Approve revision
         </button>
-        {chapterId ? (
-          <Link href={`/read/${encodeURIComponent(storySlug)}/${encodeURIComponent(chapterId)}`} className="shell-link w-fit px-3 py-2 text-xs">
+        {canPublish && readerHref ? (
+          <Link href={readerHref} className="shell-link w-fit px-3 py-2 text-xs">
             Reader preview
           </Link>
+        ) : (
+          <button type="button" className="shell-link w-fit px-3 py-2 text-xs" disabled title={gate.detail}>
+            Reader preview
+          </button>
+        )}
+        <button type="button" className="primary-action w-fit px-3 py-2 text-xs" disabled={!canPublish || publishState === "publishing"} onClick={onPublishStory}>
+          {publishState === "publishing" ? "Publishing" : publishState === "published" ? "Published to shelf" : "Publish story"}
+        </button>
+        {publishState === "published" ? (
+          <Link href="/shelf" className="shell-link w-fit px-3 py-2 text-xs">
+            Open shelf
+          </Link>
         ) : null}
+        {publishError ? <div className="text-xs text-[#ff8f8f]">{publishError}</div> : null}
       </div>
     </div>
   );
@@ -271,7 +303,10 @@ function ArtifactModePanel({
   readiness,
   continuityQueued,
   gate,
+  publishState,
+  publishError,
   onQueueContinuity,
+  onPublishStory,
   onSaveDraft,
 }: {
   mode: ArtifactMode;
@@ -281,7 +316,10 @@ function ArtifactModePanel({
   readiness: ContextReadiness;
   continuityQueued: boolean;
   gate: ApprovalGate;
+  publishState: PublishState;
+  publishError: string | null;
   onQueueContinuity: () => void;
+  onPublishStory: () => void;
   onSaveDraft: (text: string) => Promise<void>;
 }) {
   const paragraphs = useMemo(() => draftText.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean), [draftText]);
@@ -289,12 +327,25 @@ function ArtifactModePanel({
   if (mode === "read") return <ReadArtifact paragraphs={paragraphs} />;
   if (mode === "analysis") return <AnalysisArtifact readiness={readiness} continuityQueued={continuityQueued} onQueueContinuity={onQueueContinuity} />;
   if (mode === "review") return <ReviewArtifact storySlug={storySlug} chapterId={chapterId} />;
-  if (mode === "approve") return <ApproveArtifact gate={gate} storySlug={storySlug} chapterId={chapterId} />;
+  if (mode === "approve") {
+    return (
+      <ApproveArtifact
+        gate={gate}
+        storySlug={storySlug}
+        chapterId={chapterId}
+        publishState={publishState}
+        publishError={publishError}
+        onPublishStory={onPublishStory}
+      />
+    );
+  }
   return <DocumentArtifact initialText={draftText} onSaveDraft={onSaveDraft} />;
 }
 
 export default function ArtifactSurface(props: ArtifactSurfaceProps) {
   const [activeMode, setActiveMode] = useState<ArtifactMode>("edit");
+  const [publishState, setPublishState] = useState<PublishState>("idle");
+  const [publishError, setPublishError] = useState<string | null>(null);
   const hasDraft = props.draftText.trim().length > 0;
   const gate = approvalGate({
     hasChapter: props.hasChapter,
@@ -311,6 +362,25 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
     hasChapter: props.hasChapter,
     hasDraft,
   });
+
+  const publishStory = async () => {
+    if (!gate.canApprove || !props.chapterId || publishState === "publishing") return;
+    setPublishState("publishing");
+    setPublishError(null);
+    try {
+      const res = await fetch(`/api/stories/${encodeURIComponent(props.storySlug)}/meta`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ library_status: "published" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? `PUBLISH_FAILED_${res.status}`);
+      setPublishState("published");
+    } catch (error: unknown) {
+      setPublishState("failed");
+      setPublishError(error instanceof Error ? error.message : "PUBLISH_FAILED");
+    }
+  };
 
   return (
     <section className="artifact-workspace" aria-label="Active artifact workspace">
@@ -335,7 +405,10 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
               readiness={props.readiness}
               continuityQueued={props.continuityQueued}
               gate={gate}
+              publishState={publishState}
+              publishError={publishError}
               onQueueContinuity={props.onQueueContinuity}
+              onPublishStory={() => void publishStory()}
               onSaveDraft={props.onSaveDraft}
             />
           ) : (
