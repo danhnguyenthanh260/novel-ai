@@ -259,6 +259,13 @@ Thực thể chính:
 - `LLM_API_KEY`
 - `LLM_MAX_TOKENS` (optional; conservative output cap for local/provider testing)
 - Runtime UI override: `.runtime/llm-provider.json` (local-only, ignored by Git, takes precedence over `LLM_*` env vars)
+- Local 9Router option:
+  - Run 9Router separately; Studio does not manage that process.
+  - Dashboard: `http://localhost:20128/dashboard`
+  - OpenAI-compatible API base: `http://localhost:20128/v1`
+  - Copy the dashboard API key into Studio Controls -> LLM Provider, choose `9Router`, keep or edit the model, save, then run the provider health check.
+  - `npm run doctor:llm -- --dry-run` should show the runtime source, base URL, model, and redacted API key before any request is sent.
+  - If health check fails, verify that 9Router is running, the dashboard API key is present, and the selected model is available in the 9Router dashboard.
 - `WRITING_V2_PRODUCTION` (optional, default `1`; set `0` to disable `/stories/[slug]/chapters/*` AutoWrite v2 plan/execute/status endpoints during rollout/rollback)
 - `WRITING_COOL_OFF_SECONDS` (optional, default `2`; controls cool-off between `NARRATIVE_*` tasks for chapter writing)
 - `LLAMA_MANUAL_ONLY` (optional, default `1`; when enabled, `/ingest/worker` API will not start/stop llama-server and expects manual terminal operation)

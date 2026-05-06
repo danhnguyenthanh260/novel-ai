@@ -1,4 +1,4 @@
-export type LlmProviderKind = "local" | "groq" | "custom_openai_compatible";
+export type LlmProviderKind = "local" | "groq" | "9router" | "custom_openai_compatible";
 
 export type LlmProviderConfig = {
   provider: LlmProviderKind;
@@ -27,6 +27,7 @@ export type LlmHealthResult = {
 export const LLM_PROVIDER_LABELS: Record<LlmProviderKind, string> = {
   local: "Local API",
   groq: "Groq",
+  "9router": "9Router",
   custom_openai_compatible: "Custom API",
 };
 
@@ -40,6 +41,7 @@ export const GROQ_MODEL_OPTIONS = [
 
 export const LOCAL_DEFAULT_BASE_URL = "http://localhost:8080/v1";
 export const GROQ_DEFAULT_BASE_URL = "https://api.groq.com/openai/v1";
+export const NINE_ROUTER_DEFAULT_BASE_URL = "http://localhost:20128/v1";
 
 const DEFAULT_MAX_TOKENS = 512;
 
@@ -64,6 +66,16 @@ export function defaultLlmProviderConfig(provider: LlmProviderKind): LlmProvider
     };
   }
 
+  if (provider === "9router") {
+    return {
+      provider,
+      baseUrl: NINE_ROUTER_DEFAULT_BASE_URL,
+      model: "kr/claude-sonnet-4.5",
+      apiKey: "",
+      maxTokens: DEFAULT_MAX_TOKENS,
+    };
+  }
+
   return {
     provider,
     baseUrl: LOCAL_DEFAULT_BASE_URL,
@@ -74,7 +86,7 @@ export function defaultLlmProviderConfig(provider: LlmProviderKind): LlmProvider
 }
 
 export function isLlmProviderKind(value: unknown): value is LlmProviderKind {
-  return value === "local" || value === "groq" || value === "custom_openai_compatible";
+  return value === "local" || value === "groq" || value === "9router" || value === "custom_openai_compatible";
 }
 
 export function redactApiKey(value: string | undefined): string {

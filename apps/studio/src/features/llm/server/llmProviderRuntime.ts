@@ -27,6 +27,13 @@ export function getRuntimeProviderPath(): string {
   return path.join(getRuntimeDir(), "llm-provider.json");
 }
 
+function inferProviderFromBaseUrl(baseUrl: string): LlmProviderKind {
+  if (baseUrl.includes("api.groq.com")) return "groq";
+  if (baseUrl.includes("localhost:20128") || baseUrl.includes("127.0.0.1:20128")) return "9router";
+  if (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")) return "local";
+  return "custom_openai_compatible";
+}
+
 function envProviderConfig(): LlmProviderConfig | null {
   const baseUrl = normalizeBaseUrl(process.env.LLM_API_BASE ?? "");
   const model = String(process.env.LLM_MODEL ?? "").trim();
@@ -34,14 +41,8 @@ function envProviderConfig(): LlmProviderConfig | null {
   if (!baseUrl && !model && !apiKey) return null;
   if (!/^https?:\/\//i.test(baseUrl)) return null;
 
-  const provider = baseUrl.includes("api.groq.com")
-    ? "groq"
-    : baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")
-      ? "local"
-      : "custom_openai_compatible";
-
   return {
-    provider,
+    provider: inferProviderFromBaseUrl(baseUrl),
     baseUrl,
     model,
     apiKey,
