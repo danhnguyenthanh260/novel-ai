@@ -329,6 +329,33 @@ type AgentCoverage = {
 
 type AgentControlTab = "overview" | "runs" | "prompts" | "experiments" | "feedback" | "memory";
 type AgentDrawerTab = "overview" | "prompt" | "memory" | "feedback" | "config";
+type AgentTabGroup = {
+  label: string;
+  description: string;
+  tabs: Array<[AgentControlTab, string]>;
+};
+
+const AGENT_TAB_GROUPS: AgentTabGroup[] = [
+  {
+    label: "Author actions",
+    description: "Use these for agent-facing decisions that affect writing direction, feedback, or usable memory.",
+    tabs: [
+      ["overview", "Overview"],
+      ["feedback", "Feedback Loop"],
+      ["memory", "Memory Bank"],
+    ],
+  },
+  {
+    label: "Operator diagnostics",
+    description: "Use these for run traces, prompt governance, experiments, and runtime health inspection.",
+    tabs: [
+      ["runs", "Run Logs"],
+      ["prompts", "Prompt Registry"],
+      ["experiments", "Experiments"],
+    ],
+  },
+];
+
 type AgentAlert = {
   alert_type: string;
   severity: "INFO" | "WARN" | "CRITICAL";
@@ -546,9 +573,7 @@ export default function AgentGovernancePanel({ storySlug }: { storySlug: string 
       setErrorTaxonomy(Array.isArray(tx?.items) ? tx.items : []);
       const profileItems = Array.isArray(pr?.items) ? (pr.items as AgentProfile[]) : [];
       setProfiles(profileItems);
-      if (!selectedProfileId && profileItems.length > 0) {
-        setSelectedProfileId(Number(profileItems[0].id));
-      }
+      setSelectedProfileId((current) => current ?? (profileItems.length > 0 ? Number(profileItems[0].id) : null));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "LOAD_AGENT_CENTER_FAILED");
     } finally {
@@ -1033,26 +1058,27 @@ export default function AgentGovernancePanel({ storySlug }: { storySlug: string 
 
       {error ? <div className="text-sm text-[#ff8f8f]">{error}</div> : null}
 
-      <section className="surface-card p-2">
-        <div className="flex flex-wrap gap-2">
-          {([
-            ["overview", "Overview"],
-            ["runs", "Run Logs"],
-            ["prompts", "Prompt Registry"],
-            ["experiments", "Experiments"],
-            ["feedback", "Feedback Loop"],
-            ["memory", "Memory Bank"],
-          ] as Array<[AgentControlTab, string]>).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`shell-link px-3 py-1.5 text-xs ${activeTab === id ? "border-[#9de5dc]/40 text-[#9de5dc]" : ""}`}
-              onClick={() => setActiveTab(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <section className="surface-card grid gap-3 p-3 lg:grid-cols-2">
+        {AGENT_TAB_GROUPS.map((group) => (
+          <div key={group.label} className="rounded border border-[#223247] bg-[#0b1526] p-3">
+            <div className="mb-3">
+              <div className="text-sm font-medium text-slate-200">{group.label}</div>
+              <div className="muted mt-1 text-xs">{group.description}</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {group.tabs.map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`shell-link px-3 py-1.5 text-xs ${activeTab === id ? "border-[#9de5dc]/40 text-[#9de5dc]" : ""}`}
+                  onClick={() => setActiveTab(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </section>
 
       {activeTab === "overview" && coverageSummary && coverageSummary.alert_count > 0 ? (
@@ -1561,6 +1587,15 @@ export default function AgentGovernancePanel({ storySlug }: { storySlug: string 
               )}
             </div>
           </div>
+        </div>
+      </section>
+      ) : null}
+
+      {activeTab === "overview" ? (
+      <section className="rounded border border-dashed border-[#223247] p-3">
+        <div className="text-sm font-medium text-slate-200">Operator diagnostics</div>
+        <div className="muted mt-1 text-xs">
+          Runtime coverage, error taxonomy, shadow compare, prompt impact, and trace audits are kept available here without being mixed into author action tabs.
         </div>
       </section>
       ) : null}
