@@ -178,14 +178,31 @@ Follow-up issue:
 
 ## Priority Implementation Queue
 
-1. `[Feature][FE + BE] Add resilient default Studio bootstrap and no-story state`
-2. `[Feature][FE] Add guided pipeline next-action rail from ingest through review`
-3. `[Task][FE] Replace Novel Lab placeholder navigation with real links or hide it`
-4. `[Feature][FE + BE + AI] Wire slash commands to typed workflow actions`
-5. `[Feature][FE] Connect artifact tabs and approval gates to real workflow state`
-6. `[Task][FE] Separate author ingest flow from operator controls`
-7. `[Feature][FE + BE] Bind artifact inspector to workflow diagnostics`
-8. `[Feature][FE] Define reader and publish handoff from approved artifacts`
+| Status | Follow-up | Branch | PR |
+|---|---|---|---|
+| Done on `staging` | `[Feature][FE + BE] Add resilient default Studio bootstrap and no-story state` | `feature/default-studio-bootstrap` | #59 |
+| Done on `staging` | `[Feature][FE] Add guided pipeline next-action rail from ingest through review` | `feature/guided-pipeline-next-action` | #60 |
+| Done on `staging` | `[Task][FE] Replace Novel Lab placeholder navigation with real links or hide it` | `feature/novel-lab-real-navigation` | #61 |
+| Done on `staging` | `[Feature][FE + BE + AI] Wire slash commands to typed workflow actions` | `feature/write-slash-command-actions` | #62 |
+| Done on `staging` | `[Feature][FE] Connect artifact tabs and approval gates to real workflow state` | `feature/artifact-tabs-approval-state` | #63 |
+| Done on `staging` | `[Task][FE] Separate author ingest flow from operator controls` | `feature/author-ingest-flow` | #64 |
+| Done on `staging` | `[Feature][FE + BE] Bind artifact inspector to workflow diagnostics` | `feature/artifact-inspector-diagnostics` | #65 |
+| Done on `staging` | `[Feature][FE] Define reader and publish handoff from approved artifacts` | `feature/reader-publish-handoff` | #66 |
+
+Status updated: 2026-05-06 UTC.
+
+Implementation verification completed across the follow-up PRs:
+
+- `npm run typecheck`
+- Changed-file ESLint for each touched Studio surface
+- `npm run build`
+- `git diff --check`
+
+Runtime smoke status:
+
+- `GET /` returned `200 OK` with DB-offline recovery state.
+- `GET /shelf` returned `200 OK`.
+- Full DB-backed browser walkthrough remains blocked until the local Docker daemon/PostgreSQL stack is available.
 
 ## Issue #49 Acceptance Status
 
@@ -195,10 +212,11 @@ Follow-up issue:
 - [x] Full pipeline from ingest through analysis, writing, review, and publish assessed.
 - [x] Placeholder and dead-control risks identified.
 - [x] Follow-up implementation issue queue proposed.
-- [ ] Runtime browser walkthrough completed.
+- [x] Follow-up implementation queue completed on `staging`.
+- [ ] Full DB-backed runtime browser walkthrough completed.
 
-Runtime walkthrough remains unchecked because the required local infrastructure was not available in the active WSL environment.
+Full DB-backed runtime walkthrough remains unchecked because the Docker daemon was not available in the active WSL environment. A limited smoke test confirmed `/` recovery behavior and `/shelf` route rendering without PostgreSQL.
 
 ## Final Recommendation
 
-Close #49 with this audit report, then execute the follow-up queue as implementation issues. The first implementation priority should be the resilient default bootstrap and no-story state, because every other full-pipeline UX depends on the user reaching a stable default entrypoint.
+Close #49 with this audit report and the completed follow-up queue. Treat the remaining full runtime walkthrough as an infrastructure-dependent verification item rather than an implementation gap.

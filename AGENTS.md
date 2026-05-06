@@ -29,6 +29,14 @@ wsl bash -lc "cd /home/danh/novel-ai && /home/danh/novel-ai/.venv/bin/python3 ..
 
 Avoid running project toolchains from Windows `CMD` or PowerShell directly on UNC paths unless the command is only reading files or using GitHub/Git metadata.
 
+When `gh` is unavailable inside WSL but Windows GitHub CLI is installed and authenticated, agents may call it from WSL with the Windows executable path and an explicit repository:
+
+```bash
+"/mnt/c/Program Files/GitHub CLI/gh.exe" issue list --repo danhnguyenthanh260/novel-ai
+```
+
+Do not use placeholder values such as `<owner>/<repo>` in PowerShell commands. Resolve the repository from `git remote -v` first, then pass the concrete `--repo owner/name` value.
+
 ## Collaboration Rules
 
 - Chat with the user in Vietnamese unless the user asks otherwise.
