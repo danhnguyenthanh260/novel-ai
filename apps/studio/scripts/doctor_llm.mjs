@@ -43,6 +43,13 @@ function validateBaseUrl(value) {
   if (!/^https?:\/\//i.test(value)) throw new Error("LLM_API_BASE must start with http:// or https://");
 }
 
+function inferProviderFromBaseUrl(value) {
+  if (String(value || "").includes("api.groq.com")) return "groq";
+  if (String(value || "").includes("localhost:20128") || String(value || "").includes("127.0.0.1:20128")) return "9router";
+  if (String(value || "").includes("localhost") || String(value || "").includes("127.0.0.1")) return "local";
+  return "custom_openai_compatible";
+}
+
 function runtimeProviderPath() {
   return path.resolve(process.cwd(), "../../.runtime/llm-provider.json");
 }
@@ -82,9 +89,10 @@ async function main() {
   const model = runtimeProvider?.model || String(process.env.LLM_MODEL || "local-model");
   const maxTokens = runtimeProvider?.maxTokens || Number(process.env.LLM_MAX_TOKENS || 64);
   const healthMaxTokens = Math.min(Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : 64, 64);
+  const provider = runtimeProvider?.provider || inferProviderFromBaseUrl(base);
 
   console.log("[doctor:llm] source:", runtimeProvider?.source || (process.env.LLM_API_BASE ? "env" : "default"));
-  if (runtimeProvider?.provider) console.log("[doctor:llm] provider:", runtimeProvider.provider);
+  console.log("[doctor:llm] provider:", provider);
   console.log("[doctor:llm] base:", formatBaseForLog(base));
   console.log("[doctor:llm] model:", model);
   console.log("[doctor:llm] api_key:", redact(apiKey));
