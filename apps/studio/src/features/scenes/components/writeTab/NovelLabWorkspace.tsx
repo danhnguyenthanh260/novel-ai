@@ -56,6 +56,7 @@ function buildDraftSource(props: NovelLabWorkspaceProps): DraftSource {
   }
   if (props.stagingData?.user_prose) return { key: `staging-user-${props.selectedChapterId}`, text: props.stagingData.user_prose };
   if (props.v3Draft?.full_text) return { key: `v3-${props.selectedChapterId}`, text: props.v3Draft.full_text };
+  if (props.stagingData?.llm_prose) return { key: `staging-llm-${props.selectedChapterId}`, text: props.stagingData.llm_prose };
 
   const sceneText = props.chapterScenes.map((item) => item.text_content).filter(Boolean).join("\n\n");
   if (sceneText) return { key: `scenes-${props.selectedChapterId}-${props.chapterScenes.length}`, text: sceneText };

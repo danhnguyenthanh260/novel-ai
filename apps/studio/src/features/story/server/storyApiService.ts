@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/server/db/pool";
 import { createStory, listStories, type StoryStatus } from "@/features/scenes/server/workflow/repoStory";
@@ -149,6 +150,15 @@ export async function getStoryChaptersResponse(slug: string): Promise<NextRespon
            st.updated_at::text AS updated_at
          FROM public.narrative_chapter_staging st
          WHERE st.story_id = $1
+         UNION
+         SELECT
+           cd.story_id,
+           cd.chapter_id::text AS chapter_id,
+           0::int AS scene_count,
+           0::int AS first_scene_idx,
+           cd.updated_at::text AS updated_at
+         FROM public.chapter_draft cd
+         WHERE cd.story_id = $1
          UNION
          SELECT
            sc.story_id,
@@ -402,6 +412,11 @@ export async function getStoryChapterReadResponse(slug: string, chapterId: strin
        WHERE st.story_id = $1
        GROUP BY st.chapter_id
        UNION
+       SELECT cd.chapter_id::text AS chapter_id
+       FROM public.chapter_draft cd
+       WHERE cd.story_id = $1
+       GROUP BY cd.chapter_id
+       UNION
        SELECT sc.chapter_id::text AS chapter_id
        FROM public.story_chapter sc
        WHERE sc.story_id = $1
@@ -457,6 +472,36 @@ export async function getStoryChapterReadResponse(slug: string, chapterId: strin
   }));
 
   if (scenes.length === 0) {
+    const draftRes = await pool.query<{ full_text: string | null }>(
+      `SELECT full_text
+       FROM public.chapter_draft
+       WHERE story_id = $1
+         AND chapter_id::text = $2
+       ORDER BY version_no DESC
+       LIMIT 1`,
+      [story.id, chapterId]
+    );
+    const chapterDraftProse = (draftRes.rows[0]?.full_text || "").trim();
+    if (chapterDraftProse) {
+      return NextResponse.json({
+        ok: true,
+        story: { slug, title: story.title },
+        chapter_id: chapterId,
+        prev_chapter_id,
+        next_chapter_id,
+        all_chapters,
+        scenes: [
+          {
+            id: 0,
+            idx: 1,
+            title: "Draft",
+            text_content: chapterDraftProse,
+          },
+        ],
+        source: "chapter_draft",
+      });
+    }
+
     const stagingRes = await pool.query<{ user_prose: string | null; llm_prose: string | null }>(
       `SELECT user_prose, llm_prose
        FROM public.narrative_chapter_staging

@@ -15,8 +15,12 @@ type ChapterReaderProps = {
     stagingData: { user_prose: string; llm_prose: string; status: string } | null;
     onSave: (prose: string) => Promise<void>;
     onResplit: (prose: string) => Promise<void>;
-    v3Draft?: { full_text: string; status: string; virtual_scenes: any[] } | null;
+    v3Draft?: { full_text: string; status: string; virtual_scenes: unknown[] } | null;
 };
+
+function firstReadableProse(values: Array<string | null | undefined>): string {
+    return values.map((value) => String(value || "").trim()).find(Boolean) || "";
+}
 
 export default function ChapterReader({ chapterId, items, pendingProse, stagingData, onSave, onResplit, v3Draft }: ChapterReaderProps) {
     const [viewingDraft, setViewingDraft] = useState((stagingData || v3Draft) && items.length === 0);
@@ -27,13 +31,19 @@ export default function ChapterReader({ chapterId, items, pendingProse, stagingD
     const isThisPending = pendingProse?.id === chapterId;
     const effectivePendingProse = isThisPending ? pendingProse?.prose : null;
 
-    // Unified prose logic: Priority: Pending > V3 Draft > Staging > Scenes Joined
-    const displayProse = (
-        effectivePendingProse ||
-        (viewingDraft && v3Draft ? v3Draft.full_text : null) ||
-        (viewingDraft && stagingData ? (stagingData.user_prose || stagingData.llm_prose) : null) ||
-        (items.length > 0 ? items.map(s => s.text_content).join("\n\n") : (v3Draft?.full_text || stagingData?.user_prose || stagingData?.llm_prose))
-    ) || "";
+    // Bridge order: pending > author staging edit > V3 draft > legacy generated staging > scenes.
+    const sceneProse = items.length > 0 ? items.map(s => s.text_content).filter(Boolean).join("\n\n") : "";
+    const draftProse = firstReadableProse([
+        stagingData?.user_prose,
+        v3Draft?.full_text,
+        stagingData?.llm_prose,
+    ]);
+    const displayProse = firstReadableProse([
+        effectivePendingProse,
+        viewingDraft ? draftProse : null,
+        sceneProse,
+        draftProse,
+    ]);
 
     const startEditing = () => {
         setLocalProse(displayProse);
@@ -144,9 +154,9 @@ export default function ChapterReader({ chapterId, items, pendingProse, stagingD
                         onChange={(e) => setLocalProse(e.target.value)}
                         placeholder="Write your chapter content here..."
                     />
-                ) : effectivePendingProse || (stagingData && stagingData.user_prose) || (v3Draft && viewingDraft) ? (
+                ) : effectivePendingProse || (viewingDraft && draftProse) || (!items.length && draftProse) ? (
                     <div className="text-slate-200 whitespace-pre-wrap text-[17px] leading-relaxed tracking-wide font-serif border-l-2 border-[#9de5dc]/20 pl-6 py-2">
-                        {effectivePendingProse || (viewingDraft && v3Draft ? v3Draft.full_text : stagingData?.user_prose)}
+                        {displayProse}
                     </div>
                 ) : items.length > 0 ? (
                     showScenes ? (
