@@ -5,6 +5,9 @@ let isPolling = false;
 
 /**
  * Polls for READY narrative tasks that are available to run.
+ *
+ * Compatibility-only path for legacy NARRATIVE_* jobs. Canonical chapter
+ * auto-write now enters through CHAPTER_WRITE_V3 and the Python worker.
  */
 export async function pollNarrativeQueue() {
     if (isPolling) return;

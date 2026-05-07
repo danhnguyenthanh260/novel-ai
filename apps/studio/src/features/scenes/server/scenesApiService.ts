@@ -11,7 +11,6 @@ import { runIntake } from "@/features/scenes/server/workflow/steps/intake";
 import { runLock } from "@/features/scenes/server/workflow/steps/lock";
 import { runUnlock } from "@/features/scenes/server/workflow/steps/unlock";
 import { runChapterPlanning } from "@/features/scenes/server/workflow/steps/chapterPlanning";
-import { runChapterWriting } from "@/features/scenes/server/workflow/steps/chapterWriting";
 import { getScenesApiErrorMessage, getScenesApiStatusFromMessage } from "@/features/scenes/server/scenesApi/errorMapper";
 import {
   buildDraftPayload,
@@ -22,7 +21,7 @@ import {
   buildRewritePayload,
 } from "@/features/scenes/server/scenesApi/payloadBuilders";
 import { parseVirtualScenesFromText, VirtualScene } from "@/features/autowrite/server/virtualSceneProvider";
-import { invalidateDownstream } from "@/features/autowrite/server/writingPipelineService";
+import { enqueueChapterWriteV3, invalidateDownstream } from "@/features/autowrite/server/writingPipelineService";
 
 function isWritingV2ProductionEnabled(): boolean {
   const raw = (process.env.WRITING_V2_PRODUCTION ?? "1").trim().toLowerCase();
@@ -44,6 +43,45 @@ function buildChapterOutputContractV1(targetWords: number) {
 
 function parseWritingIntentMode(raw: unknown): "CONTINUE_CANON" | "RETCON_REWRITE" {
   return String(raw || "").trim().toUpperCase() === "RETCON_REWRITE" ? "RETCON_REWRITE" : "CONTINUE_CANON";
+}
+
+function chapterGoalFromPlan(plan: Record<string, unknown>, fallback: string): string {
+  const summary = typeof plan.summary === "string" ? plan.summary.trim() : "";
+  const title = typeof plan.title === "string" ? plan.title.trim() : "";
+  const text = fallback.trim() || summary || title;
+  return text || "Write the next chapter from the approved plan.";
+}
+
+function targetWordCountFromPlan(plan: Record<string, unknown>, fallback: number): number {
+  const contract = plan.chapter_output_contract_v1;
+  if (!contract || typeof contract !== "object" || Array.isArray(contract)) return fallback;
+  const wordRange = (contract as Record<string, unknown>).word_range;
+  if (!wordRange || typeof wordRange !== "object" || Array.isArray(wordRange)) return fallback;
+  const target = Number((wordRange as Record<string, unknown>).target);
+  return Number.isFinite(target) && target > 0 ? Math.floor(target) : fallback;
+}
+
+async function enqueueCanonicalChapterWriteV3(args: {
+  storyId: number;
+  chapterId: string;
+  plan: Record<string, unknown>;
+  userPrompt: string;
+  targetWordCount: number;
+}) {
+  const result = await enqueueChapterWriteV3({
+    storyId: args.storyId,
+    chapterId: args.chapterId,
+    instructions: chapterGoalFromPlan(args.plan, args.userPrompt),
+    targetWordCount: args.targetWordCount,
+    plan: args.plan,
+  });
+  return {
+    ok: true,
+    job_id: result.jobId,
+    chapter_id: result.chapterId,
+    status: "RUNNING",
+    task_type: "CHAPTER_WRITE_V3",
+  };
 }
 
 type QualityGateReportV1 = {
@@ -617,10 +655,12 @@ export async function postChapterAutoWriteResponse(req: NextRequest, storySlug: 
         final_review_ready: false,
       });
     }
-    const writingResult = await runChapterWriting(pool, {
+    const writingResult = await enqueueCanonicalChapterWriteV3({
       storyId,
       chapterId,
       plan: planResult.plan,
+      userPrompt,
+      targetWordCount,
     });
     console.info(
       "[writing.auto_write.accepted]",
@@ -628,6 +668,7 @@ export async function postChapterAutoWriteResponse(req: NextRequest, storySlug: 
         story_id: storyId,
         chapter_id: chapterId,
         job_id: writingResult.job_id ?? null,
+        task_type: writingResult.task_type,
         latency_ms: Date.now() - startedAt,
       })
     );
@@ -635,7 +676,8 @@ export async function postChapterAutoWriteResponse(req: NextRequest, storySlug: 
       ok: true,
       chapter_id: chapterId,
       job_id: writingResult.job_id ?? null,
-      status: "RUNNING",
+      status: writingResult.status,
+      task_type: writingResult.task_type,
       plan: planResult.plan,
       chapter_output_contract_v1:
         (planResult.plan && typeof planResult.plan === "object" && !Array.isArray(planResult.plan) && (planResult.plan as Record<string, unknown>).chapter_output_contract_v1)
@@ -679,10 +721,12 @@ export async function postChapterExecuteResponse(req: NextRequest, storySlug: st
     }
 
     const storyId = await resolveStoryIdForWrite(pool, storySlug);
-    const result = await runChapterWriting(pool, {
+    const result = await enqueueCanonicalChapterWriteV3({
       storyId,
       chapterId,
       plan,
+      userPrompt: "",
+      targetWordCount: targetWordCountFromPlan(plan, 1500),
     });
     console.info(
       "[writing.execute.accepted]",
@@ -690,7 +734,7 @@ export async function postChapterExecuteResponse(req: NextRequest, storySlug: st
         story_id: storyId,
         chapter_id: chapterId,
         job_id: result.job_id ?? null,
-        task_type: "NARRATIVE_START",
+        task_type: result.task_type,
         latency_ms: Date.now() - startedAt,
         llm_tokens: null,
       })
@@ -702,7 +746,7 @@ export async function postChapterExecuteResponse(req: NextRequest, storySlug: st
       "[writing.execute.failed]",
       JSON.stringify({
         chapter_id: chapterId,
-        task_type: "NARRATIVE_START",
+        task_type: "CHAPTER_WRITE_V3",
         latency_ms: Date.now() - startedAt,
         error: msg,
       })
@@ -733,7 +777,7 @@ export async function postChapterExecuteControlResponse(req: NextRequest, storyS
        FROM public.ingest_job
        WHERE id = $1
          AND story_id = $2
-         AND mode = 'AUTO_CHAPTER'
+         AND mode IN ('AUTO_CHAPTER', 'AUTO_CHAPTER_V3')
          AND COALESCE(config_json->>'chapter_id', '') = $3
        LIMIT 1`,
       [jobId, storyId, chapterId]
@@ -817,7 +861,9 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
       }>(
         `SELECT id, status, total_tasks, completed_tasks
          FROM public.ingest_job
-         WHERE id = $1 AND story_id = $2 AND mode = 'AUTO_CHAPTER'
+         WHERE id = $1
+           AND story_id = $2
+           AND mode IN ('AUTO_CHAPTER', 'AUTO_CHAPTER_V3')
          LIMIT 1`,
         [requestedJobId, storyId]
       )
@@ -830,7 +876,7 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
         `SELECT id, status, total_tasks, completed_tasks
          FROM public.ingest_job
          WHERE story_id = $1
-           AND mode = 'AUTO_CHAPTER'
+           AND mode IN ('AUTO_CHAPTER', 'AUTO_CHAPTER_V3')
            AND COALESCE(config_json->>'chapter_id', '') = $2
          ORDER BY id DESC
          LIMIT 1`,
@@ -881,7 +927,16 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
       `SELECT id, seq_no, task_type, status, payload_json, result_json, error, updated_at::text AS updated_at
        FROM public.ingest_task
        WHERE job_id = $1
-         AND task_type IN ('NARRATIVE_START','NARRATIVE_STYLIST','NARRATIVE_CRITIC','NARRATIVE_REFINE','NARRATIVE_FINALIZE')
+         AND task_type IN (
+           'CHAPTER_WRITE_V3',
+           'CHAPTER_LEDGER_EXTRACT',
+           'MEMORY_ROLLUP_V3',
+           'NARRATIVE_START',
+           'NARRATIVE_STYLIST',
+           'NARRATIVE_CRITIC',
+           'NARRATIVE_REFINE',
+           'NARRATIVE_FINALIZE'
+         )
        ORDER BY seq_no ASC NULLS LAST, id ASC`,
       [job.id]
     ).catch(() => ({
@@ -911,12 +966,35 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
       [storyId, chapterId]
     );
     const staging = stagingRes.rows[0];
+    const draftRes = await pool.query<{
+      full_text: string | null;
+      status: string | null;
+      metadata_json: unknown;
+    }>(
+      `SELECT full_text, status, metadata_json
+       FROM public.chapter_draft
+       WHERE story_id = $1 AND chapter_id = $2
+       ORDER BY version_no DESC
+       LIMIT 1`,
+      [storyId, chapterId]
+    ).catch(() => ({
+      rowCount: 0,
+      rows: [] as Array<{
+        full_text: string | null;
+        status: string | null;
+        metadata_json: unknown;
+      }>,
+    }));
+    const draft = draftRes.rows[0] ?? null;
     const jobStatus = String(job.status || "").toUpperCase();
-    const prose = (staging?.llm_prose || "").trim();
+    const draftProse = (draft?.full_text || "").trim();
+    const stagingProse = (staging?.llm_prose || "").trim();
+    const prose = draftProse || stagingProse;
+    const proseSource = draftProse ? "chapter_draft.full_text" : stagingProse ? "narrative_chapter_staging.llm_prose" : null;
     const proseReady = jobStatus === "DONE" && prose.length > 0;
     const wordCount = proseReady ? prose.split(/\s+/).filter(Boolean).length : 0;
 
-    const planJson = staging?.plan_json && typeof staging.plan_json === "object" && !Array.isArray(staging.plan_json)
+    const stagingPlanJson = staging?.plan_json && typeof staging.plan_json === "object" && !Array.isArray(staging.plan_json)
       ? (staging.plan_json as Record<string, unknown>)
       : null;
     const jobConfigRes = await pool.query<{ config_json: unknown }>(
@@ -929,6 +1007,12 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
     const jobConfig = jobConfigRes.rows[0]?.config_json && typeof jobConfigRes.rows[0].config_json === "object" && !Array.isArray(jobConfigRes.rows[0].config_json)
       ? (jobConfigRes.rows[0].config_json as Record<string, unknown>)
       : {};
+    const jobPlanRaw = jobConfig?.plan;
+    const jobPlan =
+      jobPlanRaw && typeof jobPlanRaw === "object" && !Array.isArray(jobPlanRaw)
+        ? (jobPlanRaw as Record<string, unknown>)
+        : null;
+    const planJson = stagingPlanJson || jobPlan;
     const chapterOutputContractV1 =
       (planJson?.chapter_output_contract_v1 && typeof planJson.chapter_output_contract_v1 === "object" && !Array.isArray(planJson.chapter_output_contract_v1))
         ? (planJson.chapter_output_contract_v1 as Record<string, unknown>)
@@ -1057,11 +1141,6 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
     const resolutionStatus = typeof planJson?.resolution_status === "string" ? String(planJson.resolution_status) : null;
     const entityAssignments = Array.isArray(planJson?.entity_assignments) ? planJson?.entity_assignments : [];
 
-    const jobPlanRaw = jobConfig?.plan;
-    const jobPlan =
-      jobPlanRaw && typeof jobPlanRaw === "object" && !Array.isArray(jobPlanRaw)
-        ? (jobPlanRaw as Record<string, unknown>)
-        : null;
     const planningInputPackJson = {
       source: "PERSISTED_PLAN_AND_JOB_CONFIG",
       job_id: job.id,
@@ -1077,7 +1156,7 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
         memoryRuntimeV5.evidence_refs && typeof memoryRuntimeV5.evidence_refs === "object"
           ? memoryRuntimeV5.evidence_refs
           : null,
-      plan_source: planJson ? "narrative_chapter_staging.plan_json" : jobPlan ? "ingest_job.config_json.plan" : "none",
+      plan_source: stagingPlanJson ? "narrative_chapter_staging.plan_json" : jobPlan ? "ingest_job.config_json.plan" : "none",
     } as Record<string, unknown>;
 
     const planningOutputJson =
@@ -1105,7 +1184,7 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
         updated_at: row.updated_at,
       };
     });
-    const proseTaskTypes = new Set(["NARRATIVE_STYLIST", "NARRATIVE_CRITIC", "NARRATIVE_REFINE", "NARRATIVE_FINALIZE"]);
+    const proseTaskTypes = new Set(["CHAPTER_WRITE_V3", "NARRATIVE_STYLIST", "NARRATIVE_CRITIC", "NARRATIVE_REFINE", "NARRATIVE_FINALIZE"]);
     const reversedNarrativeTasks = [...narrativeTasks].reverse();
     const latestProseInputTask = reversedNarrativeTasks.find(
       (taskRow) => proseTaskTypes.has(String(taskRow.task_type || "").toUpperCase()) && !!taskRow.payload_json
@@ -1141,6 +1220,15 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
         llm_prose: staging?.llm_prose ?? null,
         user_prose: staging?.user_prose ?? null,
       },
+      chapter_draft_output: {
+        draft_status: draft?.status ?? null,
+        prose_source: proseSource,
+        full_text: draft?.full_text ?? null,
+        metadata_json:
+          draft?.metadata_json && typeof draft.metadata_json === "object" && !Array.isArray(draft.metadata_json)
+            ? (draft.metadata_json as Record<string, unknown>)
+            : null,
+      },
     };
 
     return NextResponse.json({
@@ -1157,6 +1245,7 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
         error: progress.latest_task_error,
       },
       staging_ready: proseReady,
+      prose_source: proseSource,
       prose: proseReady ? prose : "",
       word_count: wordCount,
       integrity_report: integrityReport,
@@ -1275,6 +1364,26 @@ export async function postChapterAutoWriteRetryResponse(req: NextRequest, storyS
       if (row?.plan_json && typeof row.plan_json === "object" && !Array.isArray(row.plan_json)) {
         plan = row.plan_json as Record<string, unknown>;
       }
+      if (!plan) {
+        const jobPlanRes = await pool.query<{ config_json: unknown }>(
+          `SELECT config_json
+           FROM public.ingest_job
+           WHERE story_id = $1
+             AND mode = 'AUTO_CHAPTER_V3'
+             AND config_json->>'pipeline_type' = 'CHAPTER_WRITE_V3'
+             AND COALESCE(config_json->>'chapter_id', '') = $2
+           ORDER BY id DESC
+           LIMIT 1`,
+          [storyId, chapterId]
+        );
+        const configJson = jobPlanRes.rows[0]?.config_json;
+        const jobConfig = configJson && typeof configJson === "object" && !Array.isArray(configJson)
+          ? (configJson as Record<string, unknown>)
+          : null;
+        if (jobConfig?.plan && typeof jobConfig.plan === "object" && !Array.isArray(jobConfig.plan)) {
+          plan = jobConfig.plan as Record<string, unknown>;
+        }
+      }
     }
     if (!plan) {
       const planResult = await runChapterPlanning(pool, {
@@ -1315,10 +1424,12 @@ export async function postChapterAutoWriteRetryResponse(req: NextRequest, storyS
       });
     }
 
-    const writingResult = await runChapterWriting(pool, {
+    const writingResult = await enqueueCanonicalChapterWriteV3({
       storyId,
       chapterId,
       plan,
+      userPrompt,
+      targetWordCount,
     });
 
     return NextResponse.json({
@@ -1326,7 +1437,8 @@ export async function postChapterAutoWriteRetryResponse(req: NextRequest, storyS
       mode: forceReplan ? "replan" : "refine",
       chapter_id: chapterId,
       job_id: writingResult.job_id ?? null,
-      status: "RUNNING",
+      status: writingResult.status,
+      task_type: writingResult.task_type,
       plan,
       chapter_output_contract_v1:
         (plan.chapter_output_contract_v1 && typeof plan.chapter_output_contract_v1 === "object" && !Array.isArray(plan.chapter_output_contract_v1))
