@@ -2,13 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { StoryProvider, useStory } from "@/features/story/StoryContext";
 import StorySelector from "@/features/story/StorySelector";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isWriteRoute = pathname.includes("/write") || pathname === "/";
+  useEffect(() => {
+    document.documentElement.classList.toggle("write-route-lock", isWriteRoute);
+    document.body.classList.toggle("write-route-lock", isWriteRoute);
+    return () => {
+      document.documentElement.classList.remove("write-route-lock");
+      document.body.classList.remove("write-route-lock");
+    };
+  }, [isWriteRoute]);
+
   return (
     <StoryProvider>
       <div className={isWriteRoute ? "app-shell app-shell--write" : "app-shell"}>
