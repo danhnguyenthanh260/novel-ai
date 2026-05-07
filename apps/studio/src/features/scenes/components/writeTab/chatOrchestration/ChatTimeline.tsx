@@ -1,3 +1,6 @@
+"use client";
+
+import React from "react";
 import TimelineBlocks from "@/features/scenes/components/writeTab/chatOrchestration/TimelineBlocks";
 import type { ChatContextMiniBarPayload, RecoveryChip, TimelineBlock } from "@/features/scenes/components/writeTab/types";
 
@@ -14,6 +17,22 @@ function statusClass(status: ChatContextMiniBarPayload["status"]): string {
 }
 
 export default function ChatTimeline({ context, blocks, onChip }: ChatTimelineProps) {
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  const [nearBottom, setNearBottom] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!nearBottom) return;
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    scroll.scrollTo({ top: scroll.scrollHeight, behavior: "smooth" });
+  }, [blocks, nearBottom]);
+
+  const updateNearBottom = () => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    setNearBottom(scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 96);
+  };
+
   return (
     <>
       <div className="chat-context-mini-bar" aria-label="Current chat context">
@@ -22,10 +41,18 @@ export default function ChatTimeline({ context, blocks, onChip }: ChatTimelinePr
         <button type="button">{context.chapterLabel}</button>
         <span className={statusClass(context.status)}>{context.status.toUpperCase()}</span>
       </div>
-      <div className="work-stream__scroll">
+      <div ref={scrollRef} className="work-stream__scroll" onScroll={updateNearBottom}>
         <div className="timeline-stack">
           <TimelineBlocks blocks={blocks} onChip={onChip} />
         </div>
+        {!nearBottom ? (
+          <button type="button" className="jump-to-bottom" onClick={() => {
+            scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+            setNearBottom(true);
+          }}>
+            New messages
+          </button>
+        ) : null}
       </div>
     </>
   );

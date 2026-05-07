@@ -1,3 +1,6 @@
+"use client";
+
+import React from "react";
 import ReadinessBriefing from "@/features/scenes/components/writeTab/chatOrchestration/ReadinessBriefing";
 import type { RecoveryChip, TimelineBlock, WorkflowStepStatus } from "@/features/scenes/components/writeTab/types";
 
@@ -13,11 +16,37 @@ function workflowMarker(status: WorkflowStepStatus): string {
   return "○";
 }
 
+function copyMessageText(text: string, onCopied: () => void): void {
+  if (typeof navigator === "undefined" || !navigator.clipboard) return;
+  void navigator.clipboard.writeText(text).then(onCopied).catch(() => undefined);
+}
+
 function TextBlock({ block }: { block: Extract<TimelineBlock, { type: "text_message" }> }) {
+  const [copied, setCopied] = React.useState(false);
+  const copyText = () => copyMessageText(block.text, () => {
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1100);
+  });
   return (
     <div className={`work-message work-message--${block.source} work-message--${block.tone ?? "ready"}`}>
       <div className="work-message__label">{block.label}</div>
-      <div className={block.source === "user" ? "font-mono text-xs" : "text-sm"}>{block.text}</div>
+      <div className="work-message__body">
+        {block.pending ? (
+          <span className="thinking-dots" aria-label="Thinking">
+            <span />
+            <span />
+            <span />
+          </span>
+        ) : (
+          block.text
+        )}
+      </div>
+      {!block.pending ? (
+        <div className="work-message__actions" aria-label="Message actions">
+          <button type="button" onClick={copyText}>{copied ? "Copied" : "Copy"}</button>
+          <button type="button" title={block.source === "user" ? "Message options" : "Assistant options"}>...</button>
+        </div>
+      ) : null}
     </div>
   );
 }
