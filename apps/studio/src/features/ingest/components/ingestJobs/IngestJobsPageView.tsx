@@ -103,19 +103,22 @@ function IngestJobsHeader({ storySlug, state, lastUpdatedAt }: HeaderProps) {
       <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
         <div className="grid gap-2">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Splitter Console</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Source Setup</h1>
             <div className="muted text-xs">
-              story: {storySlug}
+              Add source material for {storySlug}
               {state.selectedJobId ? ` | job #${state.selectedJobId}` : ""}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {statusChip("worker", workerState, workerTone(workerState))}
-            {statusChip("split lane", splitLaneState, splitLaneState === "running" ? "ok" : "warn")}
-            {statusChip("llm", llmState, llmTone(llmState))}
-            {statusChip("last updated", lastUpdatedAt, "muted")}
-          </div>
-          {state.workerStatus?.detail ? <div className="muted text-xs">{state.workerStatus.detail}</div> : null}
+          <details className="text-xs">
+            <summary className="cursor-pointer text-[var(--text-secondary)]">Runtime status</summary>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {statusChip("worker", workerState, workerTone(workerState))}
+              {statusChip("split lane", splitLaneState, splitLaneState === "running" ? "ok" : "warn")}
+              {statusChip("llm", llmState, llmTone(llmState))}
+              {statusChip("last updated", lastUpdatedAt, "muted")}
+            </div>
+            {state.workerStatus?.detail ? <div className="muted mt-2 text-xs">{state.workerStatus.detail}</div> : null}
+          </details>
         </div>
         <HeaderActions storySlug={storySlug} state={state} />
       </div>
