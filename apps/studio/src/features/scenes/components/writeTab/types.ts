@@ -81,19 +81,81 @@ export type AssistantReadinessBriefing = {
   blockedWriteReason: string | null;
 };
 
-export type ArtifactKind = "document" | "analysis" | "review" | "memory" | "publish_preview" | "operations";
+export type ComposerState = "idle" | "typing" | "slash_command_menu" | "command_form_active";
 
-export type CommandTaskStatus = "idle" | "running" | "completed" | "blocked";
-
-export type CommandTaskCard = {
-  id: string;
-  command: CommandId;
-  title: string;
-  status: CommandTaskStatus;
-  detail: string;
-  cta?: string;
-  ctaCommand?: CommandId;
+export type ChatContextMiniBarPayload = {
+  storyTitle: string;
+  chapterLabel: string;
+  status: AssistantReadinessStatus;
 };
+
+export type InlineChoiceChip = RecoveryChip & {
+  action: RecoveryIntent;
+};
+
+export type WorkflowStepStatus = "complete" | "active" | "pending" | "failed";
+
+export type WorkflowProgressBlock = {
+  type: "workflow_progress";
+  workflow_name: string;
+  status: "running" | "complete" | "failed" | "cancelled";
+  current_step: number;
+  total_steps: number;
+  current_step_label: string;
+  steps: Array<{
+    label: string;
+    status: WorkflowStepStatus;
+  }>;
+};
+
+export type ArtifactPreviewBlock = {
+  type: "artifact_preview";
+  artifact_id: string;
+  artifact_type: "plan" | "draft" | "analysis" | "review" | "research";
+  title: string;
+  status: "draft" | "needs_approval" | "approved" | "failed" | "superseded";
+  word_count: number | null;
+  beat_count: number | null;
+  preview_lines: string[];
+  actions: string[];
+};
+
+export type ApprovalGateBlock = {
+  type: "approval_gate";
+  gate_type: "import_to_editor" | "promote_to_memory" | "publish_chapter" | "approve_plan";
+  description: string;
+  actions: string[];
+};
+
+export type FailureRecoveryBlock = {
+  type: "failure_recovery";
+  workflow_name: string;
+  stopped_at_step: string;
+  plain_reason: string;
+  draft_preserved: boolean;
+  actions: string[];
+};
+
+export type ContextDigestBlock = {
+  type: "context_digest";
+  title: string;
+  included: string[];
+  missing: string[];
+  degraded: string[];
+  conflicts: string[];
+};
+
+export type TimelineBlock =
+  | { type: "text_message"; id: string; source: "user" | "assistant"; label: string; text: string; tone?: "ready" | "blocked" | "running" }
+  | { type: "readiness_card"; id: string; briefing: AssistantReadinessBriefing }
+  | { type: "inline_choice_chips"; id: string; chips: InlineChoiceChip[] }
+  | (WorkflowProgressBlock & { id: string })
+  | (ArtifactPreviewBlock & { id: string })
+  | (ApprovalGateBlock & { id: string })
+  | (FailureRecoveryBlock & { id: string })
+  | (ContextDigestBlock & { id: string });
+
+export type ArtifactKind = "document" | "analysis" | "review" | "memory" | "publish_preview" | "operations";
 
 export type CommandId =
   | "/write chapter"
