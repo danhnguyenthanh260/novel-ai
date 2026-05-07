@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -51,6 +52,21 @@ from worker_task_handlers import (
     process_narrative_refine_task,
     process_narrative_finalize_task,
 )
+
+CHAPTER_WRITE_V3_GUARD_PREFIX = "CHAPTER_WRITE_V3_GUARDRAIL_BLOCK:"
+
+def _parse_chapter_write_v3_guard_error(error_text: str) -> Dict[str, Any] | None:
+    if not error_text.startswith(CHAPTER_WRITE_V3_GUARD_PREFIX):
+        return None
+    raw = error_text[len(CHAPTER_WRITE_V3_GUARD_PREFIX):]
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {
+            "error_code": "CHAPTER_WRITE_V3_GUARDRAIL_BLOCK",
+            "guard_fail_reasons": [part for part in raw.split("|") if part],
+        }
+    return parsed if isinstance(parsed, dict) else None
 from worker_constants import DEFAULT_DSN
 
 
@@ -337,6 +353,38 @@ def run_worker(
                                 feedback_text=f"{task_type} failed: {str(err)[:1000]}",
                                 weight=2.0,
                             )
+                        elif task_type == "CHAPTER_WRITE_V3":
+                            guard_payload = _parse_chapter_write_v3_guard_error(str(err))
+                            if guard_payload:
+                                cur = conn.cursor()
+                                try:
+                                    cur.execute(
+                                        """
+                                        UPDATE public.ingest_task
+                                        SET result_json = %s::jsonb
+                                        WHERE id = %s
+                                        """,
+                                        (json.dumps(guard_payload, ensure_ascii=True), int(task["id"])),
+                                    )
+                                finally:
+                                    cur.close()
+                                insert_agent_run_trace(
+                                    conn,
+                                    task=task,
+                                    agent_name="CHAPTER_WRITE_V3",
+                                    status="FAILED",
+                                    input_payload=task.get("payload_json"),
+                                    output_payload=guard_payload,
+                                    error_code=str(err)[:3000],
+                                    quality_json={
+                                        "source": "chapter_write_v3_guard",
+                                        "v3_guard": (
+                                            (guard_payload.get("metadata") or {}).get("v3_guard")
+                                            if isinstance(guard_payload.get("metadata"), dict)
+                                            else {}
+                                        ),
+                                    },
+                                )
                         elif task_type == "CHAPTER_SPLIT_LLM":
                             for agent_name in ("SPLITTER", "SPLIT_CRITIC", "SUPERVISOR"):
                                 insert_agent_run_trace(
