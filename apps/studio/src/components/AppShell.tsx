@@ -7,9 +7,11 @@ import { StoryProvider, useStory } from "@/features/story/StoryContext";
 import StorySelector from "@/features/story/StorySelector";
 
 export default function AppShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const isWriteRoute = pathname.includes("/write") || pathname === "/";
   return (
     <StoryProvider>
-      <div className="app-shell">
+      <div className={isWriteRoute ? "app-shell app-shell--write" : "app-shell"}>
         <header className="app-header">
           <div className="app-header__inner">
             <Link href="/" className="brand-mark text-sm" aria-label="Novel Lab home">
@@ -43,7 +45,7 @@ function routeLabel(pathname: string): string {
 
 function CompactContextBar() {
   const pathname = usePathname();
-  const { headerContext, isArtifactVisible } = useStory();
+  const { headerContext } = useStory();
   const areaLabel = routeLabel(pathname);
   const chapter = headerContext.chapterLabel ?? "No chapter";
 

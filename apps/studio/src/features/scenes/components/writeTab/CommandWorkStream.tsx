@@ -180,6 +180,7 @@ function buildTimelineBlocks(args: {
   briefing: ReturnType<typeof buildAssistantReadiness>;
   composerValue: string;
   conversationBlocks: TimelineBlock[];
+  pendingAssistant: boolean;
   chapterId: string | null;
   hasDraft: boolean;
   showDraftPreview: boolean;
@@ -200,6 +201,18 @@ function buildTimelineBlocks(args: {
 
   if (args.composerValue.trim()) {
     blocks.push({ id: "composer-echo", type: "text_message", source: "user", label: "You", text: args.composerValue.trim() });
+  }
+
+  if (args.pendingAssistant) {
+    blocks.push({
+      id: "assistant-pending",
+      type: "text_message",
+      source: "assistant",
+      label: "Studio Writing Assistant",
+      text: "Thinking",
+      tone: "running",
+      pending: true,
+    });
   }
 
   const continuityEvent = continuityWorkflowProgressEvent({ chapterId: args.chapterId, queued: args.continuityQueued });
@@ -456,6 +469,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const router = useRouter();
   const [chatMode, setChatMode] = React.useState<"chat" | "brainstorm">("chat");
   const [conversationBlocks, setConversationBlocks] = React.useState<TimelineBlock[]>([]);
+  const [pendingAssistant, setPendingAssistant] = React.useState(false);
   const briefing = buildAssistantReadiness(props.assistantContext);
   const commands = buildCommands(props.assistantContext, props.chapterId);
   const { commandResult, intentBlock, runCommand, submitMessage } = useCommandRunner({
@@ -472,6 +486,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     briefing,
     composerValue: props.composerValue,
     conversationBlocks,
+    pendingAssistant,
     chapterId: props.chapterId,
     hasDraft: props.hasDraft,
     showDraftPreview: chatMode !== "brainstorm",
@@ -508,9 +523,13 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
             ...current,
             { id: `user-${Date.now()}`, type: "text_message", source: "user", label: "You", text: message },
           ]);
+          setPendingAssistant(true);
           props.onComposerValueChange("");
           props.onCommandMenuOpenChange(false);
-          submitMessage(message);
+          window.setTimeout(() => {
+            submitMessage(message);
+            setPendingAssistant(false);
+          }, 220);
         }}
       />
     </section>

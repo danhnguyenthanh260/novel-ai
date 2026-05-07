@@ -51,6 +51,9 @@ Refactor direction for large modules:
 
 ### Write workspace chat block contracts
 
+- The Write workspace is viewport locked: the app shell reserves the fixed top bar, the Write grid fills the remaining visible height, and only internal panels scroll. The browser page itself must not become the scrolling surface for `/stories/[slug]/write`.
+- The center chat owns conversation history and the persistent bottom composer. User/assistant prose renders as compact chat bubbles with text-only copy actions; system state renders as compact timeline blocks.
+- The slash command menu is anchored above the composer with internal scrolling and must not shift the page layout.
 - Chat artifact summary cards use the `artifact_preview` timeline block contract. The chat timeline renders a compact card with title, status, short description, and actions; full artifact or document content stays in the artifact panel or document workspace.
 - Workflow progress uses `workflow_progress` blocks mapped from backend-shaped pipeline/job events. The chat timeline renders compact progress, while the right inspector renders detailed step state. Worker logs and diagnostics stay in Operations surfaces.
 - Right inspector modes reuse timeline block contracts where possible:

@@ -188,7 +188,7 @@ export type ContextDigestBlock = {
 };
 
 export type TimelineBlock =
-  | { type: "text_message"; id: string; source: "user" | "assistant"; label: string; text: string; tone?: "ready" | "blocked" | "running" }
+  | { type: "text_message"; id: string; source: "user" | "assistant"; label: string; text: string; tone?: "ready" | "blocked" | "running"; pending?: boolean }
   | { type: "readiness_card"; id: string; briefing: AssistantReadinessBriefing }
   | { type: "inline_choice_chips"; id: string; chips: InlineChoiceChip[] }
   | (WorkflowProgressBlock & { id: string })

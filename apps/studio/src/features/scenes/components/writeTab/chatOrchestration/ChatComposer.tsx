@@ -251,12 +251,28 @@ export default function ChatComposer({ value, menuOpen, commands, onValueChange,
               onMenuOpenChange(false);
               onValueChange("");
             }
+            if (event.key === "Enter" && !event.shiftKey && state === "slash_command_menu") {
+              event.preventDefault();
+              const selected = filteredCommands[activeIndex];
+              if (selected) selectCommand(selected);
+            }
           }}
         >
           <button type="button" className="work-composer__menu" aria-label="Open command menu" onClick={() => onMenuOpenChange(!menuOpen)}>
             /
           </button>
-          <input value={value} onChange={(event) => onValueChange(event.target.value)} placeholder="Type a message or / for commands" aria-label="Studio chat composer" />
+          <textarea
+            value={value}
+            onChange={(event) => onValueChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.shiftKey || state === "slash_command_menu") return;
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }}
+            rows={1}
+            placeholder="Message or / for commands"
+            aria-label="Studio chat composer"
+          />
           <button type="submit" className="primary-action px-3 py-2 text-xs" title={state === "slash_command_menu" ? "Run preflight" : "Send message"}>
             {state === "slash_command_menu" ? "Run" : "Send"}
           </button>
