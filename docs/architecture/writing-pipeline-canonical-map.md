@@ -1,9 +1,9 @@
 # Writing Pipeline Canonical Map
 
-Issue: #7
+Issue: #7, #72
 Parent epic: #2
 Status: Post-baseline verified
-Last updated: 2026-05-02
+Last updated: 2026-05-07
 
 Evidence sources:
 
@@ -27,8 +27,9 @@ Approved assumptions:
 - Future generated prose source of truth should be document/chapter blocks, not `narrative_scene_version`.
 - `narrative_scene_version` remains compatibility/history until the editor model exists.
 - `WorkflowEngine` and `versionRepo.ts` are treated as dormant legacy unless a later route/UI trace proves active usage.
+- Python worker/handlers are the long-term owner for narrative runtime execution. Studio TypeScript owns UI/API transport, DTO mapping, enqueue/status orchestration, and compatibility readers.
 
-Provisional canonical owner should be the chapter-first flow that creates durable chapter draft output through `CHAPTER_WRITE_V3`, then later bridges approved prose into the editor and scene/version model. The current scene workflow remains necessary as compatibility and manual scene-version tooling, but it is not a complete automated writing pipeline.
+Canonical narrative runtime ownership should follow the chapter-first flow that creates durable chapter draft output through Python-handled `CHAPTER_WRITE_V3`, then later bridges approved prose into the editor and scene/version model. The current scene workflow remains necessary as compatibility and manual scene-version tooling, but it is not a complete automated writing pipeline.
 
 ## Approval Decisions And Remaining Checks
 
@@ -39,7 +40,7 @@ These decisions resolve the main #2 approval blockers. Remaining checks are evid
 | `VersionRepo.createVersion` durable write path | Treat `WorkflowEngine` and `versionRepo.ts` as dormant legacy / deprecate. | Do one final route/UI trace before any deletion task. | `git grep` finds `VersionRepo.createVersion` used only by `workflowEngine.ts`; `git grep WorkflowEngine` finds no tracked call sites outside its own file. |
 | Chapter-first writing-related files | Treat chapter-first writing files as intended product direction. | Complete; #9 and #13 have landed. | PR #10 stabilized the product files; PR #14 carried the runtime proof fix and baseline into `staging`. |
 | Kept surfaces mapped to flow steps | Approve current `Canonical Flow Integration Map` as the working integration contract. | Correct only if implementation evidence contradicts the map. | Added below. |
-| `NARRATIVE_*` fate | Merge useful narrative stages into `CHAPTER_WRITE_V3` internals or validation gates; do not keep as a separate public pipeline. | Decide exact worker function ownership during task taxonomy work. | TS and Python both contain `NARRATIVE_*` execution surfaces; Python worker appears more complete. |
+| `NARRATIVE_*` fate | Merge useful narrative stages into Python-owned `CHAPTER_WRITE_V3` internals or validation gates; do not keep as a separate public pipeline. | Verify which `NARRATIVE_STYLIST/CRITIC/REFINE` behavior should be carried forward before deprecating compatibility paths. | TS and Python both contain `NARRATIVE_*` execution surfaces; Python worker is the approved runtime owner because it already owns task dispatch, LLM calls, prompt hydration traces, semantic memory retrieval, and V3 ledger/rollup chaining. |
 | Prose source of truth | Future source of truth is document/chapter blocks; `narrative_scene_version` is compatibility/history. | #5 must define the document block schema and bridge rules. | Current writes are split across `chapter_draft`, `narrative_chapter_staging`, and `narrative_scene_version`. |
 
 ## Classification Rubric Used
@@ -210,6 +211,7 @@ Recommended near-term path:
 3. Merge useful planning/continuity/narrative critic behavior into one orchestration model.
 4. Keep scene workflow as compatibility/manual version history until the document editor model is defined.
 5. Deprecate direct TS autowrite v1 and TS narrative task executor after replacement paths exist.
+6. Keep Python worker/handlers as the only long-term narrative runtime owner; TypeScript Studio may enqueue, project status, and read bridge data, but should not gain new prompt/runtime execution logic.
 
 ## Canonical Flow Integration Map
 
@@ -219,7 +221,7 @@ Recommended near-term path:
 | 2. Persist memory/truth snapshot | `writing_snapshot_v3`, `writing_scope_snapshot_v1`, `chapter_ledger`, `MEMORY_ROLLUP_V3` | Stores durable facts, rollups, ledger, and readiness state for generation. | Exact DB source of truth for event/emotion/relationship state remains #3/#DB scope. |
 | 3. Build canonical `WritingContext` | `buildStoryContextPack`, `buildPlanningMemoryPackV5`, `worker_memory_context.py`, `truthPackGovernance.ts` | These should become adapters into one shared contract, not independent prompt-specific context builders. | #3 must expand scope to reconcile TS and Python context divergence. |
 | 4. Plan chapter/scene | `runChapterPlanning`, `WRITING_PLANNING`, future canonical planner | Produces structured plan/beat map from canonical context. | Decide TS planner vs Python planner ownership. |
-| 5. Generate prose | `CHAPTER_WRITE_V3`, possible merged `NARRATIVE_STYLIST/REFINE` internals | Writes generated chapter draft or intermediate prose result. `NARRATIVE_*` should not remain a separate public pipeline. | Decide exact worker ownership during queue taxonomy work. |
+| 5. Generate prose | Python-owned `CHAPTER_WRITE_V3`, possible merged `NARRATIVE_STYLIST/REFINE` internals | Writes generated chapter draft or intermediate prose result. `NARRATIVE_*` should not remain a separate public pipeline. | Decide which useful narrative-stage behaviors become V3 internals versus validation gates. |
 | 6. Human document editor | future document/chapter blocks, scene-version compatibility bridge, Muse assist | Human-approved editing and formatting happens here; document/chapter blocks become future prose source of truth. `repoScene.insertVersion` can act as compatibility history until editor model exists. | #5 decides document block schema and bridge rules. |
 | 7. Continuity/evaluation gates | `CHAPTER_LEDGER_EXTRACT`, `MEMORY_ROLLUP_V3`, `WRITING_CONTINUITY`, `WRITING_SUPERVISOR`, scene evaluate concept | Runs after generated/edited prose and before approval; writes ledger/issues/scores, not final prose source of truth. | Decide which gates are mandatory before lock. |
 | 8. Approve/lock | `runLock`, future document approval endpoint | Marks document/chapter block revision as approved. `repoScene.insertVersion` is not the approval step; it is history/persistence used before approval. | Decide temporary bridge behavior before full editor model exists. |
@@ -232,7 +234,8 @@ Resolved assumptions:
 - `VersionRepo.createVersion` / `WorkflowEngine`: deprecate as dormant legacy, but do not delete without a final route/UI trace.
 - Chapter-first writing files: treat as intended product direction; stabilized by PR #10 and re-verified after PR #14.
 - Canonical flow-step placement: approved as the working integration contract.
-- `NARRATIVE_*`: merge useful behavior into `CHAPTER_WRITE_V3` internals or validation gates instead of preserving a separate public pipeline.
+- Narrative runtime owner: Python worker/handlers own prompt assembly, LLM execution, runtime memory/context retrieval, V3 generation, ledger, and rollup. Studio TypeScript owns UI/API transport, DTO mapping, enqueue/status orchestration, and compatibility readers.
+- `NARRATIVE_*`: merge useful behavior into Python-owned `CHAPTER_WRITE_V3` internals or validation gates instead of preserving a separate public pipeline.
 - Prose source of truth: future document/chapter blocks own edited/generated prose; `narrative_scene_version` remains compatibility/history.
 
 Follow-up trace before implementation:
@@ -320,11 +323,22 @@ Current task families:
 
 Required follow-up: create a task taxonomy decision issue before changing queue schema, worker dispatch, or pipeline UI node config.
 
+Bridge exit criteria for runtime consolidation:
+
+- New author-triggered chapter writing entrypoints enqueue `CHAPTER_WRITE_V3`, not public `DEEP_NARRATIVE_V2`.
+- TS `narrativeWorkerService.ts` and `narrativeTaskExecutor.ts` receive no new feature work and are either disabled or marked compatibility-only after caller migration.
+- Useful `NARRATIVE_STYLIST/CRITIC/REFINE` behavior is merged into Python `CHAPTER_WRITE_V3` internals or validation gates, or explicitly retired.
+- Write workspace readers prefer `chapter_draft` or future document/chapter blocks without requiring `narrative_chapter_staging` as a primary generated prose source.
+- Tests cover strict `writing_context` behavior, task dispatch, status projection, and compatibility read paths before compatibility removal.
+
 ## Follow-Up Issues To Create After Approval
 
 - `[Feature][AI] Define canonical WritingContext adapter from TS and Python context builders`.
 - `[Task][BE] Mark direct autowrite v1 path deprecated and block new feature work`.
-- `[Task][BE] Decide and consolidate TS vs Python NARRATIVE_* executors`.
+- `[Feature][AI + BE] Route canonical chapter auto-write through CHAPTER_WRITE_V3`.
+- `[Task][BE] Freeze TypeScript narrative worker as compatibility-only`.
+- `[Task][AI + BE] Merge or retire Python NARRATIVE_* stages under V3`.
+- `[Task][FE + BE] Move write workspace readers toward chapter_draft/document-block source`.
 - `[Task][DB] Define document/chapter block source-of-truth schema and migration bridge`.
 - `[Task][FE] Bridge scene-version compatibility UI to future document editor model`.
 
