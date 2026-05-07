@@ -6,6 +6,7 @@ import AutoWriteWizard from "@/features/scenes/components/writeTab/AutoWriteWiza
 import ArtifactSurface from "@/features/scenes/components/writeTab/ArtifactSurface";
 import CommandWorkStream from "@/features/scenes/components/writeTab/CommandWorkStream";
 import type {
+  AssistantAvailability,
   ChapterSceneItem,
   ContextReadiness,
   CurrentVersion,
@@ -195,6 +196,18 @@ function selectedChapterTitle(selectedChapterId: string): string {
   return selectedChapterId ? `${getChapterTitle(selectedChapterId)} Draft` : "No chapter selected";
 }
 
+function assistantAvailability(props: NovelLabWorkspaceProps, hasDraft: boolean): AssistantAvailability {
+  const hasSourceChapters = props.chapterScenes.length > 0 || Boolean(props.current?.text_content || props.stagingData?.llm_prose || props.v3Draft?.full_text);
+  return {
+    has_source_chapters: hasSourceChapters,
+    has_active_characters: false,
+    has_memory_snapshot: Boolean(props.v3Draft?.virtual_scenes?.length || props.stagingData),
+    has_style_profile: false,
+    has_chapter_intent: false,
+    has_immediate_continuity: hasDraft,
+  };
+}
+
 function WorkspaceStatusMessages({ error, loadingDetail, loadingChapter }: Pick<NovelLabWorkspaceProps, "error" | "loadingDetail" | "loadingChapter">) {
   return (
     <>
@@ -228,6 +241,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const hasDraft = draftSource.text.trim().length > 0;
   const loadingWorkspace = props.loadingScenes || props.loadingDetail || props.loadingChapter;
   const readiness: ContextReadiness = "degraded";
+  const availability = assistantAvailability(props, hasDraft);
 
   return (
     <>
@@ -260,6 +274,14 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           onCommandMenuOpenChange={setCommandMenuOpen}
           onOpenAutoWrite={() => props.setShowAutoWrite(true)}
           onQueueContinuity={() => setContinuityQueued(true)}
+          assistantContext={{
+            storyTitle: storyLabelFromSlug(props.storySlug),
+            storySelected: Boolean(props.storySlug),
+            chapterId: props.selectedChapterId || null,
+            chapterTitle,
+            readiness,
+            availability,
+          }}
         />
         <ArtifactSurface
           storySlug={props.storySlug}
