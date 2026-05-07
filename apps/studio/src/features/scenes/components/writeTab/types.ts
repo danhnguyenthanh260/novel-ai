@@ -84,6 +84,7 @@ export type AssistantReadinessBriefing = {
 export type ComposerState = "idle" | "typing" | "slash_command_menu" | "command_form_active";
 
 export type StudioChatIntent =
+  | "CHAT"
   | "WRITE"
   | "PLAN"
   | "ANALYZE"

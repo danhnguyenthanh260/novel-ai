@@ -175,7 +175,7 @@ function resultBlock(result: CommandResult): TimelineBlock {
 function buildTimelineBlocks(args: {
   briefing: ReturnType<typeof buildAssistantReadiness>;
   composerValue: string;
-  submittedMessage: string | null;
+  conversationBlocks: TimelineBlock[];
   hasDraft: boolean;
   continuityQueued: boolean;
   commandResult: CommandResult | null;
@@ -190,9 +190,10 @@ function buildTimelineBlocks(args: {
     },
   ];
 
-  const userText = args.submittedMessage || args.composerValue.trim();
-  if (userText) {
-    blocks.push({ id: "composer-echo", type: "text_message", source: "user", label: "You", text: userText });
+  blocks.push(...args.conversationBlocks);
+
+  if (args.composerValue.trim()) {
+    blocks.push({ id: "composer-echo", type: "text_message", source: "user", label: "You", text: args.composerValue.trim() });
   }
 
   if (args.continuityQueued) {
@@ -290,6 +291,9 @@ function useCommandRunner(args: {
   onOpenAutoWrite: () => void;
   onQueueContinuity: () => void;
   readinessContext: AssistantReadinessContext;
+  mode: "chat" | "brainstorm";
+  onModeChange: (mode: "chat" | "brainstorm") => void;
+  onConversationBlock: (block: TimelineBlock) => void;
 }) {
   const router = useRouter();
   const [commandResult, setCommandResult] = React.useState<CommandResult | null>(null);
@@ -405,7 +409,7 @@ function useCommandRunner(args: {
   );
 
   const submitMessage = React.useCallback((message: string) => {
-    const route = routeStudioIntent({ message, readiness: args.readinessContext.readiness });
+    const route = routeStudioIntent({ message, readiness: args.readinessContext.readiness, mode: args.mode });
     setIntentBlock(null);
     if (route.intent === "SWITCH_STORY") {
       router.push("/shelf");
@@ -418,22 +422,49 @@ function useCommandRunner(args: {
       return;
     }
     if (route.intent === "BRAINSTORM") {
-      setCommandResult({ tone: "ready", title: "Brainstorm mode", detail: route.assistantText ?? "I can brainstorm here without starting a writing workflow." });
+      args.onModeChange("brainstorm");
+      args.onConversationBlock({
+        id: `assistant-${Date.now()}`,
+        type: "text_message",
+        source: "assistant",
+        label: "Studio Writing Assistant",
+        text: route.assistantText ?? "I can brainstorm here without starting a writing workflow.",
+        tone: "ready",
+      });
+      return;
+    }
+    if (route.intent === "CHAT") {
+      args.onConversationBlock({
+        id: `assistant-${Date.now()}`,
+        type: "text_message",
+        source: "assistant",
+        label: "Studio Writing Assistant",
+        text: route.assistantText ?? "Hi. I can chat freely or help with writing workflows when you ask.",
+        tone: "ready",
+      });
       return;
     }
     if (route.needsClarification) {
-      setCommandResult({ tone: "ready", title: "Clarify intent", detail: route.assistantText ?? "Which writing action should I help with?" });
+      args.onConversationBlock({
+        id: `assistant-${Date.now()}`,
+        type: "text_message",
+        source: "assistant",
+        label: "Studio Writing Assistant",
+        text: route.assistantText ?? "Which writing action should I help with?",
+        tone: "ready",
+      });
       return;
     }
     if (route.command) runCommand(route.command, route.goal);
-  }, [args.readinessContext.readiness, args.storySlug, router, runCommand]);
+  }, [args, router, runCommand]);
 
   return { commandResult, intentBlock, runCommand, submitMessage };
 }
 
 export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const router = useRouter();
-  const [submittedMessage, setSubmittedMessage] = React.useState<string | null>(null);
+  const [chatMode, setChatMode] = React.useState<"chat" | "brainstorm">("chat");
+  const [conversationBlocks, setConversationBlocks] = React.useState<TimelineBlock[]>([]);
   const briefing = buildAssistantReadiness(props.assistantContext);
   const commands = buildCommands(props.assistantContext, props.chapterId);
   const { commandResult, intentBlock, runCommand, submitMessage } = useCommandRunner({
@@ -442,11 +473,14 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     onOpenAutoWrite: props.onOpenAutoWrite,
     onQueueContinuity: props.onQueueContinuity,
     readinessContext: props.assistantContext,
+    mode: chatMode,
+    onModeChange: setChatMode,
+    onConversationBlock: (block) => setConversationBlocks((current) => [...current, block]),
   });
   const blocks = buildTimelineBlocks({
     briefing,
     composerValue: props.composerValue,
-    submittedMessage,
+    conversationBlocks,
     hasDraft: props.hasDraft,
     continuityQueued: props.continuityQueued,
     commandResult,
@@ -473,16 +507,19 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
         onValueChange={props.onComposerValueChange}
         onMenuOpenChange={props.onCommandMenuOpenChange}
         onSubmitCommand={(command, goal) => {
-          setSubmittedMessage(null);
           props.onComposerValueChange(commandTail(command, goal));
           runCommand(command, goal);
         }}
         onSubmitMessage={(message) => {
-          setSubmittedMessage(message);
+          setConversationBlocks((current) => [
+            ...current,
+            { id: `user-${Date.now()}`, type: "text_message", source: "user", label: "You", text: message },
+          ]);
           props.onComposerValueChange("");
           props.onCommandMenuOpenChange(false);
           submitMessage(message);
         }}
+        mode={chatMode}
       />
     </section>
   );

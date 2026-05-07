@@ -25,6 +25,7 @@ type ChatComposerProps = {
   onMenuOpenChange: (value: boolean) => void;
   onSubmitCommand: (command: CommandId, goal: string) => void;
   onSubmitMessage: (message: string) => void;
+  mode: "chat" | "brainstorm";
 };
 
 const defaultDraft: CommandFormDraft = {
@@ -177,7 +178,7 @@ function CommandForm({
   );
 }
 
-export default function ChatComposer({ value, menuOpen, commands, onValueChange, onMenuOpenChange, onSubmitCommand, onSubmitMessage }: ChatComposerProps) {
+export default function ChatComposer({ value, menuOpen, commands, onValueChange, onMenuOpenChange, onSubmitCommand, onSubmitMessage, mode }: ChatComposerProps) {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [activeCommand, setActiveCommand] = React.useState<CommandId | null>(null);
   const [draft, setDraft] = React.useState<CommandFormDraft>(defaultDraft);
@@ -257,8 +258,8 @@ export default function ChatComposer({ value, menuOpen, commands, onValueChange,
             /
           </button>
           <input value={value} onChange={(event) => onValueChange(event.target.value)} placeholder="Type a message or / for commands" aria-label="Studio chat composer" />
-          <button type="submit" className="primary-action px-3 py-2 text-xs" title="Run preflight">
-            Run
+          <button type="submit" className="primary-action px-3 py-2 text-xs" title={state === "slash_command_menu" ? "Run preflight" : "Send message"}>
+            {state === "slash_command_menu" ? "Run" : mode === "brainstorm" ? "Send" : "Send"}
           </button>
         </form>
       )}

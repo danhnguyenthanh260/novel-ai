@@ -234,7 +234,7 @@ function WorkspaceAutoWriteModal(
 export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const { isArtifactVisible } = useStory();
   const [continuityQueued, setContinuityQueued] = useState(false);
-  const [composerValue, setComposerValue] = useState(props.selectedChapterId ? `/write chapter ${props.selectedChapterId} ` : "");
+  const [composerValue, setComposerValue] = useState("");
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const draftSource = useMemo(() => buildDraftSource(props), [props]);
   const chapterTitle = selectedChapterTitle(props.selectedChapterId);
