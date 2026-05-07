@@ -335,12 +335,13 @@ Primary references:
 1. `docs/architecture/ui-information-architecture.md` (surface ownership and Write IA)
 2. `docs/architecture/conversational-command-orchestrator.md` (Novel Lab command/control contract)
 3. `docs/architecture/conversational-command-mvp-map.md` (MVP slash command mapping)
-4. `apps/studio/src/features/scenes/components/writeTab/NovelLabWorkspace.tsx` (current Novel Lab Write workspace composition)
-5. `apps/studio/src/features/scenes/components/writeTab/CommandWorkStream.tsx` (center command/task stream)
-6. `apps/studio/src/features/scenes/components/writeTab/ArtifactSurface.tsx` (right artifact editor/review surface)
-7. `apps/studio/src/features/scenes/components/writeTab/ArtifactInspectorRail.tsx` (right inspector summary rail)
-8. `apps/studio/src/features/map/components/MapPageClient.tsx` (current map UX patterns)
-9. `apps/studio/README.md` section 8 (visual rules below)
+4. `docs/operations/specs/studio-chat-orchestration-layer.md` (Studio Writing Assistant prompt, timeline block, composer, and permission boundary)
+5. `apps/studio/src/features/scenes/components/writeTab/NovelLabWorkspace.tsx` (current Novel Lab Write workspace composition)
+6. `apps/studio/src/features/scenes/components/writeTab/CommandWorkStream.tsx` (center command/task stream)
+7. `apps/studio/src/features/scenes/components/writeTab/ArtifactSurface.tsx` (right artifact editor/review surface)
+8. `apps/studio/src/features/scenes/components/writeTab/ArtifactInspectorRail.tsx` (right inspector summary rail)
+9. `apps/studio/src/features/map/components/MapPageClient.tsx` (current map UX patterns)
+10. `apps/studio/README.md` section 8 (visual rules below)
 
 ### Visual rules (must follow)
 
@@ -381,6 +382,8 @@ Primary references:
 - Novel Lab Write uses `Context Clean` -> `proceed`, `Context Partial` -> `degraded`, and `Context Blocked` -> `blocked`.
 - The center work stream owns commands, task progress, and result summaries only; long generated prose belongs in the right artifact workspace.
 - Slash commands appear from the composer when invoked, not as a permanent command palette.
+- Missing context is a conversational state in the Studio chat timeline, not a raw error-first flow.
+- Backend/runtime events own workflow progress, artifact, approval, failure, and context digest payloads; assistant text may acknowledge them but must not invent them.
 - The right artifact workspace owns editable prose, review actions, and the inspector rail.
 - `Approve revision` stays locked until continuity validation passes; `Run continuity check` is primary while validation is pending.
 
