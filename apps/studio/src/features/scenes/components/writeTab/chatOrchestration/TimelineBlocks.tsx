@@ -34,7 +34,14 @@ function ChoiceChipsBlock({ block, onChip }: { block: Extract<TimelineBlock, { t
   );
 }
 
-function WorkflowProgress({ block }: { block: Extract<TimelineBlock, { type: "workflow_progress" }> }) {
+export function WorkflowProgressBlockView({
+  block,
+  density = "compact",
+}: {
+  block: Extract<TimelineBlock, { type: "workflow_progress" }>;
+  density?: "compact" | "detail";
+}) {
+  const progress = Math.max(8, Math.round((block.current_step / Math.max(block.total_steps, 1)) * 100));
   return (
     <article className={`timeline-card timeline-card--workflow timeline-card--${block.status}`}>
       <div className="timeline-card__header">
@@ -46,40 +53,57 @@ function WorkflowProgress({ block }: { block: Extract<TimelineBlock, { type: "wo
         </div>
         <span className="status-pill status-pill--partial">{block.status.toUpperCase()}</span>
       </div>
-      <div className="timeline-step-list">
-        {block.steps.map((step) => (
-          <div key={step.label} className={`timeline-step timeline-step--${step.status}`}>
-            <span aria-hidden>{workflowMarker(step.status)}</span>
-            <span>{step.label}</span>
-          </div>
-        ))}
+      <div className="context-progress-container !m-0 !max-w-none">
+        <div className="context-progress-fill" style={{ width: `${progress}%` }} />
       </div>
-      <div className="timeline-card__actions">
-        <button type="button">Show details</button>
-        <button type="button">Cancel</button>
-      </div>
+      {density === "detail" ? (
+        <div className="timeline-step-list">
+          {block.steps.map((step) => (
+            <div key={step.label} className={`timeline-step timeline-step--${step.status}`}>
+              <span aria-hidden>{workflowMarker(step.status)}</span>
+              <span>{step.label}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {density === "detail" ? (
+        <div className="timeline-card__actions">
+          <button type="button">Open operations</button>
+          <button type="button">Cancel</button>
+        </div>
+      ) : null}
     </article>
   );
 }
 
-function ArtifactPreview({ block }: { block: Extract<TimelineBlock, { type: "artifact_preview" }> }) {
+export function ArtifactPreviewBlockView({
+  block,
+  density = "compact",
+}: {
+  block: Extract<TimelineBlock, { type: "artifact_preview" }>;
+  density?: "compact" | "detail";
+}) {
   const meta =
     block.artifact_type === "draft"
       ? `AI draft · Not approved${block.word_count ? ` · ${block.word_count.toLocaleString()} words` : ""}`
       : block.beat_count
         ? `${block.beat_count} beats · ${block.status.replace("_", " ")}`
         : block.status.replace("_", " ");
+  const description = block.description ?? block.preview_lines[0] ?? "Open the artifact surface for full content.";
 
   return (
     <article className="timeline-card timeline-card--artifact">
       <div className="timeline-card__kicker">{block.artifact_type.toUpperCase()}</div>
       <h2>{block.title}</h2>
       <div className="timeline-card__meta">{meta}</div>
-      <div className="timeline-preview-lines">
-        {block.preview_lines.slice(0, 3).map((line) => (
-          <p key={line}>{line}</p>
-        ))}
-      </div>
+      <p className="timeline-card__description">{description}</p>
+      {density === "detail" ? (
+        <div className="timeline-preview-lines">
+          {block.preview_lines.slice(0, 3).map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+      ) : null}
       <div className="timeline-card__actions">
         {block.actions.map((action) => (
           <button key={action} type="button">
@@ -126,7 +150,7 @@ function FailureRecovery({ block }: { block: Extract<TimelineBlock, { type: "fai
   );
 }
 
-function ContextDigest({ block }: { block: Extract<TimelineBlock, { type: "context_digest" }> }) {
+export function ContextDigestBlockView({ block }: { block: Extract<TimelineBlock, { type: "context_digest" }> }) {
   return (
     <article className="timeline-card timeline-card--digest">
       <div className="timeline-card__kicker">Context digest</div>
@@ -157,11 +181,11 @@ export default function TimelineBlocks({ blocks, onChip }: TimelineBlocksProps) 
         if (block.type === "text_message") return <TextBlock key={block.id} block={block} />;
         if (block.type === "readiness_card") return <ReadinessBriefing key={block.id} briefing={block.briefing} onChip={onChip} />;
         if (block.type === "inline_choice_chips") return <ChoiceChipsBlock key={block.id} block={block} onChip={onChip} />;
-        if (block.type === "workflow_progress") return <WorkflowProgress key={block.id} block={block} />;
-        if (block.type === "artifact_preview") return <ArtifactPreview key={block.id} block={block} />;
+        if (block.type === "workflow_progress") return <WorkflowProgressBlockView key={block.id} block={block} />;
+        if (block.type === "artifact_preview") return <ArtifactPreviewBlockView key={block.id} block={block} />;
         if (block.type === "approval_gate") return <ApprovalGate key={block.id} block={block} />;
         if (block.type === "failure_recovery") return <FailureRecovery key={block.id} block={block} />;
-        return <ContextDigest key={block.id} block={block} />;
+        return <ContextDigestBlockView key={block.id} block={block} />;
       })}
     </>
   );

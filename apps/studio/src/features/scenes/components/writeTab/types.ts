@@ -139,6 +139,7 @@ export type ArtifactPreviewBlock = {
   artifact_type: "plan" | "draft" | "analysis" | "review" | "research";
   title: string;
   status: "draft" | "needs_approval" | "approved" | "failed" | "superseded";
+  description?: string;
   word_count: number | null;
   beat_count: number | null;
   preview_lines: string[];

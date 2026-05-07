@@ -1,7 +1,16 @@
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
-import type { ContextReadiness, ContextReadinessLabel } from "@/features/scenes/components/writeTab/types";
+import {
+  ArtifactPreviewBlockView,
+  ContextDigestBlockView,
+  WorkflowProgressBlockView,
+} from "@/features/scenes/components/writeTab/chatOrchestration/TimelineBlocks";
+import {
+  continuityWorkflowProgressEvent,
+  workflowProgressBlockFromEvent,
+} from "@/features/scenes/components/writeTab/chatOrchestration/workflowProgressEvents";
+import type { ContextReadiness, ContextReadinessLabel, TimelineBlock } from "@/features/scenes/components/writeTab/types";
 
-type InspectorTab = "Progress" | "Context" | "Issues" | "Memory" | "Versions";
+type InspectorTab = "Progress" | "Context" | "Artifacts" | "Memory";
 
 type ArtifactInspectorRailProps = {
   readiness: ContextReadiness;
@@ -36,12 +45,8 @@ function readinessClass(readiness: ContextReadiness): string {
 }
 
 function progressPercent(diagnostics: ArtifactInspectorDiagnostics, continuityQueued: boolean) {
-  const completed =
-    Number(diagnostics.hasChapter) +
-    Number(diagnostics.hasDraft) +
-    Number(continuityQueued || diagnostics.canApprove) +
-    Number(diagnostics.canApprove);
-  return Math.max(8, Math.round((completed / 4) * 100));
+  const workflowBlock = buildWorkflowBlock(diagnostics, continuityQueued);
+  return Math.max(8, Math.round((workflowBlock.current_step / workflowBlock.total_steps) * 100));
 }
 
 function warningCount(readiness: ContextReadiness, diagnostics: ArtifactInspectorDiagnostics, continuityQueued: boolean) {
@@ -54,100 +59,89 @@ function warningCount(readiness: ContextReadiness, diagnostics: ArtifactInspecto
   ].filter(Boolean).length;
 }
 
-function workflowSteps(diagnostics: ArtifactInspectorDiagnostics, continuityQueued: boolean) {
-  return [
-    {
-      label: "Chapter",
-      status: diagnostics.hasChapter ? "Done" : "Locked",
-      note: diagnostics.hasChapter ? diagnostics.chapterId : "Select or create a chapter",
-    },
-    {
-      label: "Draft",
-      status: diagnostics.hasDraft ? "Done" : "Waiting",
-      note: diagnostics.hasDraft ? `${diagnostics.draftWordCount} words available` : "Create or paste prose",
-    },
-    {
-      label: "Continuity",
-      status: continuityQueued ? "Running" : diagnostics.canApprove ? "Done" : "Waiting",
-      note: continuityQueued ? "Validation running" : "Run after edit",
-    },
-    {
-      label: "Approval",
-      status: diagnostics.canApprove ? "Ready" : "Locked",
-      note: diagnostics.gateLabel,
-    },
-    {
-      label: "Memory",
-      status: diagnostics.canApprove ? "Waiting" : "Locked",
-      note: diagnostics.canApprove ? "Ready after reviewer approval" : "Approved revision only",
-    },
-  ];
+function present(condition: boolean, label: string): string | null {
+  return condition ? label : null;
 }
 
-function stepClass(status: string, continuityQueued: boolean) {
-  if (status === "Done" || status === "Ready") return "done";
-  if (status === "Locked") return "locked";
-  if (status === "Running" || continuityQueued) return "active";
-  return "pending";
-}
-
-function ProgressSummary({ diagnostics, continuityQueued }: { diagnostics: ArtifactInspectorDiagnostics; continuityQueued: boolean }) {
-  return (
-    <div className="inspector-summary-list">
-      {workflowSteps(diagnostics, continuityQueued).map((step) => (
-        <div key={step.label} className="inspector-summary-row">
-          <span className={`workflow-dot workflow-dot--${stepClass(step.status, continuityQueued)}`} />
-          <div>
-            <strong>{step.label}</strong>
-            <p>{step.status} · {step.note}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ContextPreview({ readiness, diagnostics }: { readiness: ContextReadiness; diagnostics: ArtifactInspectorDiagnostics }) {
-  const contextItems = [
-    `Chapter: ${diagnostics.hasChapter ? diagnostics.chapterTitle : "Missing"}`,
+function buildContextDigestBlock(readiness: ContextReadiness, diagnostics: ArtifactInspectorDiagnostics, continuityQueued: boolean): Extract<TimelineBlock, { type: "context_digest" }> {
+  const included = [
+    present(diagnostics.hasChapter, `Chapter: ${diagnostics.chapterTitle}`),
+    present(diagnostics.hasDraft, `Draft: ${diagnostics.draftWordCount} words`),
     `Artifact mode: ${diagnostics.activeMode}`,
-    `Readiness: ${readinessLabels[readiness]}`,
-    `Draft words: ${diagnostics.draftWordCount}`,
     `Approval: ${diagnostics.gateLabel}`,
-  ];
-  return (
-    <div className="inspector-card-grid">
-      {contextItems.map((item) => (
-        <div key={item} className="inspector-mini-card">{item}</div>
-      ))}
-    </div>
-  );
+  ].filter((item): item is string => Boolean(item));
+  const missing = [
+    present(!diagnostics.hasChapter, "Chapter selected"),
+    present(!diagnostics.hasDraft, "Draft artifact"),
+  ].filter((item): item is string => Boolean(item));
+  const degraded = [
+    present(readiness !== "proceed", `Readiness: ${readinessLabels[readiness]}`),
+    present(continuityQueued, "Continuity validation running"),
+  ].filter((item): item is string => Boolean(item));
+  const conflicts = [
+    present(!diagnostics.hasChapter, "No chapter selected"),
+    present(!diagnostics.hasDraft, "No draft artifact available"),
+    present(readiness === "blocked", "Context readiness is blocked"),
+    present(readiness === "degraded", "Context readiness is partial"),
+    present(continuityQueued, "Continuity validation is running"),
+    present(!diagnostics.canApprove, diagnostics.gateDetail),
+  ].filter((item): item is string => Boolean(item));
+  return {
+    id: "inspector-context-digest",
+    type: "context_digest",
+    source: "assistant",
+    title: diagnostics.hasChapter ? `${diagnostics.chapterTitle} context` : "Context readiness",
+    included,
+    missing,
+    degraded,
+    conflicts,
+  };
 }
 
-function IssuesPreview({
-  readiness,
-  diagnostics,
-  continuityQueued,
-}: {
-  readiness: ContextReadiness;
-  diagnostics: ArtifactInspectorDiagnostics;
-  continuityQueued: boolean;
-}) {
-  const issues = [
-    !diagnostics.hasChapter ? "No chapter selected" : null,
-    !diagnostics.hasDraft ? "No draft artifact available" : null,
-    readiness === "blocked" ? "Context readiness is blocked" : null,
-    readiness === "degraded" ? "Context readiness is partial" : null,
-    continuityQueued ? "Continuity validation is running" : null,
-    !diagnostics.canApprove ? diagnostics.gateDetail : null,
-  ].filter((item): item is string => Boolean(item));
-  return (
-    <div className="inspector-stack">
-      {(issues.length ? issues : ["No blocking artifact issues."]).map((item) => (
-        <div key={item} className="inspector-note">{item}</div>
-      ))}
-    </div>
-  );
+function buildWorkflowBlock(diagnostics: ArtifactInspectorDiagnostics, continuityQueued: boolean): Extract<TimelineBlock, { type: "workflow_progress" }> {
+  const event = continuityWorkflowProgressEvent({ chapterId: diagnostics.chapterId, queued: continuityQueued });
+  if (event) return workflowProgressBlockFromEvent(event);
+  const currentStep = diagnostics.canApprove ? 4 : diagnostics.hasDraft ? 2 : 1;
+  return {
+    id: "inspector-artifact-progress",
+    type: "workflow_progress",
+    source: "backend",
+    event_id: "artifact-progress-snapshot",
+    chapter_id: diagnostics.chapterId,
+    job_id: null,
+    workflow_name: "Artifact Readiness",
+    status: diagnostics.canApprove ? "complete" : "running",
+    current_step: currentStep,
+    total_steps: 4,
+    current_step_label: diagnostics.canApprove ? "Ready for review" : diagnostics.gateLabel,
+    steps: [
+      { label: "Chapter selected", status: diagnostics.hasChapter ? "complete" : "pending" },
+      { label: "Draft artifact", status: diagnostics.hasDraft ? "complete" : "pending" },
+      { label: "Continuity validation", status: diagnostics.canApprove ? "complete" : "pending" },
+      { label: "Reviewer approval", status: diagnostics.canApprove ? "active" : "pending" },
+    ],
+  };
+}
+
+function buildArtifactPreviewBlock(diagnostics: ArtifactInspectorDiagnostics): Extract<TimelineBlock, { type: "artifact_preview" }> {
+  return {
+    id: "inspector-artifact-preview",
+    type: "artifact_preview",
+    source: "backend",
+    artifact_id: "current-draft",
+    artifact_type: "draft",
+    title: diagnostics.hasChapter ? diagnostics.chapterTitle : "No chapter selected",
+    status: diagnostics.hasDraft ? "draft" : "failed",
+    description: diagnostics.hasDraft ? "Draft content opens in the artifact/document workspace." : "Create or select a draft before artifact actions are available.",
+    word_count: diagnostics.hasDraft ? diagnostics.draftWordCount : null,
+    beat_count: null,
+    preview_lines: [
+      diagnostics.hasDraft ? `${diagnostics.draftWordCount} words available` : "No draft artifact available",
+      diagnostics.gateDetail,
+      diagnostics.currentVersionNo !== null ? `Current version v${diagnostics.currentVersionNo} · ${diagnostics.currentVersionKind ?? "unknown"}` : "No current scene version",
+    ],
+    actions: diagnostics.hasDraft ? ["open_draft", "review_continuity", "edit_in_document"] : ["create_draft"],
+  };
 }
 
 function MemoryPreview({ diagnostics }: { diagnostics: ArtifactInspectorDiagnostics }) {
@@ -165,22 +159,6 @@ function MemoryPreview({ diagnostics }: { diagnostics: ArtifactInspectorDiagnost
   );
 }
 
-function VersionsPreview({ diagnostics, continuityQueued }: { diagnostics: ArtifactInspectorDiagnostics; continuityQueued: boolean }) {
-  const versionItems = [
-    diagnostics.currentVersionNo !== null ? `Current version v${diagnostics.currentVersionNo} · ${diagnostics.currentVersionKind ?? "unknown"}` : "No current scene version",
-    diagnostics.hasDraft ? `Current draft · ${diagnostics.draftWordCount} words` : "No draft version",
-    continuityQueued ? "Continuity check queued" : "Continuity check not running",
-    diagnostics.canApprove ? "Approval candidate ready" : `Approval locked · ${diagnostics.gateLabel}`,
-  ];
-  return (
-    <div className="inspector-stack">
-      {versionItems.map((item) => (
-        <div key={item} className="inspector-note">{item}</div>
-      ))}
-    </div>
-  );
-}
-
 function TabPreview({
   tab,
   readiness,
@@ -192,11 +170,11 @@ function TabPreview({
   diagnostics: ArtifactInspectorDiagnostics;
   continuityQueued: boolean;
 }) {
-  if (tab === "Progress") return <ProgressSummary diagnostics={diagnostics} continuityQueued={continuityQueued} />;
-  if (tab === "Context") return <ContextPreview readiness={readiness} diagnostics={diagnostics} />;
-  if (tab === "Issues") return <IssuesPreview readiness={readiness} diagnostics={diagnostics} continuityQueued={continuityQueued} />;
+  if (tab === "Progress") return <WorkflowProgressBlockView block={buildWorkflowBlock(diagnostics, continuityQueued)} density="detail" />;
+  if (tab === "Context") return <ContextDigestBlockView block={buildContextDigestBlock(readiness, diagnostics, continuityQueued)} />;
+  if (tab === "Artifacts") return <ArtifactPreviewBlockView block={buildArtifactPreviewBlock(diagnostics)} density="detail" />;
   if (tab === "Memory") return <MemoryPreview diagnostics={diagnostics} />;
-  return <VersionsPreview diagnostics={diagnostics} continuityQueued={continuityQueued} />;
+  return null;
 }
 
 export default function ArtifactInspectorRail({ readiness, continuityQueued, diagnostics }: ArtifactInspectorRailProps) {
@@ -229,7 +207,7 @@ export default function ArtifactInspectorRail({ readiness, continuityQueued, dia
         <span className="muted text-[10px]">{warnings} warnings</span>
       </div>
       <div className="inspector-tabs" role="tablist">
-        {(["Progress", "Context", "Issues", "Memory", "Versions"] as InspectorTab[]).map((tab) => (
+        {(["Progress", "Context", "Artifacts", "Memory"] as InspectorTab[]).map((tab) => (
           <button key={tab} type="button" className={tab === activeTab ? "shell-link shell-link--active px-2 py-1 text-xs" : "shell-link px-2 py-1 text-xs"} onClick={() => setActiveTab(tab)}>
             {tab}
           </button>
