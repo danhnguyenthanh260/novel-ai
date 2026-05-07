@@ -2056,6 +2056,25 @@ def process_chapter_write_v3_task(conn, task: Dict[str, Any]) -> None:
     )
 
     prose = llm_response.get("prose")
+    guard = (
+        llm_response.get("metadata", {}).get("v3_guard", {})
+        if isinstance(llm_response.get("metadata"), dict)
+        else {}
+    )
+    if guard.get("status") == "blocked":
+        raise RuntimeError(
+            "CHAPTER_WRITE_V3_GUARDRAIL_BLOCK:"
+            + json.dumps(
+                {
+                    "error_code": "CHAPTER_WRITE_V3_GUARDRAIL_BLOCK",
+                    "guard_fail_reasons": guard.get("fail_reasons") or [],
+                    "guard_status": guard.get("status"),
+                    "metadata": llm_response.get("metadata") if isinstance(llm_response.get("metadata"), dict) else {},
+                    "scene_markers": llm_response.get("scene_markers") if isinstance(llm_response.get("scene_markers"), list) else [],
+                },
+                ensure_ascii=True,
+            )
+        )
     if not prose:
         raise RuntimeError("LLM_PROSE_GENERATION_FAILED")
 

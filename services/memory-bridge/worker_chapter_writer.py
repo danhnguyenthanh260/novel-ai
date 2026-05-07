@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import os
+import re
 import time
 from typing import Any, Dict, Optional
 from worker_common import call_llm_json
@@ -14,6 +15,7 @@ from worker_narrative_handlers import (
     assemble_prompt_layers,
     build_memory_prompt_block,
     retrieve_semantic_memories,
+    sanitize_narrative_prose,
 )
 
 VALID_PREFLIGHT_STATUSES = {"proceed", "degraded", "blocked"}
@@ -23,6 +25,14 @@ REQUIRED_CONTEXT_SECTIONS = {
     "current_state",
     "debug_source_metadata",
 }
+_V3_META_LEAK_PATTERNS = [
+    re.compile(r"^\s*here (is|'s) (the|a) chapter\s*[:\-]?\s*$", re.IGNORECASE),
+    re.compile(r"^\s*i'?ll now write the chapter\s*[:\-]?\s*$", re.IGNORECASE),
+]
+_V3_META_INLINE_MARKERS = [
+    "as an ai language model",
+    "i will now write",
+]
 
 def _env_truthy(name: str) -> bool:
     return str(os.getenv(name) or "").strip().lower() in {"1", "true", "yes", "on"}
@@ -106,6 +116,100 @@ def _memory_query_text(
         json.dumps(active, ensure_ascii=False, sort_keys=True),
         json.dumps(meso, ensure_ascii=False, sort_keys=True),
     ]).strip()
+
+def _task_payload(task: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    payload = (task or {}).get("payload_json")
+    return payload if isinstance(payload, dict) else {}
+
+def _positive_int(value: Any) -> int:
+    try:
+        parsed = int(value)
+        return parsed if parsed > 0 else 0
+    except Exception:
+        return 0
+
+def _extract_word_budget(
+    style_options: Optional[Dict[str, Any]],
+    task: Optional[Dict[str, Any]],
+) -> Dict[str, int]:
+    payload = _task_payload(task)
+    plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+    contract = plan.get("chapter_output_contract_v1") if isinstance(plan.get("chapter_output_contract_v1"), dict) else {}
+    word_range = contract.get("word_range") if isinstance(contract.get("word_range"), dict) else {}
+    min_words = _positive_int(word_range.get("min"))
+    target_words = _positive_int(word_range.get("target"))
+    max_words = _positive_int(word_range.get("max"))
+
+    if not target_words and isinstance(style_options, dict):
+        target_words = _positive_int(style_options.get("target_word_count"))
+    if target_words and not min_words:
+        min_words = max(400, int(target_words * 0.75))
+    if target_words and not max_words:
+        max_words = max(min_words + 200, int(target_words * 1.25))
+    if max_words and min_words and max_words < min_words:
+        max_words = min_words
+    return {"min": min_words, "target": target_words, "max": max_words}
+
+def _required_location_anchor(task: Optional[Dict[str, Any]]) -> str:
+    payload = _task_payload(task)
+    plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+    context_guard = plan.get("context_guard") if isinstance(plan.get("context_guard"), dict) else {}
+    return str(context_guard.get("location_anchor") or "").strip()
+
+def _guard_chapter_v3_prose(
+    raw_prose: Any,
+    *,
+    style_options: Optional[Dict[str, Any]],
+    task: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    guard = sanitize_narrative_prose(raw_prose)
+    lines = str(guard.get("text") or "").splitlines()
+    kept = []
+    v3_removed = 0
+    for i, line in enumerate(lines):
+        if i < 12 and any(pattern.search(line or "") for pattern in _V3_META_LEAK_PATTERNS):
+            v3_removed += 1
+            continue
+        kept.append(line)
+    prose = "\n".join(kept).strip()
+    word_count = len(prose.split())
+    budget = _extract_word_budget(style_options, task)
+    anchor = _required_location_anchor(task)
+    anchor_verified = bool(anchor) and (anchor.lower() in prose.lower())
+    lowered_head = prose[:1200].lower()
+    inline_hits = int(guard.get("inline_hits", 0)) + sum(1 for marker in _V3_META_INLINE_MARKERS if marker in lowered_head)
+    removed_lines = int(guard.get("removed_lines", 0)) + v3_removed
+    meta_leak = bool(guard.get("meta_leak")) or inline_hits > 0 or removed_lines > 0
+
+    fail_reasons = []
+    if not prose:
+        fail_reasons.append("EMPTY_PROSE")
+    if inline_hits >= 2:
+        fail_reasons.append("META_LEAK")
+    if budget["min"] > 0 and word_count < budget["min"]:
+        fail_reasons.append("WORD_BUDGET_UNDERFLOW")
+    if budget["max"] > 0 and word_count > budget["max"]:
+        fail_reasons.append("WORD_BUDGET_OVERFLOW")
+    if anchor and not anchor_verified:
+        fail_reasons.append("ANCHOR_MISSED")
+
+    status = "blocked" if fail_reasons else "sanitized" if removed_lines > 0 else "passed"
+    return {
+        "status": status,
+        "fail_reasons": fail_reasons,
+        "word_count": word_count,
+        "word_budget_min": budget["min"],
+        "word_budget_target": budget["target"],
+        "word_budget_max": budget["max"],
+        "meta_leak": meta_leak,
+        "removed_lines": removed_lines,
+        "inline_hits": inline_hits,
+        "anchor_required": bool(anchor),
+        "anchor": anchor or None,
+        "anchor_verified": bool(anchor_verified),
+        "sanitized": prose != str(raw_prose or "").strip(),
+        "text": prose,
+    }
 
 def _render_writing_context_block(
     writing_context: Optional[Dict[str, Any]],
@@ -300,6 +404,14 @@ Return JSON:
     if not isinstance(response, dict):
         response = {"prose": str(response), "error": "NON_JSON_LLM_RESPONSE"}
     response.setdefault("metadata", {})
+    v3_guard = _guard_chapter_v3_prose(
+        response.get("prose"),
+        style_options=style_options,
+        task=task,
+    )
+    response["prose"] = v3_guard["text"]
+    response["guard_status"] = v3_guard["status"]
+    response["guard_fail_reasons"] = v3_guard["fail_reasons"]
     if isinstance(response["metadata"], dict):
         response["metadata"]["writing_context_mode"] = context_mode
         response["metadata"]["writing_context_used"] = fallback_metadata["writing_context_used"]
@@ -318,13 +430,14 @@ Return JSON:
         response["metadata"]["prompt_assignment"] = assembled.get("assignment")
         response["metadata"]["experiment_id"] = assembled.get("experiment_id")
         response["metadata"]["hydration_error"] = hydration_error
+        response["metadata"]["v3_guard"] = {k: v for k, v in v3_guard.items() if k != "text"}
 
     if task:
         run_trace_id = insert_agent_run_trace(
             conn,
             task=task,
             agent_name="CHAPTER_WRITE_V3",
-            status="DONE",
+            status="FAILED" if v3_guard["status"] == "blocked" else "DONE",
             input_payload={
                 "chapter_goal": chapter_goal,
                 "memory_ids": [m.get("id") for m in memory_items],
@@ -336,6 +449,11 @@ Return JSON:
                 "scene_markers": response.get("scene_markers") if isinstance(response.get("scene_markers"), list) else [],
                 "metadata": response.get("metadata") if isinstance(response.get("metadata"), dict) else {},
             },
+            error_code=(
+                f"CHAPTER_WRITE_V3_GUARDRAIL_BLOCK:{'|'.join(v3_guard['fail_reasons'])}"
+                if v3_guard["status"] == "blocked"
+                else None
+            ),
             model_name="llm_json",
             prompt_version_id=assembled.get("prompt_version_id"),
             agent_profile_id=assembled.get("agent_profile_id"),
@@ -349,6 +467,7 @@ Return JSON:
                 "prompt_assignment": assembled.get("assignment"),
                 "experiment_id": assembled.get("experiment_id"),
                 "hydration_error": hydration_error,
+                "v3_guard": {k: v for k, v in v3_guard.items() if k != "text"},
             },
         )
         insert_agent_prompt_hydration_trace(
