@@ -4,9 +4,13 @@ Issue: #37
 Status: Planning contract
 Last updated: 2026-05-03
 
+Related Studio chat prompt contract: `docs/operations/specs/studio-chat-orchestration-layer.md`.
+
 ## Purpose
 
 This contract defines the Novel Lab command workspace boundary. The command plane captures user intent and produces typed workflow requests; deterministic application code validates and executes those requests through existing APIs and worker tasks. The command plane is not the document output surface and is not a raw database or worker console.
+
+The Studio Chat Orchestration Layer owns the assistant prompt, chat timeline block registry, composer state model, and assistant/backend block source boundary. This document remains the command/orchestrator contract for typed workflow requests and tool registry behavior.
 
 ## Ownership Model
 

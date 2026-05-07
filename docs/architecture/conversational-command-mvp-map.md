@@ -9,6 +9,9 @@ Last updated: 2026-05-03
 This document maps the first Novel Lab commands to existing `novel-ai` workflows or explicit missing contracts. The command plane is a workflow entrypoint. It does not execute raw database actions and does not replace artifact, editor, memory, review, or operations surfaces.
 
 Related contract: `docs/architecture/conversational-command-orchestrator.md`.
+Related chat prompt and timeline contract: `docs/operations/specs/studio-chat-orchestration-layer.md`.
+
+The Studio chat timeline renders command results and workflow lifecycle blocks according to `docs/operations/specs/studio-chat-orchestration-layer.md`; backend/runtime events own progress, artifact, approval, failure, and context digest payloads.
 
 ## MVP Commands
 
