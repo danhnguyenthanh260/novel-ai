@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import NextActionRail from "@/features/pipeline/components/NextActionRail";
 import { useStory } from "@/features/story/StoryContext";
 import AutoWriteWizard from "@/features/scenes/components/writeTab/AutoWriteWizard";
 import ArtifactSurface from "@/features/scenes/components/writeTab/ArtifactSurface";
@@ -50,17 +51,28 @@ function storyLabelFromSlug(storySlug: string): string {
     .join(" ") || "Current story";
 }
 
-function buildDraftSource(props: NovelLabWorkspaceProps): DraftSource {
-  if (props.pendingChapterProse?.id === props.selectedChapterId) {
-    return { key: `pending-${props.selectedChapterId}`, text: props.pendingChapterProse.prose };
-  }
+function pendingDraftSource(props: NovelLabWorkspaceProps): DraftSource | null {
+  if (props.pendingChapterProse?.id !== props.selectedChapterId) return null;
+  return { key: `pending-${props.selectedChapterId}`, text: props.pendingChapterProse.prose };
+}
+
+function savedDraftSource(props: NovelLabWorkspaceProps): DraftSource | null {
   if (props.stagingData?.user_prose) return { key: `staging-user-${props.selectedChapterId}`, text: props.stagingData.user_prose };
   if (props.v3Draft?.full_text) return { key: `v3-${props.selectedChapterId}`, text: props.v3Draft.full_text };
   if (props.stagingData?.llm_prose) return { key: `staging-llm-${props.selectedChapterId}`, text: props.stagingData.llm_prose };
+  return null;
+}
 
+function sceneDraftSource(props: NovelLabWorkspaceProps): DraftSource | null {
   const sceneText = props.chapterScenes.map((item) => item.text_content).filter(Boolean).join("\n\n");
   if (sceneText) return { key: `scenes-${props.selectedChapterId}-${props.chapterScenes.length}`, text: sceneText };
   if (props.current?.text_content) return { key: `scene-${props.current.id}`, text: props.current.text_content };
+  return null;
+}
+
+function buildDraftSource(props: NovelLabWorkspaceProps): DraftSource {
+  const draftSource = pendingDraftSource(props) ?? savedDraftSource(props) ?? sceneDraftSource(props);
+  if (draftSource) return draftSource;
 
   return {
     key: `empty-${props.selectedChapterId || "none"}`,
@@ -69,7 +81,12 @@ function buildDraftSource(props: NovelLabWorkspaceProps): DraftSource {
 }
 
 function NavigationPanel(
-  props: Pick<NovelLabWorkspaceProps, "storySlug" | "chapterIds" | "loadingScenes" | "selectedChapterId" | "onChapterIdChange" | "onCreateNewChapter">
+  props: Pick<NovelLabWorkspaceProps, "storySlug" | "chapterIds" | "loadingScenes" | "selectedChapterId" | "onChapterIdChange" | "onCreateNewChapter"> & {
+    hasDraft: boolean;
+    loadingWorkspace: boolean;
+    continuityQueued: boolean;
+    readiness: ContextReadiness;
+  }
 ) {
   const { isArtifactVisible, setIsArtifactVisible } = useStory();
   const visibleChapters = props.chapterIds.length ? props.chapterIds : [props.selectedChapterId].filter(Boolean);
@@ -98,6 +115,15 @@ function NavigationPanel(
           <div className="mt-2 text-xs text-[var(--accent)]">{props.selectedChapterId || "No chapter"}</div>
         </div>
       </div>
+
+      <NextActionRail
+        storySlug={props.storySlug}
+        hasChapter={Boolean(props.selectedChapterId || props.chapterIds.length)}
+        hasDraft={props.hasDraft}
+        continuityQueued={props.continuityQueued}
+        readiness={props.readiness}
+        loading={props.loadingWorkspace}
+      />
 
       <nav className="space-y-1 text-sm" aria-label="Workspace views">
         {workspaceLinks.map((item) => (
@@ -185,6 +211,10 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           selectedChapterId={props.selectedChapterId}
           onChapterIdChange={props.onChapterIdChange}
           onCreateNewChapter={props.onCreateNewChapter}
+          hasDraft={draftSource.text.trim().length > 0}
+          loadingWorkspace={props.loadingScenes || props.loadingDetail || props.loadingChapter}
+          continuityQueued={continuityQueued}
+          readiness={readiness}
         />
         <CommandWorkStream
           storySlug={props.storySlug}
