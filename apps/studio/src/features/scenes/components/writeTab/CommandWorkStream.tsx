@@ -1,6 +1,9 @@
 import React from "react";
 import { useRouter } from "next/navigation";
-import type { CommandId, CommandTaskCard } from "@/features/scenes/components/writeTab/types";
+import ReadinessBriefing from "@/features/scenes/components/writeTab/chatOrchestration/ReadinessBriefing";
+import TaskCard from "@/features/scenes/components/writeTab/chatOrchestration/TaskCard";
+import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
+import type { AssistantReadinessContext, CommandId, CommandTaskCard, RecoveryChip } from "@/features/scenes/components/writeTab/types";
 
 type CommandWorkStreamProps = {
   storySlug: string;
@@ -13,6 +16,7 @@ type CommandWorkStreamProps = {
   onCommandMenuOpenChange: (value: boolean) => void;
   onOpenAutoWrite: () => void;
   onQueueContinuity: () => void;
+  assistantContext: AssistantReadinessContext;
 };
 
 type CommandOption = {
@@ -34,6 +38,7 @@ type CommandRunnerArgs = {
   chapterId: string;
   onOpenAutoWrite: () => void;
   onQueueContinuity: () => void;
+  readinessContext: AssistantReadinessContext;
 };
 
 type CommandGroup = "primary" | "more" | "hidden";
@@ -84,13 +89,6 @@ const moreCommands = commandDefinitions.filter((command) => command.visible && c
 
 const moreMenuItem: CommandMenuItem = { id: "More", description: "" };
 const allAvailableCommands: CommandMenuItem[] = [...primaryCommands, moreMenuItem, ...moreCommands];
-
-function statusLabel(status: CommandTaskCard["status"]): string {
-  if (status === "running") return "Running";
-  if (status === "completed") return "Completed";
-  if (status === "blocked") return "Blocked";
-  return "Ready";
-}
 
 function SlashCommandMenu({ 
   onSelect, 
@@ -211,6 +209,23 @@ function commandUnavailable(command: CommandId, detail: string): CommandResult {
   };
 }
 
+function commandTail(value: string, command: CommandId): string {
+  const normalized = value.trimStart();
+  if (!normalized.startsWith(command)) return "";
+  return normalized.slice(command.length).trim();
+}
+
+function contextWithComposerIntent(context: AssistantReadinessContext, composerValue: string, command: CommandId | null): AssistantReadinessContext {
+  if (command !== "/write chapter" && command !== "/analyze chapter") return context;
+  return {
+    ...context,
+    availability: {
+      ...context.availability,
+      has_chapter_intent: context.availability.has_chapter_intent || commandTail(composerValue, command).length > 0,
+    },
+  };
+}
+
 function useCommandRunner(args: CommandRunnerArgs) {
   const router = useRouter();
   const [commandResult, setCommandResult] = React.useState<CommandResult | null>(null);
@@ -225,8 +240,9 @@ function useCommandRunner(args: CommandRunnerArgs) {
 
       const storyBase = `/stories/${encodeURIComponent(args.storySlug)}`;
       if (command === "/write chapter") {
-        if (!args.chapterId) {
-          setCommandResult(commandUnavailable(command, "Choose or create a chapter before opening AutoWrite."));
+        const readiness = buildAssistantReadiness(args.readinessContext);
+        if (!readiness.canWrite) {
+          setCommandResult(commandUnavailable(command, readiness.blockedWriteReason ?? "The chapter context is blocked. Add missing context before opening AutoWrite."));
           return;
         }
         args.onOpenAutoWrite();
@@ -330,37 +346,55 @@ function handleSlashMenuKeyDown({
   if (event.key === "Escape") onClose();
 }
 
-function TaskCard({ task, onRunCommand }: { task: CommandTaskCard; onRunCommand: (command: CommandId) => void }) {
+function chipTarget(storySlug: string, chip: RecoveryChip): string | null {
+  const storyBase = `/stories/${encodeURIComponent(storySlug)}`;
+  if (chip.intent === "browse_stories" || chip.intent === "switch_story") return "/shelf";
+  if (chip.intent === "start_story") return "/";
+  if (chip.intent === "add_context" || chip.intent === "analyze_source") return `${storyBase}/analysis`;
+  if (chip.intent === "inspect_context") return `${storyBase}/memory`;
+  return null;
+}
+
+function CommandResultMessage({ result }: { result: CommandResult }) {
   return (
-    <article className={`work-task-card work-task-card--${task.status}`}>
-      <div className="work-task-card__meta">
-        <span className="font-mono text-xs">{task.command}</span>
-        <span>{statusLabel(task.status)}</span>
-      </div>
-      <div className="work-task-card__title">{task.title}</div>
-      <p>{task.detail}</p>
-      {task.cta && task.ctaCommand ? (
-        <button type="button" onClick={() => task.ctaCommand && onRunCommand(task.ctaCommand)}>
-          {task.cta}
-        </button>
-      ) : null}
-    </article>
+    <div className={`work-message mt-4 work-message--${result.tone === "blocked" ? "user" : "assistant"}`}>
+      <div className="work-message__label">{result.tone === "blocked" ? "Blocked" : "Novel Lab"}</div>
+      <div className="text-sm font-semibold">{result.title}</div>
+      <div className="muted mt-1 text-xs">{result.detail}</div>
+    </div>
   );
 }
 
 export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [isMoreOpen, setIsMoreOpen] = React.useState(false);
+  const router = useRouter();
+  const currentCommand = commandFromValue(props.composerValue);
+  const readinessContext = contextWithComposerIntent(props.assistantContext, props.composerValue, currentCommand);
+  const briefing = buildAssistantReadiness(readinessContext);
   const { commandResult, runCommand, setCommandResult } = useCommandRunner({
     storySlug: props.storySlug,
     chapterId: props.chapterId,
     onOpenAutoWrite: props.onOpenAutoWrite,
     onQueueContinuity: props.onQueueContinuity,
+    readinessContext,
   });
   
   const showSlashMenu = props.commandMenuOpen || props.composerValue.trimStart().startsWith("/");
   const maxIndex = getMaxCommandIndex(isMoreOpen);
   const tasks = buildTasks(props);
+  const handleChip = (chip: RecoveryChip) => {
+    const target = chipTarget(props.storySlug, chip);
+    if (chip.intent === "describe_goal") {
+      props.onComposerValueChange(props.chapterId ? `/write chapter ${props.chapterId} ` : "");
+      return;
+    }
+    if (chip.intent === "continue_degraded") {
+      props.onComposerValueChange(props.chapterId ? `/write chapter ${props.chapterId} ` : "/write chapter ");
+      return;
+    }
+    if (target) router.push(target);
+  };
 
   const handleSelect = (command: string) => {
     if (command === "More") {
@@ -388,11 +422,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   return (
     <section className="work-stream" aria-label="Command work stream">
       <div className="work-stream__scroll">
-        <div className="work-stream__intro">
-          <div className="work-stream__eyebrow">Current work</div>
-          <h1 className="text-xl font-bold">Write and validate</h1>
-          <p className="text-xs muted">Give Novel Lab a command, then review the resulting artifact on the right.</p>
-        </div>
+        <ReadinessBriefing briefing={briefing} onChip={handleChip} />
 
         {props.composerValue && (
           <div className="work-message work-message--user mb-4">
@@ -407,13 +437,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
           ))}
         </div>
 
-        {commandResult ? (
-          <div className={`work-message mt-4 work-message--${commandResult.tone === "blocked" ? "user" : "assistant"}`}>
-            <div className="work-message__label">{commandResult.tone === "blocked" ? "Blocked" : "Novel Lab"}</div>
-            <div className="text-sm font-semibold">{commandResult.title}</div>
-            <div className="muted mt-1 text-xs">{commandResult.detail}</div>
-          </div>
-        ) : null}
+        {commandResult ? <CommandResultMessage result={commandResult} /> : null}
       </div>
 
       <div className="work-composer-wrap">

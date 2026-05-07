@@ -607,6 +607,88 @@ body {
   text-transform: uppercase;
 }
 
+.readiness-card {
+  max-width: 620px;
+  margin: 0 auto 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  background: rgba(17, 24, 39, 0.72);
+  padding: 16px;
+}
+
+.readiness-card--blocked {
+  border-color: rgba(239, 68, 68, 0.24);
+}
+
+.readiness-card--degraded {
+  border-color: rgba(242, 179, 95, 0.24);
+}
+
+.readiness-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.readiness-card__header h1 {
+  margin-top: 6px;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.readiness-card__items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.readiness-card__item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.readiness-card__item--ok {
+  color: #86efac;
+}
+
+.readiness-card__item--missing {
+  color: #fca5a5;
+}
+
+.readiness-card__item--partial {
+  color: var(--accent-2);
+}
+
+.readiness-card p {
+  margin-top: 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.readiness-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.readiness-card__chips button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-primary);
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
 .work-message,
 .work-task-list {
   max-width: 620px;
