@@ -54,6 +54,13 @@ from worker_task_handlers import (
 )
 
 CHAPTER_WRITE_V3_GUARD_PREFIX = "CHAPTER_WRITE_V3_GUARDRAIL_BLOCK:"
+LEGACY_NARRATIVE_TASK_TYPES = {
+    "NARRATIVE_START",
+    "NARRATIVE_STYLIST",
+    "NARRATIVE_CRITIC",
+    "NARRATIVE_REFINE",
+    "NARRATIVE_FINALIZE",
+}
 
 def _parse_chapter_write_v3_guard_error(error_text: str) -> Dict[str, Any] | None:
     if not error_text.startswith(CHAPTER_WRITE_V3_GUARD_PREFIX):
@@ -67,6 +74,28 @@ def _parse_chapter_write_v3_guard_error(error_text: str) -> Dict[str, Any] | Non
             "guard_fail_reasons": [part for part in raw.split("|") if part],
         }
     return parsed if isinstance(parsed, dict) else None
+
+def _legacy_narrative_dispatch_enabled() -> bool:
+    return str(os.getenv("NARRATIVE_LEGACY_DISPATCH_ENABLED") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+def _process_legacy_narrative_task(conn, task: Dict[str, Any], task_type: str) -> None:
+    if not _legacy_narrative_dispatch_enabled():
+        raise ValueError(
+            f"LEGACY_NARRATIVE_DISPATCH_RETIRED:{task_type}:"
+            "set NARRATIVE_LEGACY_DISPATCH_ENABLED=1 to drain compatibility jobs"
+        )
+    if task_type == "NARRATIVE_START":
+        process_narrative_start_task(conn, task)
+    elif task_type == "NARRATIVE_STYLIST":
+        process_narrative_stylist_task(conn, task)
+    elif task_type == "NARRATIVE_CRITIC":
+        process_narrative_critic_task(conn, task)
+    elif task_type == "NARRATIVE_REFINE":
+        process_narrative_refine_task(conn, task)
+    elif task_type == "NARRATIVE_FINALIZE":
+        process_narrative_finalize_task(conn, task)
+    else:
+        raise ValueError(f"UNSUPPORTED_LEGACY_NARRATIVE_TASK:{task_type}")
 from worker_constants import DEFAULT_DSN
 
 
@@ -251,16 +280,8 @@ def run_worker(
                         process_chapter_ledger_task(conn, task)
                     elif task_type == 'MEMORY_ROLLUP_V3':
                         process_memory_rollup_v3_task(conn, task)
-                    elif task_type == "NARRATIVE_START":
-                        process_narrative_start_task(conn, task)
-                    elif task_type == "NARRATIVE_STYLIST":
-                        process_narrative_stylist_task(conn, task)
-                    elif task_type == "NARRATIVE_CRITIC":
-                        process_narrative_critic_task(conn, task)
-                    elif task_type == "NARRATIVE_REFINE":
-                        process_narrative_refine_task(conn, task)
-                    elif task_type == "NARRATIVE_FINALIZE":
-                        process_narrative_finalize_task(conn, task)
+                    elif task_type in LEGACY_NARRATIVE_TASK_TYPES:
+                        _process_legacy_narrative_task(conn, task, task_type)
                     elif task["unit_type"] == "chapter":
                         process_chapter_task(conn, task)
                     elif task["unit_type"] == "scene":
