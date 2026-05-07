@@ -195,6 +195,18 @@ Refactor direction for large modules:
 ### Legacy compatibility
 Chỉ giữ để tương thích tạm thời.
 
+- `GET /api/scenes`
+- `POST /api/scenes/intake`
+- `POST /api/scenes/outline`
+- `POST /api/scenes/draft`
+- `POST /api/scenes/evaluate`
+- `POST /api/scenes/rewrite`
+- `POST /api/scenes/lock`
+- `GET /api/scenes/[sceneId]/versions`
+- `POST /api/scenes/[sceneId]/commit-draft`
+
+These routes are compatibility aliases for the hardcoded `default` story. New callers must use the canonical story-scoped scene routes under `/api/[storySlug]/scenes/*`. The default aliases emit deprecation headers and keep behavior unchanged during the compatibility window ending `2026-06-07`.
+
 ## 4) Workflow scenes (server)
 
 Code: `src/features/scenes/server/workflow/*`
