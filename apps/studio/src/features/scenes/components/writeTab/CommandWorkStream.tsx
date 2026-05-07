@@ -177,6 +177,7 @@ function buildTimelineBlocks(args: {
   composerValue: string;
   conversationBlocks: TimelineBlock[];
   hasDraft: boolean;
+  showDraftPreview: boolean;
   continuityQueued: boolean;
   commandResult: CommandResult | null;
   intentBlock: TimelineBlock | null;
@@ -215,7 +216,7 @@ function buildTimelineBlocks(args: {
     });
   }
 
-  if (args.hasDraft) {
+  if (args.hasDraft && args.showDraftPreview) {
     blocks.push({
       id: "draft-preview",
       type: "artifact_preview",
@@ -482,6 +483,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     composerValue: props.composerValue,
     conversationBlocks,
     hasDraft: props.hasDraft,
+    showDraftPreview: chatMode !== "brainstorm",
     continuityQueued: props.continuityQueued,
     commandResult,
     intentBlock,
@@ -519,7 +521,6 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
           props.onCommandMenuOpenChange(false);
           submitMessage(message);
         }}
-        mode={chatMode}
       />
     </section>
   );
