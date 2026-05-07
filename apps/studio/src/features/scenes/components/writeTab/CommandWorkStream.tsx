@@ -2,6 +2,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import ChatComposer, { type ChatCommandOption } from "@/features/scenes/components/writeTab/chatOrchestration/ChatComposer";
 import ChatTimeline from "@/features/scenes/components/writeTab/chatOrchestration/ChatTimeline";
+import { routeStudioIntent } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
 import type {
   AssistantReadinessContext,
@@ -42,10 +43,14 @@ type CommandDefinition = {
 
 const commandDefinitions: CommandDefinition[] = [
   { id: "/write chapter", description: "Generate chapter draft", group: "primary", visible: true },
+  { id: "/plan", description: "Create chapter outline", group: "primary", visible: true },
   { id: "/analyze chapter", description: "Analyze source or context", group: "primary", visible: true },
+  { id: "/research", description: "Research story or worldbuilding context", group: "primary", visible: true },
+  { id: "/inspect", description: "Show full context digest", group: "primary", visible: true },
   { id: "/check continuity", description: "Review canon and timeline handoff", group: "primary", visible: true },
   { id: "/extract memory", description: "Open story memory extraction", group: "more", visible: true },
   { id: "/review chapter", description: "Open review panel", group: "more", visible: true },
+  { id: "/split", description: "Prepare chapter split request", group: "more", visible: true },
   {
     id: "/rewrite selection",
     description: "Rewrite selected prose",
@@ -89,7 +94,7 @@ function commandTail(command: CommandId, goal: string): string {
 }
 
 function contextWithCommandIntent(context: AssistantReadinessContext, command: CommandId, goal: string): AssistantReadinessContext {
-  if (command !== "/write chapter" && command !== "/analyze chapter") return context;
+  if (command !== "/write chapter" && command !== "/plan" && command !== "/analyze chapter" && command !== "/research") return context;
   return {
     ...context,
     availability: {
@@ -120,6 +125,9 @@ function buildCommands(context: AssistantReadinessContext, chapterId: string): C
       }
       if (command.id === "/check continuity" && !chapterId) {
         blockedReason = "Choose or create a chapter before checking continuity.";
+      }
+      if ((command.id === "/plan" || command.id === "/split") && !chapterId) {
+        blockedReason = "Choose or create a chapter before running this command.";
       }
 
       return {
@@ -167,9 +175,11 @@ function resultBlock(result: CommandResult): TimelineBlock {
 function buildTimelineBlocks(args: {
   briefing: ReturnType<typeof buildAssistantReadiness>;
   composerValue: string;
+  submittedMessage: string | null;
   hasDraft: boolean;
   continuityQueued: boolean;
   commandResult: CommandResult | null;
+  intentBlock: TimelineBlock | null;
 }): TimelineBlock[] {
   const blocks: TimelineBlock[] = [
     { id: "readiness", type: "readiness_card", briefing: args.briefing },
@@ -180,8 +190,9 @@ function buildTimelineBlocks(args: {
     },
   ];
 
-  if (args.composerValue.trim()) {
-    blocks.push({ id: "composer-echo", type: "text_message", source: "user", label: "You", text: args.composerValue.trim() });
+  const userText = args.submittedMessage || args.composerValue.trim();
+  if (userText) {
+    blocks.push({ id: "composer-echo", type: "text_message", source: "user", label: "You", text: userText });
   }
 
   if (args.continuityQueued) {
@@ -220,7 +231,57 @@ function buildTimelineBlocks(args: {
   }
 
   if (args.commandResult) blocks.push(resultBlock(args.commandResult));
+  if (args.intentBlock) blocks.push(args.intentBlock);
   return blocks;
+}
+
+function buildContextDigestBlock(context: AssistantReadinessContext): TimelineBlock {
+  const included = [
+    context.storySelected ? "Story selected" : "",
+    context.chapterId ? "Chapter selected" : "",
+    context.availability.has_source_chapters ? "Source material" : "",
+    context.availability.has_active_characters ? "Active characters" : "",
+    context.availability.has_memory_snapshot ? "Memory snapshot" : "",
+    context.availability.has_style_profile ? "Style profile" : "",
+    context.availability.has_immediate_continuity ? "Immediate continuity" : "",
+    context.availability.has_chapter_intent ? "Chapter intent" : "",
+  ].filter(Boolean);
+  const missing = [
+    context.storySelected ? "" : "Story selected",
+    context.chapterId ? "" : "Chapter selected",
+    context.availability.has_source_chapters ? "" : "Source material",
+    context.availability.has_active_characters ? "" : "Active characters",
+    context.availability.has_chapter_intent ? "" : "Chapter intent",
+  ].filter(Boolean);
+  const degraded = [
+    context.availability.has_memory_snapshot ? "" : "Memory snapshot",
+    context.availability.has_style_profile ? "" : "Style profile",
+    context.availability.has_immediate_continuity ? "" : "Immediate continuity",
+  ].filter(Boolean);
+
+  return {
+    id: "intent-context-digest",
+    type: "context_digest",
+    source: "assistant",
+    title: context.chapterId ? `Chapter ${context.chapterId} context` : "Current story context",
+    included,
+    missing,
+    degraded,
+    conflicts: context.readiness === "blocked" ? ["Current context is blocked for writing."] : [],
+  };
+}
+
+function approvalGateBlock(chapterId: string): TimelineBlock {
+  return {
+    id: "intent-approval-gate",
+    type: "approval_gate",
+    source: "assistant",
+    gate_type: "import_to_editor",
+    description: chapterId
+      ? "This needs your sign-off before I can continue. Importing to the editor does not approve story memory or publish the chapter."
+      : "Choose a chapter before approving or importing draft content.",
+    actions: ["import_to_editor", "keep_as_draft", "run_continuity_check"],
+  };
 }
 
 function useCommandRunner(args: {
@@ -232,9 +293,11 @@ function useCommandRunner(args: {
 }) {
   const router = useRouter();
   const [commandResult, setCommandResult] = React.useState<CommandResult | null>(null);
+  const [intentBlock, setIntentBlock] = React.useState<TimelineBlock | null>(null);
 
   const runCommand = React.useCallback(
     (command: CommandId, goal: string) => {
+      setIntentBlock(null);
       const definition = commandDefinition(command);
       if (definition?.visible === false) {
         setCommandResult({
@@ -247,6 +310,52 @@ function useCommandRunner(args: {
 
       const storyBase = `/stories/${encodeURIComponent(args.storySlug)}`;
       const commandContext = contextWithCommandIntent(args.readinessContext, command, goal);
+      if (command === "/inspect" || command === "/status") {
+        setIntentBlock(buildContextDigestBlock(commandContext));
+        setCommandResult({ tone: "ready", title: "Context digest ready", detail: "I found the current story and chapter context state." });
+        return;
+      }
+
+      if (command === "/approve draft") {
+        setIntentBlock(approvalGateBlock(args.chapterId));
+        setCommandResult({ tone: "blocked", title: "Approval required", detail: "I surfaced the approval gate, but I cannot approve or promote the draft for you." });
+        return;
+      }
+
+      if (command === "/plan") {
+        if (!args.chapterId) {
+          setCommandResult({ tone: "blocked", title: "Chapter Planning", detail: "Choose or create a chapter before planning." });
+          return;
+        }
+        if (!goal.trim()) {
+          setCommandResult({ tone: "blocked", title: "Chapter Planning", detail: "I need to know what this chapter should accomplish before planning." });
+          return;
+        }
+        const readiness = buildAssistantReadiness(commandContext);
+        if (readiness.status === "blocked") {
+          setCommandResult({ tone: "blocked", title: "Chapter Planning", detail: readiness.blockedWriteReason ?? "The chapter context is blocked. Add missing context before planning." });
+          return;
+        }
+        args.onOpenAutoWrite();
+        setCommandResult({ tone: "running", title: "Planning preflight passed", detail: "The AutoWrite planner is ready to continue with your chapter goal." });
+        return;
+      }
+
+      if (command === "/research") {
+        router.push(`${storyBase}/analysis`);
+        setCommandResult({ tone: "ready", title: "Opening research context", detail: "Research and source analysis continue in the analysis workspace." });
+        return;
+      }
+
+      if (command === "/split") {
+        if (!args.chapterId) {
+          setCommandResult({ tone: "blocked", title: "Chapter Split", detail: "Choose or create a chapter before splitting." });
+          return;
+        }
+        setCommandResult({ tone: "ready", title: "Split request captured", detail: "Chapter splitting remains gated by the artifact workflow; review the current draft before running the split pipeline." });
+        return;
+      }
+
       if (command === "/write chapter") {
         const readiness = buildAssistantReadiness(commandContext);
         if (!readiness.canWrite) {
@@ -295,14 +404,39 @@ function useCommandRunner(args: {
     [args, router]
   );
 
-  return { commandResult, runCommand };
+  const submitMessage = React.useCallback((message: string) => {
+    const route = routeStudioIntent({ message, readiness: args.readinessContext.readiness });
+    setIntentBlock(null);
+    if (route.intent === "SWITCH_STORY") {
+      router.push("/shelf");
+      setCommandResult({ tone: "ready", title: "Opening story selector", detail: "Choose the story you want to work on next." });
+      return;
+    }
+    if (route.intent === "ADD_CONTEXT") {
+      router.push(`/stories/${encodeURIComponent(args.storySlug)}/analysis`);
+      setCommandResult({ tone: "ready", title: "Opening context tools", detail: "Add or analyze story context before writing." });
+      return;
+    }
+    if (route.intent === "BRAINSTORM") {
+      setCommandResult({ tone: "ready", title: "Brainstorm mode", detail: route.assistantText ?? "I can brainstorm here without starting a writing workflow." });
+      return;
+    }
+    if (route.needsClarification) {
+      setCommandResult({ tone: "ready", title: "Clarify intent", detail: route.assistantText ?? "Which writing action should I help with?" });
+      return;
+    }
+    if (route.command) runCommand(route.command, route.goal);
+  }, [args.readinessContext.readiness, args.storySlug, router, runCommand]);
+
+  return { commandResult, intentBlock, runCommand, submitMessage };
 }
 
 export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const router = useRouter();
+  const [submittedMessage, setSubmittedMessage] = React.useState<string | null>(null);
   const briefing = buildAssistantReadiness(props.assistantContext);
   const commands = buildCommands(props.assistantContext, props.chapterId);
-  const { commandResult, runCommand } = useCommandRunner({
+  const { commandResult, intentBlock, runCommand, submitMessage } = useCommandRunner({
     storySlug: props.storySlug,
     chapterId: props.chapterId,
     onOpenAutoWrite: props.onOpenAutoWrite,
@@ -312,9 +446,11 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const blocks = buildTimelineBlocks({
     briefing,
     composerValue: props.composerValue,
+    submittedMessage,
     hasDraft: props.hasDraft,
     continuityQueued: props.continuityQueued,
     commandResult,
+    intentBlock,
   });
 
   const handleChip = (chip: RecoveryChip) => {
@@ -337,8 +473,15 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
         onValueChange={props.onComposerValueChange}
         onMenuOpenChange={props.onCommandMenuOpenChange}
         onSubmitCommand={(command, goal) => {
+          setSubmittedMessage(null);
           props.onComposerValueChange(commandTail(command, goal));
           runCommand(command, goal);
+        }}
+        onSubmitMessage={(message) => {
+          setSubmittedMessage(message);
+          props.onComposerValueChange("");
+          props.onCommandMenuOpenChange(false);
+          submitMessage(message);
         }}
       />
     </section>

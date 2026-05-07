@@ -24,6 +24,7 @@ type ChatComposerProps = {
   onValueChange: (value: string) => void;
   onMenuOpenChange: (value: boolean) => void;
   onSubmitCommand: (command: CommandId, goal: string) => void;
+  onSubmitMessage: (message: string) => void;
 };
 
 const defaultDraft: CommandFormDraft = {
@@ -101,7 +102,7 @@ function CommandForm({
   onCancel: () => void;
   onSubmit: () => void;
 }) {
-  const isWrite = command === "/write chapter";
+  const isGoalCommand = command === "/write chapter" || command === "/plan" || command === "/research";
   const isAnalyze = command === "/analyze chapter" || command === "/extract memory";
 
   return (
@@ -119,26 +120,28 @@ function CommandForm({
         </button>
       </div>
 
-      {isWrite ? (
+      {isGoalCommand ? (
         <>
           <label>
             <span>Goal</span>
             <input value={draft.goal} onChange={(event) => onDraftChange({ ...draft, goal: event.target.value })} placeholder="What should this chapter accomplish?" />
           </label>
-          <div className="command-form__grid">
-            <label>
-              <span>Mode</span>
-              <select value={draft.mode} onChange={(event) => onDraftChange({ ...draft, mode: event.target.value as CommandFormDraft["mode"] })}>
-                <option value="plan_first">Plan first</option>
-                <option value="direct">Direct</option>
-                <option value="research_first">Research first</option>
-              </select>
-            </label>
-            <label>
-              <span>Word target</span>
-              <input type="number" min={300} max={10000} step={100} value={draft.wordTarget} onChange={(event) => onDraftChange({ ...draft, wordTarget: Number(event.target.value) })} />
-            </label>
-          </div>
+          {command === "/write chapter" ? (
+            <div className="command-form__grid">
+              <label>
+                <span>Mode</span>
+                <select value={draft.mode} onChange={(event) => onDraftChange({ ...draft, mode: event.target.value as CommandFormDraft["mode"] })}>
+                  <option value="plan_first">Plan first</option>
+                  <option value="direct">Direct</option>
+                  <option value="research_first">Research first</option>
+                </select>
+              </label>
+              <label>
+                <span>Word target</span>
+                <input type="number" min={300} max={10000} step={100} value={draft.wordTarget} onChange={(event) => onDraftChange({ ...draft, wordTarget: Number(event.target.value) })} />
+              </label>
+            </div>
+          ) : null}
         </>
       ) : null}
 
@@ -163,7 +166,7 @@ function CommandForm({
         </div>
       ) : null}
 
-      {!isWrite && !isAnalyze ? <p>Run preflight for {commandLabel(command)} using the current story and chapter context.</p> : null}
+      {!isGoalCommand && !isAnalyze ? <p>Run preflight for {commandLabel(command)} using the current story and chapter context.</p> : null}
 
       <div className="command-form__actions">
         <button type="submit" className="primary-action px-3 py-2 text-xs">
@@ -174,7 +177,7 @@ function CommandForm({
   );
 }
 
-export default function ChatComposer({ value, menuOpen, commands, onValueChange, onMenuOpenChange, onSubmitCommand }: ChatComposerProps) {
+export default function ChatComposer({ value, menuOpen, commands, onValueChange, onMenuOpenChange, onSubmitCommand, onSubmitMessage }: ChatComposerProps) {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [activeCommand, setActiveCommand] = React.useState<CommandId | null>(null);
   const [draft, setDraft] = React.useState<CommandFormDraft>(defaultDraft);
@@ -225,8 +228,14 @@ export default function ChatComposer({ value, menuOpen, commands, onValueChange,
           className="work-composer"
           onSubmit={(event) => {
             event.preventDefault();
-            const selected = filteredCommands[activeIndex] ?? commands.find((command) => value.trimStart().startsWith(command.id));
-            if (selected) selectCommand(selected);
+            const text = value.trim();
+            if (!text) return;
+            if (state === "slash_command_menu" || text.startsWith("/")) {
+              const selected = filteredCommands[activeIndex] ?? commands.find((command) => text.startsWith(command.id));
+              if (selected) selectCommand(selected);
+              return;
+            }
+            onSubmitMessage(text);
           }}
           onKeyDown={(event) => {
             if (state !== "slash_command_menu") return;

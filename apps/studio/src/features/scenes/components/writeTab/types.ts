@@ -83,6 +83,20 @@ export type AssistantReadinessBriefing = {
 
 export type ComposerState = "idle" | "typing" | "slash_command_menu" | "command_form_active";
 
+export type StudioChatIntent =
+  | "WRITE"
+  | "PLAN"
+  | "ANALYZE"
+  | "RESEARCH"
+  | "SWITCH_STORY"
+  | "ADD_CONTEXT"
+  | "BRAINSTORM"
+  | "REVIEW"
+  | "SPLIT"
+  | "INSPECT"
+  | "APPROVE"
+  | "AMBIGUOUS";
+
 export type ChatContextMiniBarPayload = {
   storyTitle: string;
   chapterLabel: string;
@@ -185,7 +199,9 @@ export type ArtifactKind = "document" | "analysis" | "review" | "memory" | "publ
 
 export type CommandId =
   | "/write chapter"
+  | "/plan"
   | "/analyze chapter"
+  | "/research"
   | "/rewrite selection"
   | "/continue from cursor"
   | "/check continuity"
@@ -194,6 +210,7 @@ export type CommandId =
   | "/approve draft"
   | "/publish preview"
   | "/status"
+  | "/inspect"
   | "/split";
 
 export type HeaderContextPayload = {
