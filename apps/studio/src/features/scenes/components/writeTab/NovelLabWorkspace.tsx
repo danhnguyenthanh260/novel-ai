@@ -108,82 +108,86 @@ function NavigationPanel(
 
   return (
     <aside className="novel-lab-nav" aria-label="Story navigation">
-      <div className="novel-lab-story-card">
-        <div className="novel-lab-cover" aria-hidden />
-        <div>
-          <div className="text-sm font-semibold">{storyLabel}</div>
-          <div className="muted text-xs">{props.chapterIds.length ? `${props.chapterIds.length} chapters` : "No chapters loaded"}</div>
-          <div className="mt-2 text-xs text-[var(--accent)]">{props.selectedChapterId || "No chapter"}</div>
+      <div className="novel-lab-nav__fixed">
+        <div className="novel-lab-story-card">
+          <div className="novel-lab-cover" aria-hidden />
+          <div>
+            <div className="text-sm font-semibold">{storyLabel}</div>
+            <div className="muted text-xs">{props.chapterIds.length ? `${props.chapterIds.length} chapters` : "No chapters loaded"}</div>
+            <div className="mt-2 text-xs text-[var(--accent)]">{props.selectedChapterId || "No chapter"}</div>
+          </div>
         </div>
+
+        <NextActionRail
+          storySlug={props.storySlug}
+          hasChapter={Boolean(props.selectedChapterId || props.chapterIds.length)}
+          hasDraft={props.hasDraft}
+          continuityQueued={props.continuityQueued}
+          readiness={props.readiness}
+          loading={props.loadingWorkspace}
+        />
       </div>
 
-      <NextActionRail
-        storySlug={props.storySlug}
-        hasChapter={Boolean(props.selectedChapterId || props.chapterIds.length)}
-        hasDraft={props.hasDraft}
-        continuityQueued={props.continuityQueued}
-        readiness={props.readiness}
-        loading={props.loadingWorkspace}
-      />
-
-      <nav className="space-y-1 text-sm" aria-label="Workspace views">
-        {workspaceLinks.map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className={`novel-lab-nav-row no-underline hover:bg-white/[0.04] ${item.active ? "novel-lab-nav-row--active" : ""}`}
-          >
-            <span aria-hidden>{item.label.slice(0, 1)}</span>
-            <span>{item.label}</span>
-          </Link>
-        ))}
-        <button
-          type="button"
-          className={`novel-lab-nav-row border-0 bg-transparent text-left hover:bg-white/[0.04] ${
-            isArtifactVisible ? "novel-lab-nav-row--active" : ""
-          }`}
-          aria-pressed={isArtifactVisible}
-          onClick={() => setIsArtifactVisible(!isArtifactVisible)}
-        >
-          <span aria-hidden>A</span>
-          <span>Artifacts</span>
-        </button>
-      </nav>
-
-      <div className="space-y-2">
-        <div className="muted text-xs uppercase tracking-wide">Chapters</div>
-        {props.loadingScenes ? <div className="muted text-xs">Loading chapters...</div> : null}
-        {visibleChapters.length ? (
-          visibleChapters.map((chapterId) => (
-            <button
-              key={chapterId}
-              type="button"
-              className={`novel-lab-chapter-row ${chapterId === props.selectedChapterId ? "novel-lab-chapter-row--selected" : ""}`}
-              onClick={() => props.onChapterIdChange(chapterId)}
+      <div className="novel-lab-nav__scroll">
+        <nav className="space-y-1 text-sm" aria-label="Workspace views">
+          {workspaceLinks.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              className={`novel-lab-nav-row no-underline hover:bg-white/[0.04] ${item.active ? "novel-lab-nav-row--active" : ""}`}
             >
-              <span>{getChapterTitle(chapterId)}</span>
-              <span>{chapterId === props.selectedChapterId ? "Drafting" : "Not started"}</span>
-            </button>
-          ))
-        ) : (
-          <div className="quiet-empty-state p-3 text-xs">No chapters yet.</div>
-        )}
-        <button type="button" className="shell-link w-full px-3 py-2 text-xs" onClick={() => void props.onCreateNewChapter()}>
-          New chapter
-        </button>
-      </div>
-
-      <details className="novel-lab-operations">
-        <summary>Operations</summary>
-        <div className="mt-2 space-y-1">
-          {operationLinks.map((item) => (
-            <Link key={item.label} href={item.href} className="novel-lab-nav-row novel-lab-nav-row--secondary no-underline hover:bg-white/[0.04]">
               <span aria-hidden>{item.label.slice(0, 1)}</span>
               <span>{item.label}</span>
             </Link>
           ))}
+          <button
+            type="button"
+            className={`novel-lab-nav-row border-0 bg-transparent text-left hover:bg-white/[0.04] ${
+              isArtifactVisible ? "novel-lab-nav-row--active" : ""
+            }`}
+            aria-pressed={isArtifactVisible}
+            onClick={() => setIsArtifactVisible(!isArtifactVisible)}
+          >
+            <span aria-hidden>A</span>
+            <span>Artifacts</span>
+          </button>
+        </nav>
+
+        <div className="space-y-2">
+          <div className="muted text-xs uppercase tracking-wide">Chapters</div>
+          {props.loadingScenes ? <div className="muted text-xs">Loading chapters...</div> : null}
+          {visibleChapters.length ? (
+            visibleChapters.map((chapterId) => (
+              <button
+                key={chapterId}
+                type="button"
+                className={`novel-lab-chapter-row ${chapterId === props.selectedChapterId ? "novel-lab-chapter-row--selected" : ""}`}
+                onClick={() => props.onChapterIdChange(chapterId)}
+              >
+                <span>{getChapterTitle(chapterId)}</span>
+                <span>{chapterId === props.selectedChapterId ? "Drafting" : "Not started"}</span>
+              </button>
+            ))
+          ) : (
+            <div className="quiet-empty-state p-3 text-xs">No chapters yet.</div>
+          )}
+          <button type="button" className="shell-link w-full px-3 py-2 text-xs" onClick={() => void props.onCreateNewChapter()}>
+            New chapter
+          </button>
         </div>
-      </details>
+
+        <details className="novel-lab-operations">
+          <summary>Operations</summary>
+          <div className="mt-2 space-y-1">
+            {operationLinks.map((item) => (
+              <Link key={item.label} href={item.href} className="novel-lab-nav-row novel-lab-nav-row--secondary no-underline hover:bg-white/[0.04]">
+                <span aria-hidden>{item.label.slice(0, 1)}</span>
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </details>
+      </div>
     </aside>
   );
 }
