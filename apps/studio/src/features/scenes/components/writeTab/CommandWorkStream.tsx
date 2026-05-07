@@ -4,6 +4,10 @@ import ChatComposer, { type ChatCommandOption } from "@/features/scenes/componen
 import ChatTimeline from "@/features/scenes/components/writeTab/chatOrchestration/ChatTimeline";
 import { routeStudioIntent } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
+import {
+  continuityWorkflowProgressEvent,
+  workflowProgressBlockFromEvent,
+} from "@/features/scenes/components/writeTab/chatOrchestration/workflowProgressEvents";
 import type {
   AssistantReadinessContext,
   ChatContextMiniBarPayload,
@@ -176,6 +180,7 @@ function buildTimelineBlocks(args: {
   briefing: ReturnType<typeof buildAssistantReadiness>;
   composerValue: string;
   conversationBlocks: TimelineBlock[];
+  chapterId: string | null;
   hasDraft: boolean;
   showDraftPreview: boolean;
   continuityQueued: boolean;
@@ -197,24 +202,8 @@ function buildTimelineBlocks(args: {
     blocks.push({ id: "composer-echo", type: "text_message", source: "user", label: "You", text: args.composerValue.trim() });
   }
 
-  if (args.continuityQueued) {
-    blocks.push({
-      id: "continuity-progress",
-      type: "workflow_progress",
-      source: "backend",
-      workflow_name: "Continuity Check",
-      status: "running",
-      current_step: 2,
-      total_steps: 4,
-      current_step_label: "Checking timeline handoff",
-      steps: [
-        { label: "Read current artifact", status: "complete" },
-        { label: "Check timeline handoff", status: "active" },
-        { label: "Validate reveal constraints", status: "pending" },
-        { label: "Save review result", status: "pending" },
-      ],
-    });
-  }
+  const continuityEvent = continuityWorkflowProgressEvent({ chapterId: args.chapterId, queued: args.continuityQueued });
+  if (continuityEvent) blocks.push(workflowProgressBlockFromEvent(continuityEvent));
 
   if (args.hasDraft && args.showDraftPreview) {
     blocks.push({
@@ -225,6 +214,7 @@ function buildTimelineBlocks(args: {
       artifact_type: "draft",
       title: "Current chapter draft",
       status: "draft",
+      description: "Draft content is open in the artifact workspace.",
       word_count: null,
       beat_count: null,
       preview_lines: ["Draft content is open in the artifact workspace.", "Use the editor surface for prose edits and approval gates."],
@@ -482,6 +472,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     briefing,
     composerValue: props.composerValue,
     conversationBlocks,
+    chapterId: props.chapterId,
     hasDraft: props.hasDraft,
     showDraftPreview: chatMode !== "brainstorm",
     continuityQueued: props.continuityQueued,

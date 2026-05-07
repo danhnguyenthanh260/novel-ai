@@ -48,6 +48,16 @@ Refactor direction for large modules:
   - `src/features/scenes/components/writeTab/NovelLabWorkspace.tsx` (Novel Lab command/artifact Write slice)
   - `src/features/scenes/components/writeTab/ArtifactSurface.tsx` owns state-backed Read/Edit/Analyze/Review/Approve artifact tabs, local approval gate display, and reader/publish handoff.
   - `src/features/scenes/components/writeTab/ArtifactInspectorRail.tsx` renders artifact diagnostics from current workflow state, not static preview content.
+
+### Write workspace chat block contracts
+
+- Chat artifact summary cards use the `artifact_preview` timeline block contract. The chat timeline renders a compact card with title, status, short description, and actions; full artifact or document content stays in the artifact panel or document workspace.
+- Workflow progress uses `workflow_progress` blocks mapped from backend-shaped pipeline/job events. The chat timeline renders compact progress, while the right inspector renders detailed step state. Worker logs and diagnostics stay in Operations surfaces.
+- Right inspector modes reuse timeline block contracts where possible:
+  - Context uses `context_digest` shaped data.
+  - Progress uses `workflow_progress`.
+  - Artifacts use `artifact_preview`.
+  - Memory/continuity remains a read-only snapshot view unless a dedicated block contract is added.
 - Dictionary & Shelf:
   - `src/features/dictionary/components/DictionaryManager.tsx`
   - `src/app/shelf/page.tsx`
