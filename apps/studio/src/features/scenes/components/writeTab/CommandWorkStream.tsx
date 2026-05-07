@@ -18,6 +18,7 @@ type CommandWorkStreamProps = {
 type CommandOption = {
   id: CommandId;
   description: string;
+  visible: boolean;
 };
 
 type CommandMenuItem = CommandOption | { id: "More"; description: "" };
@@ -35,20 +36,51 @@ type CommandRunnerArgs = {
   onQueueContinuity: () => void;
 };
 
-const primaryCommands: CommandOption[] = [
-  { id: "/write chapter", description: "Create or continue the active chapter draft" },
-  { id: "/analyze chapter", description: "Inspect continuity, context, and risks" },
-  { id: "/rewrite selection", description: "Rewrite selected prose in the active artifact" },
-  { id: "/continue from cursor", description: "Continue from the document cursor" },
-  { id: "/check continuity", description: "Find canon, timeline, and reveal issues" },
+type CommandGroup = "primary" | "more" | "hidden";
+
+type CommandDefinition = CommandOption & {
+  group: CommandGroup;
+  unavailableDetail?: string;
+};
+
+const commandDefinitions: CommandDefinition[] = [
+  { id: "/write chapter", description: "Create or continue the active chapter draft", group: "primary", visible: true },
+  { id: "/analyze chapter", description: "Open chapter analysis and memory diagnostics", group: "primary", visible: true },
+  { id: "/check continuity", description: "Queue canon, timeline, and reveal validation", group: "primary", visible: true },
+  { id: "/extract memory", description: "Open story memory extraction and conflict review", group: "more", visible: true },
+  { id: "/review chapter", description: "Open review checklist and scoring", group: "more", visible: true },
+  {
+    id: "/rewrite selection",
+    description: "Rewrite selected prose in the active artifact",
+    group: "hidden",
+    visible: false,
+    unavailableDetail: "Selection-backed rewriting is not wired in the Novel Lab artifact surface yet.",
+  },
+  {
+    id: "/continue from cursor",
+    description: "Continue from the document cursor",
+    group: "hidden",
+    visible: false,
+    unavailableDetail: "Cursor-backed continuation is not wired in the Novel Lab artifact surface yet.",
+  },
+  {
+    id: "/approve draft",
+    description: "Approve the active draft",
+    group: "hidden",
+    visible: false,
+    unavailableDetail: "Approval gates are not connected to durable review state from the command surface yet.",
+  },
+  {
+    id: "/publish preview",
+    description: "Preview approved reader-facing output",
+    group: "hidden",
+    visible: false,
+    unavailableDetail: "Publish preview remains owned by the artifact approval surface until publish workflow state is durable.",
+  },
 ];
 
-const moreCommands: CommandOption[] = [
-  { id: "/extract memory", description: "Preview draft-only memory candidates" },
-  { id: "/review chapter", description: "Open review checklist and scoring" },
-  { id: "/approve draft", description: "Locked until validation passes" },
-  { id: "/publish preview", description: "Preview approved reader-facing output" },
-];
+const primaryCommands = commandDefinitions.filter((command) => command.visible && command.group === "primary");
+const moreCommands = commandDefinitions.filter((command) => command.visible && command.group === "more");
 
 const moreMenuItem: CommandMenuItem = { id: "More", description: "" };
 const allAvailableCommands: CommandMenuItem[] = [...primaryCommands, moreMenuItem, ...moreCommands];
@@ -92,7 +124,7 @@ function SlashCommandMenu({
           className={`w-full text-left px-2 py-1.5 text-xs text-secondary hover:text-primary transition-colors flex items-center gap-2 ${activeIndex === primaryCommands.length ? "bg-hover text-primary rounded" : ""}`}
           onClick={onToggleMore}
         >
-          <span>{isMoreOpen ? "▾" : "▸"} More</span>
+          <span>{isMoreOpen ? "Less" : "More"}</span>
         </button>
         
         {isMoreOpen && (
@@ -150,9 +182,12 @@ function getMaxCommandIndex(isMoreOpen: boolean): number {
 }
 
 function commandFromValue(value: string): CommandId | null {
-  const allCommands = [...primaryCommands, ...moreCommands].map((command) => command.id);
   const normalized = value.trimStart();
-  return allCommands.find((command) => normalized.startsWith(command)) ?? null;
+  return commandDefinitions.find((command) => normalized.startsWith(command.id))?.id ?? null;
+}
+
+function commandDefinition(command: CommandId): CommandDefinition | null {
+  return commandDefinitions.find((item) => item.id === command) ?? null;
 }
 
 function commandLabel(command: CommandId): string {
@@ -182,6 +217,12 @@ function useCommandRunner(args: CommandRunnerArgs) {
 
   const runCommand = React.useCallback(
     (command: CommandId) => {
+      const definition = commandDefinition(command);
+      if (definition?.visible === false) {
+        setCommandResult(commandUnavailable(command, definition.unavailableDetail ?? "This command is not available from the current workspace."));
+        return;
+      }
+
       const storyBase = `/stories/${encodeURIComponent(args.storySlug)}`;
       if (command === "/write chapter") {
         if (!args.chapterId) {
@@ -241,27 +282,7 @@ function useCommandRunner(args: CommandRunnerArgs) {
         return;
       }
 
-      if (command === "/publish preview") {
-        if (!args.chapterId) {
-          setCommandResult(commandUnavailable(command, "Choose a chapter before opening the reader preview."));
-          return;
-        }
-        router.push(`/read/${encodeURIComponent(args.storySlug)}/${encodeURIComponent(args.chapterId)}`);
-        setCommandResult({
-          tone: "ready",
-          title: "Opening reader preview",
-          detail: "Reader preview opens for the active chapter. Publish controls remain outside this command surface.",
-        });
-        return;
-      }
-
-      const detail =
-        command === "/rewrite selection"
-          ? "Selection-backed rewriting is not wired in the Novel Lab artifact surface yet."
-          : command === "/continue from cursor"
-            ? "Cursor-backed continuation is not wired in the Novel Lab artifact surface yet."
-            : "Approval gates are not connected to durable review state yet.";
-      setCommandResult(commandUnavailable(command, detail));
+      setCommandResult(commandUnavailable(command, "This command is not wired to a safe workflow action yet."));
     },
     [args, router]
   );
@@ -437,16 +458,10 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
           />
           <button 
             type="submit" 
-            className="primary-action p-2 rounded-full aspect-square flex items-center justify-center"
+            className="primary-action px-3 py-2 text-xs"
             title="Run Command"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-              <path d="M5 3v4" />
-              <path d="M19 17v4" />
-              <path d="M3 5h4" />
-              <path d="M17 19h4" />
-            </svg>
+            Run
           </button>
         </form>
       </div>
