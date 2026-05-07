@@ -22,6 +22,13 @@ import {
 } from "@/features/scenes/server/scenesApi/payloadBuilders";
 import { parseVirtualScenesFromText, VirtualScene } from "@/features/autowrite/server/virtualSceneProvider";
 import { enqueueChapterWriteV3, invalidateDownstream } from "@/features/autowrite/server/writingPipelineService";
+import {
+  buildApprovalGateEvent,
+  buildArtifactPreviewEvent,
+  buildChapterWritingTimelineEvents,
+  buildFailureRecoveryEvent,
+  buildWorkflowProgressEvent,
+} from "@/features/chat-orchestration/server/timelineEvents";
 
 function isWritingV2ProductionEnabled(): boolean {
   const raw = (process.env.WRITING_V2_PRODUCTION ?? "1").trim().toLowerCase();
@@ -634,11 +641,12 @@ export async function postChapterAutoWriteResponse(req: NextRequest, storySlug: 
     const blockedByConflictReview = Boolean(planObj?.blocked_by_conflict_review);
     const blockedByCanonConflict = Boolean(planObj?.blocked_by_canon_conflict);
     if (blockedByConflictReview || blockedByCanonConflict) {
+      const blockingReason = String(planObj?.blocked_reason || (blockedByConflictReview ? "BLOCKED_BY_CONFLICT_REVIEW" : "BLOCKED_BY_CANON_CONFLICT"));
       return NextResponse.json({
         ok: true,
         chapter_id: chapterId,
         status: blockedByConflictReview ? "BLOCKED_BY_CONFLICT_REVIEW" : "BLOCKED_BY_CANON_CONFLICT",
-        blocking_reason: String(planObj?.blocked_reason || (blockedByConflictReview ? "BLOCKED_BY_CONFLICT_REVIEW" : "BLOCKED_BY_CANON_CONFLICT")),
+        blocking_reason: blockingReason,
         plan: planResult.plan,
         writing_intent_mode: writingIntentMode,
         retcon_accepted: Boolean(planObj?.retcon_accepted),
@@ -655,6 +663,36 @@ export async function postChapterAutoWriteResponse(req: NextRequest, storySlug: 
         entity_merge_challenge_v1: Array.isArray(planObj?.entity_merge_challenge_v1) ? planObj.entity_merge_challenge_v1 : [],
         entity_resolution_cache_v1: planObj?.entity_resolution_cache_v1 ?? null,
         final_review_ready: false,
+        timeline_events: [
+          buildArtifactPreviewEvent({
+            storyId,
+            chapterId,
+            artifactId: `plan:${chapterId}`,
+            artifactType: "plan",
+            title: `Chapter ${chapterId} Plan`,
+            status: "needs_approval",
+            beatCount: Array.isArray(planObj?.beats) ? planObj.beats.length : null,
+            previewLines: ["Plan created, but it needs review before writing can continue."],
+            actions: ["open_full", "edit", "regenerate"],
+          }),
+          buildFailureRecoveryEvent({
+            storyId,
+            chapterId,
+            workflowName: "Chapter Write",
+            stoppedAtStep: "Planning",
+            reason: blockingReason,
+            fallbackReason: "The chapter plan needs review before writing can continue.",
+            draftPreserved: false,
+            detailLog: [blockingReason],
+          }),
+          buildApprovalGateEvent({
+            storyId,
+            chapterId,
+            gateType: "approve_plan",
+            description: "This plan needs your review before I can continue writing.",
+            actions: ["open_full", "edit", "regenerate"],
+          }),
+        ],
       });
     }
     const writingResult = await enqueueCanonicalChapterWriteV3({
@@ -696,11 +734,54 @@ export async function postChapterAutoWriteResponse(req: NextRequest, storySlug: 
       pre_chapter_profile_v1: planObj?.pre_chapter_profile_v1 ?? null,
       analysis_delta_report_v1: planObj?.analysis_delta_report_v1 ?? null,
       entity_merge_challenge_v1: Array.isArray(planObj?.entity_merge_challenge_v1) ? planObj.entity_merge_challenge_v1 : [],
+      timeline_events: [
+        buildWorkflowProgressEvent({
+          storyId,
+          chapterId,
+          jobId: writingResult.job_id ?? null,
+          workflowName: "Chapter Write",
+          jobStatus: writingResult.status,
+          currentStepLabel: "Write chapter draft",
+          steps: [
+            { label: "Create chapter plan", status: "complete" },
+            { label: "Write chapter draft", status: "active" },
+            { label: "Extract chapter ledger", status: "pending" },
+            { label: "Update memory rollup", status: "pending" },
+          ],
+        }),
+        buildArtifactPreviewEvent({
+          storyId,
+          chapterId,
+          jobId: writingResult.job_id ?? null,
+          artifactId: `plan:${chapterId}`,
+          artifactType: "plan",
+          title: `Chapter ${chapterId} Plan`,
+          status: "draft",
+          beatCount: Array.isArray(planObj?.beats) ? planObj.beats.length : null,
+          previewLines: ["Plan created and writing has started."],
+          actions: ["open_full", "edit", "regenerate"],
+        }),
+      ],
     });
   } catch (error: unknown) {
     const msg = getScenesApiErrorMessage(error, "AUTO_WRITE_FAILED");
     const status = msg.includes("BLOCKED_BY_CANON_CONFLICT") || msg.includes("BLOCKED_BY_CONFLICT_REVIEW") ? 409 : 500;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return NextResponse.json({
+      ok: false,
+      error: msg,
+      timeline_events: [
+        buildFailureRecoveryEvent({
+          storyId: null,
+          chapterId,
+          workflowName: "Chapter Write",
+          stoppedAtStep: "Preflight",
+          reason: msg,
+          fallbackReason: "The writing run stopped before it could start.",
+          draftPreserved: false,
+          detailLog: [msg],
+        }),
+      ],
+    }, { status });
   }
 }
 
@@ -785,7 +866,22 @@ export async function postChapterExecuteControlResponse(req: NextRequest, storyS
       [jobId, storyId, chapterId]
     );
     if ((jobRes.rowCount ?? 0) === 0) {
-      return NextResponse.json({ ok: false, error: "JOB_NOT_FOUND" }, { status: 404 });
+      return NextResponse.json({
+        ok: false,
+        error: "JOB_NOT_FOUND",
+        timeline_events: [
+          buildFailureRecoveryEvent({
+            storyId,
+            chapterId,
+            workflowName: "Chapter Write",
+            stoppedAtStep: "Status lookup",
+            reason: "JOB_NOT_FOUND",
+            fallbackReason: "I couldn't find the writing run for this chapter.",
+            draftPreserved: false,
+            detailLog: ["JOB_NOT_FOUND"],
+          }),
+        ],
+      }, { status: 404 });
     }
     const currentStatus = String(jobRes.rows[0].status || "").toUpperCase();
     if (["DONE", "FAILED", "CANCELLED"].includes(currentStatus)) {
@@ -1142,7 +1238,6 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
         : null;
     const resolutionStatus = typeof planJson?.resolution_status === "string" ? String(planJson.resolution_status) : null;
     const entityAssignments = Array.isArray(planJson?.entity_assignments) ? planJson?.entity_assignments : [];
-
     const planningInputPackJson = {
       source: "PERSISTED_PLAN_AND_JOB_CONFIG",
       job_id: job.id,
@@ -1185,6 +1280,26 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
         error: row.error,
         updated_at: row.updated_at,
       };
+    });
+    const timelineEvents = buildChapterWritingTimelineEvents({
+      storyId,
+      chapterId,
+      jobId: job.id,
+      jobStatus,
+      doneTasks,
+      totalTasks,
+      latestTaskType: progress.latest_task_type,
+      latestTaskStatus: progress.latest_task_status,
+      latestTaskError: progress.latest_task_error,
+      narrativeTasks,
+      proseReady,
+      wordCount,
+      planJson,
+      memoryRuntimeV5,
+      finalReviewReady,
+      blockedByConflictReview,
+      blockedByCanonConflict,
+      blockingReason,
     });
     const proseTaskTypes = new Set(["CHAPTER_WRITE_V3", "NARRATIVE_STYLIST", "NARRATIVE_CRITIC", "NARRATIVE_REFINE", "NARRATIVE_FINALIZE"]);
     const reversedNarrativeTasks = [...narrativeTasks].reverse();
@@ -1333,10 +1448,26 @@ export async function getChapterWritingStatusResponse(req: NextRequest, storySlu
         cutoverRow?.parity_window_stats && typeof cutoverRow.parity_window_stats === "object" && !Array.isArray(cutoverRow.parity_window_stats)
           ? (cutoverRow.parity_window_stats as Record<string, unknown>)
           : {},
+      timeline_events: timelineEvents,
     });
   } catch (error: unknown) {
     const msg = getScenesApiErrorMessage(error, "WRITING_STATUS_FAILED");
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return NextResponse.json({
+      ok: false,
+      error: msg,
+      timeline_events: [
+        buildFailureRecoveryEvent({
+          storyId: null,
+          chapterId,
+          workflowName: "Chapter Write",
+          stoppedAtStep: "Status lookup",
+          reason: msg,
+          fallbackReason: "I couldn't read the writing run status.",
+          draftPreserved: false,
+          detailLog: [msg],
+        }),
+      ],
+    }, { status: 500 });
   }
 }
 

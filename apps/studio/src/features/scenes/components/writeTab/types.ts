@@ -97,6 +97,11 @@ export type WorkflowStepStatus = "complete" | "active" | "pending" | "failed";
 
 export type WorkflowProgressBlock = {
   type: "workflow_progress";
+  source: "backend" | "assistant";
+  event_id?: string;
+  story_id?: number | null;
+  chapter_id?: string | null;
+  job_id?: number | null;
   workflow_name: string;
   status: "running" | "complete" | "failed" | "cancelled";
   current_step: number;
@@ -110,6 +115,11 @@ export type WorkflowProgressBlock = {
 
 export type ArtifactPreviewBlock = {
   type: "artifact_preview";
+  source: "backend" | "assistant";
+  event_id?: string;
+  story_id?: number | null;
+  chapter_id?: string | null;
+  job_id?: number | null;
   artifact_id: string;
   artifact_type: "plan" | "draft" | "analysis" | "review" | "research";
   title: string;
@@ -122,6 +132,11 @@ export type ArtifactPreviewBlock = {
 
 export type ApprovalGateBlock = {
   type: "approval_gate";
+  source: "backend" | "assistant";
+  event_id?: string;
+  story_id?: number | null;
+  chapter_id?: string | null;
+  job_id?: number | null;
   gate_type: "import_to_editor" | "promote_to_memory" | "publish_chapter" | "approve_plan";
   description: string;
   actions: string[];
@@ -129,15 +144,26 @@ export type ApprovalGateBlock = {
 
 export type FailureRecoveryBlock = {
   type: "failure_recovery";
+  source: "backend" | "assistant";
+  event_id?: string;
+  story_id?: number | null;
+  chapter_id?: string | null;
+  job_id?: number | null;
   workflow_name: string;
   stopped_at_step: string;
   plain_reason: string;
   draft_preserved: boolean;
   actions: string[];
+  detail_log?: string[];
+  details?: { reason_codes: string[] };
 };
 
 export type ContextDigestBlock = {
   type: "context_digest";
+  source: "backend" | "assistant";
+  event_id?: string;
+  story_id?: number | null;
+  chapter_id?: string | null;
   title: string;
   included: string[];
   missing: string[];

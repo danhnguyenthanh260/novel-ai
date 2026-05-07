@@ -213,6 +213,8 @@ The assistant may acknowledge backend-originated blocks with short text, but it 
 - Show workflow name, status, current step, total steps, and safe step labels.
 - Do not expose model scratchpad, chain-of-thought, stack traces, or raw logs in the primary card.
 - Composer remains available while workflow progress is running.
+- Polling transports may attach backend blocks as `timeline_events` on existing workflow status responses before durable event streaming exists.
+- Every backend event must include `source: "backend"`, story/chapter scope, and a workflow or artifact identifier when one exists.
 
 ### `artifact_preview`
 
@@ -234,6 +236,7 @@ The assistant may acknowledge backend-originated blocks with short text, but it 
 - Body is 1-2 plain-language sentences.
 - Failed drafts must remain accessible and must not be auto-discarded.
 - Include recovery actions such as retry, inspect details, keep draft, or cancel.
+- Raw reason codes and stack traces stay in collapsed details or Operations views. The primary reason must be plain language.
 
 ### `context_digest`
 

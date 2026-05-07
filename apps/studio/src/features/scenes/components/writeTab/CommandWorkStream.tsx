@@ -145,6 +145,7 @@ function resultBlock(result: CommandResult): TimelineBlock {
     return {
       id: "command-recovery",
       type: "failure_recovery",
+      source: "assistant",
       workflow_name: result.title,
       stopped_at_step: "Preflight",
       plain_reason: result.detail,
@@ -187,6 +188,7 @@ function buildTimelineBlocks(args: {
     blocks.push({
       id: "continuity-progress",
       type: "workflow_progress",
+      source: "backend",
       workflow_name: "Continuity Check",
       status: "running",
       current_step: 2,
@@ -205,6 +207,7 @@ function buildTimelineBlocks(args: {
     blocks.push({
       id: "draft-preview",
       type: "artifact_preview",
+      source: "backend",
       artifact_id: "current-draft",
       artifact_type: "draft",
       title: "Current chapter draft",
