@@ -2052,6 +2052,7 @@ def process_chapter_write_v3_task(conn, task: Dict[str, Any]) -> None:
         writing_context,
         writing_context_preflight,
         writing_context_debug,
+        task,
     )
 
     prose = llm_response.get("prose")
