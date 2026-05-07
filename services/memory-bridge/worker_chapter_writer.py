@@ -4,9 +4,10 @@ import os
 import re
 import time
 from typing import Any, Dict, Optional
-from worker_common import call_llm_json
+from worker_common import call_llm_json, call_llm_text
 from worker_ingest_repo import (
     insert_agent_context_snapshot,
+    insert_agent_feedback_loop,
     insert_agent_prompt_hydration_trace,
     insert_agent_run_trace,
 )
@@ -14,9 +15,11 @@ from worker_narrative_handlers import (
     _estimate_tokens,
     assemble_prompt_layers,
     build_memory_prompt_block,
+    normalize_critic_result,
     retrieve_semantic_memories,
     sanitize_narrative_prose,
 )
+from worker_runtime_config import get_llm_timeout
 
 VALID_PREFLIGHT_STATUSES = {"proceed", "degraded", "blocked"}
 REQUIRED_CONTEXT_SECTIONS = {
@@ -156,6 +159,32 @@ def _required_location_anchor(task: Optional[Dict[str, Any]]) -> str:
     context_guard = plan.get("context_guard") if isinstance(plan.get("context_guard"), dict) else {}
     return str(context_guard.get("location_anchor") or "").strip()
 
+def _chapter_plan_summary(task: Optional[Dict[str, Any]]) -> str:
+    payload = _task_payload(task)
+    plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+    if not plan:
+        return "No structured chapter plan provided."
+    summary = str(plan.get("summary") or plan.get("title") or "").strip()
+    beats = plan.get("beats") if isinstance(plan.get("beats"), list) else []
+    beat_lines = []
+    for idx, beat in enumerate(beats[:12], start=1):
+        if not isinstance(beat, dict):
+            continue
+        label = str(beat.get("label") or beat.get("title") or f"Beat {idx}").strip()
+        desc = str(beat.get("description") or beat.get("goal") or "").strip()
+        if label or desc:
+            beat_lines.append(f"{idx}. {label}: {desc}".strip())
+    sections = []
+    if summary:
+        sections.append(f"Summary: {summary}")
+    if beat_lines:
+        sections.append("Beats:\n" + "\n".join(beat_lines))
+    return "\n\n".join(sections) if sections else json.dumps(plan, ensure_ascii=False, sort_keys=True)[:3000]
+
+def _critic_patch_count(critic_result: Dict[str, Any]) -> int:
+    patches = critic_result.get("patches")
+    return len(patches) if isinstance(patches, list) else 0
+
 def _guard_chapter_v3_prose(
     raw_prose: Any,
     *,
@@ -210,6 +239,389 @@ def _guard_chapter_v3_prose(
         "sanitized": prose != str(raw_prose or "").strip(),
         "text": prose,
     }
+
+def _run_v3_internal_critic(
+    conn,
+    *,
+    story_id: int,
+    chapter_id: str,
+    chapter_goal: str,
+    prose: str,
+    task: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    plan_summary = _chapter_plan_summary(task)
+    default_prompt = f"""
+You are the internal CHAPTER_WRITE_V3 critic. Review the draft chapter below.
+Return JSON only: {{ "summary": "...", "patches": ["..."] }}
+
+Rules:
+- Look for continuity, missing chapter objective, pacing, prose hygiene, and obvious reader-facing quality issues.
+- Keep patches actionable and bounded. Prefer at most 5 patches.
+- Do not rewrite the chapter here.
+- If the draft is acceptable, return an empty patches array.
+
+### CHAPTER OBJECTIVE
+{chapter_goal}
+
+### PLAN SUMMARY
+{plan_summary}
+
+### DRAFT PROSE
+{prose}
+""".strip()
+    assembled = assemble_prompt_layers(
+        conn,
+        story_id=story_id,
+        chapter_id=chapter_id,
+        agent_name="CHAPTER_WRITE_V3_CRITIC",
+        task_id=int((task or {}).get("id") or 0),
+        default_prompt=default_prompt,
+        template_vars={
+            "chapter_goal": chapter_goal,
+            "plan_summary": plan_summary,
+            "draft_prose": prose,
+        },
+        style_block="",
+    )
+    prompt = assembled["prompt"]
+    context_snapshot_id = None
+    if task:
+        context_snapshot_id = insert_agent_context_snapshot(
+            conn,
+            story_id=story_id,
+            chapter_id=chapter_id,
+            snapshot_payload={
+                "chapter_goal": chapter_goal,
+                "plan_summary": plan_summary,
+                "draft_prose_chars": len(prose),
+                "prompt_version_id": assembled.get("prompt_version_id"),
+                "agent_profile_id": assembled.get("agent_profile_id"),
+                "equipment_snapshot": assembled.get("equipment_snapshot") or {},
+            },
+        )
+
+    started = time.time()
+    raw = call_llm_json(
+        [{"role": "user", "content": prompt}],
+        max_tokens=1000,
+        temperature=0.4,
+        timeout_sec=get_llm_timeout("narrative_critic"),
+    )
+    latency_ms = int((time.time() - started) * 1000)
+    critic_result = normalize_critic_result(raw)
+    patch_count = _critic_patch_count(critic_result)
+
+    run_trace_id = None
+    if task:
+        run_trace_id = insert_agent_run_trace(
+            conn,
+            task=task,
+            agent_name="CHAPTER_WRITE_V3_CRITIC",
+            status="DONE",
+            input_payload={"chapter_goal": chapter_goal, "draft_chars": len(prose)},
+            output_payload=critic_result,
+            model_name="llm_json",
+            prompt_version_id=assembled.get("prompt_version_id"),
+            agent_profile_id=assembled.get("agent_profile_id"),
+            equipment_snapshot_json=assembled.get("equipment_snapshot") or {},
+            context_snapshot_id=context_snapshot_id,
+            latency_ms=latency_ms,
+            quality_json={
+                "patch_count": patch_count,
+                "prompt_assignment": assembled.get("assignment"),
+                "experiment_id": assembled.get("experiment_id"),
+            },
+        )
+        insert_agent_prompt_hydration_trace(
+            conn,
+            run_trace_id=run_trace_id,
+            task=task,
+            agent_name="CHAPTER_WRITE_V3_CRITIC",
+            prompt_version_id=assembled.get("prompt_version_id"),
+            context_snapshot_id=context_snapshot_id,
+            hydration_inputs_json={
+                "context_snapshot_id": context_snapshot_id,
+                "prompt_assignment": assembled.get("assignment"),
+                "experiment_id": assembled.get("experiment_id"),
+            },
+            hydration_render_steps_json={
+                "layer_flags": (assembled.get("equipment_snapshot") or {}).get("layers") or {},
+                "template_keys": ["chapter_goal", "plan_summary", "draft_prose"],
+            },
+            hydration_output_text=prompt,
+            llm_request_meta_json={
+                "provider_call": "call_llm_json",
+                "task_family": "chapter_write_v3_internal_critic",
+                "temperature": 0.4,
+                "max_tokens": 1000,
+                "timeout_sec": get_llm_timeout("narrative_critic"),
+            },
+            tokens_prompt_base=_estimate_tokens(prompt),
+            tokens_rules_injected=0,
+            tokens_memory_injected=0,
+            tokens_feedback_injected=0,
+            tokens_truncated=0,
+        )
+        feedback_type = "KEEP" if patch_count == 0 else "FIX"
+        feedback_text = (
+            "CHAPTER_WRITE_V3 critic passed with 0 patches. Preserve this chapter-level prose pattern."
+            if patch_count == 0
+            else " | ".join(str(p).strip() for p in (critic_result.get("patches") or [])[:3] if str(p).strip())[:1200]
+        )
+        if feedback_text:
+            insert_agent_feedback_loop(
+                conn,
+                story_id=story_id,
+                chapter_id=chapter_id,
+                agent_name="CHAPTER_WRITE_V3",
+                run_trace_id=run_trace_id,
+                feedback_source="CRITIC",
+                feedback_type=feedback_type,
+                feedback_text=feedback_text,
+                weight=1.5 if patch_count == 0 else min(3.0, 1.0 + (patch_count * 0.3)),
+            )
+
+    return {
+        "status": "passed" if patch_count == 0 else "patches_requested",
+        "patch_count": patch_count,
+        "result": critic_result,
+        "run_trace_id": run_trace_id,
+        "prompt_version_id": assembled.get("prompt_version_id"),
+        "agent_profile_id": assembled.get("agent_profile_id"),
+        "prompt_assignment": assembled.get("assignment"),
+        "experiment_id": assembled.get("experiment_id"),
+    }
+
+def _run_v3_internal_refine(
+    conn,
+    *,
+    story_id: int,
+    chapter_id: str,
+    chapter_goal: str,
+    prose: str,
+    critic_result: Dict[str, Any],
+    task: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    default_prompt = f"""
+Revise this chapter once using the critic feedback.
+
+Rules:
+- Output only prose, no commentary.
+- Keep or expand the word count. Do not summarize.
+- Preserve the chapter objective, continuity, and reader-facing voice.
+- Apply only the patches that clearly improve the draft.
+
+### CHAPTER OBJECTIVE
+{chapter_goal}
+
+### CRITIC SUMMARY
+{critic_result.get("summary")}
+
+### PATCHES
+{json.dumps(critic_result.get("patches") or [], ensure_ascii=False)}
+
+### DRAFT PROSE
+{prose}
+""".strip()
+    assembled = assemble_prompt_layers(
+        conn,
+        story_id=story_id,
+        chapter_id=chapter_id,
+        agent_name="CHAPTER_WRITE_V3_REFINE",
+        task_id=int((task or {}).get("id") or 0),
+        default_prompt=default_prompt,
+        template_vars={
+            "chapter_goal": chapter_goal,
+            "critic_summary": critic_result.get("summary"),
+            "critic_patches": json.dumps(critic_result.get("patches") or [], ensure_ascii=False),
+            "draft_prose": prose,
+        },
+        style_block="",
+    )
+    prompt = assembled["prompt"]
+    context_snapshot_id = None
+    if task:
+        context_snapshot_id = insert_agent_context_snapshot(
+            conn,
+            story_id=story_id,
+            chapter_id=chapter_id,
+            snapshot_payload={
+                "critic_result": critic_result,
+                "draft_prose_chars": len(prose),
+                "prompt_version_id": assembled.get("prompt_version_id"),
+                "agent_profile_id": assembled.get("agent_profile_id"),
+                "equipment_snapshot": assembled.get("equipment_snapshot") or {},
+            },
+        )
+
+    started = time.time()
+    llm_text = call_llm_text(
+        [{"role": "user", "content": prompt}],
+        max_tokens=4000,
+        temperature=0.6,
+        timeout_sec=get_llm_timeout("narrative_refine"),
+    )
+    latency_ms = int((time.time() - started) * 1000)
+    guard = sanitize_narrative_prose(llm_text)
+    refined = str(guard.get("text") or "").strip() or prose
+    inline_hits = int(guard.get("inline_hits", 0))
+    if inline_hits >= 2:
+        raise ValueError("CHAPTER_WRITE_V3_REFINE_META_LEAK")
+
+    run_trace_id = None
+    if task:
+        run_trace_id = insert_agent_run_trace(
+            conn,
+            task=task,
+            agent_name="CHAPTER_WRITE_V3_REFINE",
+            status="DONE",
+            input_payload={
+                "critic_summary": critic_result.get("summary"),
+                "patch_count": _critic_patch_count(critic_result),
+            },
+            output_payload={
+                "prose_chars": len(refined),
+                "guard": {
+                    "meta_leak": bool(guard.get("meta_leak")),
+                    "removed_lines": int(guard.get("removed_lines", 0)),
+                    "inline_hits": inline_hits,
+                },
+            },
+            model_name="llm_text",
+            prompt_version_id=assembled.get("prompt_version_id"),
+            agent_profile_id=assembled.get("agent_profile_id"),
+            equipment_snapshot_json=assembled.get("equipment_snapshot") or {},
+            context_snapshot_id=context_snapshot_id,
+            latency_ms=latency_ms,
+            quality_json={
+                "meta_leak": bool(guard.get("meta_leak")),
+                "removed_lines": int(guard.get("removed_lines", 0)),
+                "inline_hits": inline_hits,
+                "word_count": len(refined.split()),
+                "prompt_assignment": assembled.get("assignment"),
+                "experiment_id": assembled.get("experiment_id"),
+            },
+        )
+        insert_agent_prompt_hydration_trace(
+            conn,
+            run_trace_id=run_trace_id,
+            task=task,
+            agent_name="CHAPTER_WRITE_V3_REFINE",
+            prompt_version_id=assembled.get("prompt_version_id"),
+            context_snapshot_id=context_snapshot_id,
+            hydration_inputs_json={
+                "context_snapshot_id": context_snapshot_id,
+                "critic_summary": critic_result.get("summary"),
+                "prompt_assignment": assembled.get("assignment"),
+                "experiment_id": assembled.get("experiment_id"),
+            },
+            hydration_render_steps_json={
+                "layer_flags": (assembled.get("equipment_snapshot") or {}).get("layers") or {},
+                "template_keys": ["chapter_goal", "critic_summary", "critic_patches", "draft_prose"],
+            },
+            hydration_output_text=prompt,
+            llm_request_meta_json={
+                "provider_call": "call_llm_text",
+                "task_family": "chapter_write_v3_internal_refine",
+                "temperature": 0.6,
+                "max_tokens": 4000,
+                "timeout_sec": get_llm_timeout("narrative_refine"),
+            },
+            tokens_prompt_base=_estimate_tokens(prompt),
+            tokens_rules_injected=0,
+            tokens_memory_injected=0,
+            tokens_feedback_injected=_estimate_tokens(critic_result.get("summary")),
+            tokens_truncated=0,
+        )
+
+    return {
+        "status": "done",
+        "prose": refined,
+        "run_trace_id": run_trace_id,
+        "guard": {
+            "meta_leak": bool(guard.get("meta_leak")),
+            "removed_lines": int(guard.get("removed_lines", 0)),
+            "inline_hits": inline_hits,
+        },
+        "prompt_version_id": assembled.get("prompt_version_id"),
+        "agent_profile_id": assembled.get("agent_profile_id"),
+        "prompt_assignment": assembled.get("assignment"),
+        "experiment_id": assembled.get("experiment_id"),
+    }
+
+def _apply_v3_internal_critic_refine(
+    conn,
+    *,
+    story_id: int,
+    chapter_id: str,
+    chapter_goal: str,
+    prose: str,
+    task: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    if _env_truthy("CHAPTER_WRITE_V3_INTERNAL_REVIEW_DISABLED"):
+        return {"prose": prose, "metadata": {"status": "disabled", "refine_count": 0}}
+    try:
+        critic = _run_v3_internal_critic(
+            conn,
+            story_id=story_id,
+            chapter_id=chapter_id,
+            chapter_goal=chapter_goal,
+            prose=prose,
+            task=task,
+        )
+    except Exception as err:
+        return {
+            "prose": prose,
+            "metadata": {
+                "status": "critic_failed",
+                "error": str(err)[:300],
+                "refine_count": 0,
+            },
+        }
+
+    metadata = {
+        "status": critic["status"],
+        "critic": {
+            "patch_count": critic["patch_count"],
+            "summary": (critic.get("result") or {}).get("summary"),
+            "patches": (critic.get("result") or {}).get("patches") or [],
+            "run_trace_id": critic.get("run_trace_id"),
+            "prompt_version_id": critic.get("prompt_version_id"),
+            "agent_profile_id": critic.get("agent_profile_id"),
+            "prompt_assignment": critic.get("prompt_assignment"),
+            "experiment_id": critic.get("experiment_id"),
+        },
+        "refine_count": 0,
+    }
+    if critic["patch_count"] <= 0:
+        return {"prose": prose, "metadata": metadata}
+
+    try:
+        refine = _run_v3_internal_refine(
+            conn,
+            story_id=story_id,
+            chapter_id=chapter_id,
+            chapter_goal=chapter_goal,
+            prose=prose,
+            critic_result=critic["result"],
+            task=task,
+        )
+    except Exception as err:
+        metadata["status"] = "refine_failed"
+        metadata["refine_error"] = str(err)[:300]
+        return {"prose": prose, "metadata": metadata}
+
+    metadata["status"] = "refined"
+    metadata["refine_count"] = 1
+    metadata["refine"] = {
+        "run_trace_id": refine.get("run_trace_id"),
+        "guard": refine.get("guard") or {},
+        "prompt_version_id": refine.get("prompt_version_id"),
+        "agent_profile_id": refine.get("agent_profile_id"),
+        "prompt_assignment": refine.get("prompt_assignment"),
+        "experiment_id": refine.get("experiment_id"),
+    }
+    return {"prose": refine["prose"], "metadata": metadata}
 
 def _render_writing_context_block(
     writing_context: Optional[Dict[str, Any]],
@@ -404,6 +816,15 @@ Return JSON:
     if not isinstance(response, dict):
         response = {"prose": str(response), "error": "NON_JSON_LLM_RESPONSE"}
     response.setdefault("metadata", {})
+    internal_review = _apply_v3_internal_critic_refine(
+        conn,
+        story_id=story_id,
+        chapter_id=chapter_id,
+        chapter_goal=chapter_goal,
+        prose=str(response.get("prose") or ""),
+        task=task,
+    )
+    response["prose"] = internal_review["prose"]
     v3_guard = _guard_chapter_v3_prose(
         response.get("prose"),
         style_options=style_options,
@@ -430,6 +851,7 @@ Return JSON:
         response["metadata"]["prompt_assignment"] = assembled.get("assignment")
         response["metadata"]["experiment_id"] = assembled.get("experiment_id")
         response["metadata"]["hydration_error"] = hydration_error
+        response["metadata"]["internal_review"] = internal_review["metadata"]
         response["metadata"]["v3_guard"] = {k: v for k, v in v3_guard.items() if k != "text"}
 
     if task:
@@ -467,6 +889,7 @@ Return JSON:
                 "prompt_assignment": assembled.get("assignment"),
                 "experiment_id": assembled.get("experiment_id"),
                 "hydration_error": hydration_error,
+                "internal_review": internal_review["metadata"],
                 "v3_guard": {k: v for k, v in v3_guard.items() if k != "text"},
             },
         )
