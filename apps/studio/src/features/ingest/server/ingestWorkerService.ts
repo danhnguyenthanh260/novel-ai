@@ -36,7 +36,20 @@ async function getQueueMetrics() {
           CASE
             WHEN t.task_type IN ('CHAPTER_INGEST','CHAPTER_SPLIT_LLM','SCENE_CREATE','SPLIT_PROFILE_CORRECTION','CHAPTER_VALIDATE') THEN 'split'
             WHEN t.task_type IN ('WRITING_ANALYSIS') THEN 'analysis'
-            WHEN t.task_type IN ('WRITING_PLANNING','WRITING_PROSE','WRITING_CONTINUITY','WRITING_SUPERVISOR','NARRATIVE_START','NARRATIVE_STYLIST','NARRATIVE_CRITIC','NARRATIVE_REFINE','NARRATIVE_FINALIZE') THEN 'writing'
+            WHEN t.task_type IN (
+              'WRITING_PLANNING',
+              'WRITING_PROSE',
+              'WRITING_CONTINUITY',
+              'WRITING_SUPERVISOR',
+              'CHAPTER_WRITE_V3',
+              'CHAPTER_LEDGER_EXTRACT',
+              'MEMORY_ROLLUP_V3',
+              'NARRATIVE_START',
+              'NARRATIVE_STYLIST',
+              'NARRATIVE_CRITIC',
+              'NARRATIVE_REFINE',
+              'NARRATIVE_FINALIZE'
+            ) THEN 'writing'
             ELSE 'other'
           END AS lane,
           t.status
@@ -73,9 +86,9 @@ export async function getIngestWorkerResponse(): Promise<NextResponse> {
 
 export async function postIngestWorkerResponse(req: NextRequest): Promise<NextResponse> {
   let action = "start";
-  let body: any = {};
+  let body: Record<string, unknown> = {};
   try {
-    body = (await req.json()) as any;
+    body = (await req.json()) as Record<string, unknown>;
     action = typeof body?.action === "string" ? body.action.trim().toLowerCase() : "start";
   } catch {
     action = "start";

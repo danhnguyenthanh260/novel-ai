@@ -16,8 +16,16 @@ import { assembleChapterWritingContext } from "./chapterWritingContextAssembler"
 export interface WritingPipelineConfig {
     storyId: number;
     instructions: string;
+    chapterId?: string;
     chapterNo?: number;
     targetWordCount?: number;
+    plan?: Record<string, unknown>;
+}
+
+function objectOrNull(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null;
 }
 
 type ActiveCleanSnapshotRow = {
@@ -530,9 +538,13 @@ export async function enqueueChapterWriteV3(config: WritingPipelineConfig) {
     const client = await pool.connect();
     try {
         await client.query("BEGIN");
-        const chapterId = Number.isFinite(Number(config.chapterNo)) && Number(config.chapterNo) > 0
+        const explicitChapterId = String(config.chapterId || "").trim();
+        const chapterId = explicitChapterId || (Number.isFinite(Number(config.chapterNo)) && Number(config.chapterNo) > 0
             ? `ch${String(Math.floor(Number(config.chapterNo))).padStart(2, "0")}`
-            : "draft";
+            : "draft");
+        const plan = objectOrNull(config.plan);
+        const chapterOutputContract = objectOrNull(plan?.chapter_output_contract_v1);
+        const memoryRuntime = objectOrNull(plan?.memory_runtime_v5);
 
         // 1. Build WorkingSet
         const workingSet = await buildWorkingSet(client, config.storyId, chapterId);
@@ -558,6 +570,9 @@ export async function enqueueChapterWriteV3(config: WritingPipelineConfig) {
                     pipeline_type: "CHAPTER_WRITE_V3",
                     chapter_id: chapterId,
                     instructions: config.instructions,
+                    plan,
+                    chapter_output_contract_v1: chapterOutputContract,
+                    memory_runtime_v5: memoryRuntime,
                 }),
             ]
         );
@@ -574,6 +589,7 @@ export async function enqueueChapterWriteV3(config: WritingPipelineConfig) {
                 JSON.stringify({
                     chapter_id: chapterId,
                     chapter_goal: config.instructions,
+                    plan,
                     working_set: workingSet,
                     writing_context: assembledWritingContext.context,
                     writing_context_preflight: assembledWritingContext.preflight,

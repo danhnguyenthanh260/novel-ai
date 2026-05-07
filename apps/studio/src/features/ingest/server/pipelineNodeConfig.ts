@@ -32,6 +32,9 @@ export const RETRYABLE_NODE_KEYS = new Set([
   "CHAPTER_SPLIT_LLM",
   "SCENE_CREATE",
   "SPLIT_PROFILE_CORRECTION",
+  "CHAPTER_WRITE_V3",
+  "CHAPTER_LEDGER_EXTRACT",
+  "MEMORY_ROLLUP_V3",
   "NARRATIVE_START",
   "NARRATIVE_STYLIST",
   "NARRATIVE_CRITIC",
@@ -41,6 +44,9 @@ export const RETRYABLE_NODE_KEYS = new Set([
 
 export const NODE_TRACE_AGENT_MAP: Record<string, string[]> = {
   CHAPTER_SPLIT_LLM: ["SPLITTER", "SPLIT_CRITIC", "SUPERVISOR"],
+  CHAPTER_WRITE_V3: ["CHAPTER_WRITE_V3"],
+  CHAPTER_LEDGER_EXTRACT: ["CHAPTER_LEDGER_EXTRACT"],
+  MEMORY_ROLLUP_V3: ["MEMORY_ROLLUP_V3"],
   NARRATIVE_START: ["NARRATIVE_START"],
   NARRATIVE_STYLIST: ["NARRATIVE_STYLIST"],
   NARRATIVE_CRITIC: ["NARRATIVE_CRITIC"],
@@ -82,14 +88,20 @@ const FLOW_REGISTRY: Record<FlowType, FlowRegistry> = {
   AUTOWRITE: {
     flow_type: "AUTOWRITE",
     nodes: [
-      { key: "AUTOWRITE_GROUP", label: "Write Chapter", kind: "GROUP" },
-      { key: "NARRATIVE_START", label: "Start", kind: "TASK", group_key: "AUTOWRITE_GROUP" },
-      { key: "NARRATIVE_STYLIST", label: "Stylist", kind: "TASK", group_key: "AUTOWRITE_GROUP" },
-      { key: "NARRATIVE_CRITIC", label: "Critic", kind: "TASK", group_key: "AUTOWRITE_GROUP" },
-      { key: "NARRATIVE_REFINE", label: "Refine", kind: "TASK", group_key: "AUTOWRITE_GROUP" },
-      { key: "NARRATIVE_FINALIZE", label: "Finalize", kind: "TASK", group_key: "AUTOWRITE_GROUP" },
+      { key: "AUTOWRITE_V3_GROUP", label: "Write Chapter V3", kind: "GROUP" },
+      { key: "CHAPTER_WRITE_V3", label: "Chapter Write", kind: "TASK", group_key: "AUTOWRITE_V3_GROUP" },
+      { key: "CHAPTER_LEDGER_EXTRACT", label: "Ledger Extract", kind: "TASK", group_key: "AUTOWRITE_V3_GROUP" },
+      { key: "MEMORY_ROLLUP_V3", label: "Memory Rollup", kind: "TASK", group_key: "AUTOWRITE_V3_GROUP" },
+      { key: "AUTOWRITE_LEGACY_GROUP", label: "Legacy Narrative", kind: "GROUP" },
+      { key: "NARRATIVE_START", label: "Start", kind: "TASK", group_key: "AUTOWRITE_LEGACY_GROUP" },
+      { key: "NARRATIVE_STYLIST", label: "Stylist", kind: "TASK", group_key: "AUTOWRITE_LEGACY_GROUP" },
+      { key: "NARRATIVE_CRITIC", label: "Critic", kind: "TASK", group_key: "AUTOWRITE_LEGACY_GROUP" },
+      { key: "NARRATIVE_REFINE", label: "Refine", kind: "TASK", group_key: "AUTOWRITE_LEGACY_GROUP" },
+      { key: "NARRATIVE_FINALIZE", label: "Finalize", kind: "TASK", group_key: "AUTOWRITE_LEGACY_GROUP" },
     ],
     edges: [
+      { key: "E_CHAPTER_WRITE_TO_LEDGER", source: "CHAPTER_WRITE_V3", target: "CHAPTER_LEDGER_EXTRACT" },
+      { key: "E_LEDGER_TO_MEMORY_ROLLUP", source: "CHAPTER_LEDGER_EXTRACT", target: "MEMORY_ROLLUP_V3" },
       { key: "E_START_TO_STYLIST", source: "NARRATIVE_START", target: "NARRATIVE_STYLIST" },
       { key: "E_STYLIST_TO_CRITIC", source: "NARRATIVE_STYLIST", target: "NARRATIVE_CRITIC" },
       { key: "E_CRITIC_TO_REFINE", source: "NARRATIVE_CRITIC", target: "NARRATIVE_REFINE" },
@@ -97,8 +109,14 @@ const FLOW_REGISTRY: Record<FlowType, FlowRegistry> = {
     ],
     groups: [
       {
-        key: "AUTOWRITE_GROUP",
-        label: "Write Chapter",
+        key: "AUTOWRITE_V3_GROUP",
+        label: "Write Chapter V3",
+        node_keys: ["CHAPTER_WRITE_V3", "CHAPTER_LEDGER_EXTRACT", "MEMORY_ROLLUP_V3"],
+        collapsible: true,
+      },
+      {
+        key: "AUTOWRITE_LEGACY_GROUP",
+        label: "Legacy Narrative",
         node_keys: ["NARRATIVE_START", "NARRATIVE_STYLIST", "NARRATIVE_CRITIC", "NARRATIVE_REFINE", "NARRATIVE_FINALIZE"],
         collapsible: true,
       },
@@ -116,6 +134,7 @@ export function getFlowRegistry(flowType: FlowType): FlowRegistry {
 }
 
 export function pickFlowType(taskTypes: string[], hasReprocessHint: boolean): FlowType {
+  if (taskTypes.some((x) => x === "CHAPTER_WRITE_V3" || x === "CHAPTER_LEDGER_EXTRACT" || x === "MEMORY_ROLLUP_V3")) return "AUTOWRITE";
   if (taskTypes.some((x) => x.startsWith("NARRATIVE_"))) return "AUTOWRITE";
   if (taskTypes.includes("SPLIT_PROFILE_CORRECTION") || hasReprocessHint) return "REPROCESS_SPLIT";
   return "INGEST_SPLIT";
@@ -149,6 +168,12 @@ export function maxRetryAttempts(): number {
 
 export function nodeTimeoutSeconds(nodeKey: string): number {
   switch (nodeKey) {
+    case "CHAPTER_WRITE_V3":
+      return parsePositiveInt(process.env.LLM_TIMEOUT_CHAPTER_WRITE_V3_SECONDS, 300);
+    case "CHAPTER_LEDGER_EXTRACT":
+      return parsePositiveInt(process.env.LLM_TIMEOUT_CHAPTER_LEDGER_EXTRACT_SECONDS, 90);
+    case "MEMORY_ROLLUP_V3":
+      return parsePositiveInt(process.env.LLM_TIMEOUT_MEMORY_ROLLUP_V3_SECONDS, 90);
     case "NARRATIVE_START":
       return parsePositiveInt(process.env.LLM_TIMEOUT_NARRATIVE_START, 60);
     case "NARRATIVE_STYLIST":

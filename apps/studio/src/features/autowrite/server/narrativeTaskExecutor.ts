@@ -3,6 +3,10 @@ import { NarrativeOrchestrator } from "@/features/scenes/server/workflow/steps/c
 import { advanceWritingPipeline } from "./writingPipelineService";
 import { buildStoryContextPack } from "@/features/guard/server/storyContextBuilder";
 
+/**
+ * Compatibility-only executor for legacy NARRATIVE_* jobs.
+ * New canonical chapter auto-write must enqueue CHAPTER_WRITE_V3 instead.
+ */
 export async function processNarrativeTask(taskId: number) {
     const client = await pool.connect();
     let jobId: number | undefined;
@@ -35,7 +39,7 @@ export async function processNarrativeTask(taskId: number) {
             keywords: plan.summary,
         });
 
-        let resultJson: any = {};
+        let resultJson: Record<string, unknown> = {};
 
         // 3. Dispatch by task_type
         if (task.task_type === 'NARRATIVE_START') {
@@ -82,11 +86,12 @@ export async function processNarrativeTask(taskId: number) {
             await advanceWritingPipeline(jobId, storyId);
         }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
         console.error(`NarrativeTaskExecutor Error (Task ${taskId}):`, err);
         await client.query(
             `UPDATE public.ingest_task SET status = 'FAILED', result_json = $1 WHERE id = $2`,
-            [JSON.stringify({ error: err.message }), taskId]
+            [JSON.stringify({ error: message }), taskId]
         );
         if (jobId) {
             await client.query(`UPDATE public.ingest_job SET status = 'FAILED' WHERE id = $1`, [jobId]);
