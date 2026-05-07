@@ -441,9 +441,8 @@ export async function getFullChapterResponse(storySlug: string, chapterId: strin
   const staging = stagingRes.rows[0] || null;
 
   // --- V3 BRIDGE START ---
-  // If no V2 scenes, check for V3 ChapterDraft
   let v3Draft = null;
-  if (rows.length === 0 && (process.env.V3_BRIDGE_ENABLED !== "0")) {
+  if (process.env.V3_BRIDGE_ENABLED !== "0") {
     const draftRes = await pool.query<{ full_text: string; status: string }>(
       `SELECT full_text, status FROM public.chapter_draft
        WHERE story_id = $1 AND chapter_id = $2
@@ -458,20 +457,21 @@ export async function getFullChapterResponse(storySlug: string, chapterId: strin
         virtual_scenes: virtualScenes
       };
 
-      // Map virtual scenes to items for legacy UI compatibility
-      const items = virtualScenes.map(v => ({
-        id: -1,
-        idx: v.idx,
-        title: v.title,
-        status: v.status,
-        text_content: v.text_content
-      }));
+      if (rows.length === 0) {
+        const items = virtualScenes.map(v => ({
+          id: -1,
+          idx: v.idx,
+          title: v.title,
+          status: v.status,
+          text_content: v.text_content
+        }));
 
-      return NextResponse.json({
-        items,
-        staging,
-        v3_draft: v3Draft
-      });
+        return NextResponse.json({
+          items,
+          staging,
+          v3_draft: v3Draft
+        });
+      }
     }
   }
   // --- V3 BRIDGE END ---
@@ -481,13 +481,15 @@ export async function getFullChapterResponse(storySlug: string, chapterId: strin
   if (staging) {
     return NextResponse.json({
       items: rows, // Allow scenes even if staging exists
-      staging
+      staging,
+      v3_draft: v3Draft
     });
   }
 
   return NextResponse.json({
     items: rows,
-    staging: null
+    staging: null,
+    v3_draft: v3Draft
   });
 }
 
