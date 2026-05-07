@@ -92,7 +92,7 @@ function NavigationPanel(
   const visibleChapters = props.chapterIds.length ? props.chapterIds : [props.selectedChapterId].filter(Boolean);
   const storyLabel = storyLabelFromSlug(props.storySlug);
   const storyBase = `/stories/${encodeURIComponent(props.storySlug)}`;
-  const readerHref = props.selectedChapterId ? `/read/${encodeURIComponent(props.storySlug)}/${encodeURIComponent(props.selectedChapterId)}` : null;
+  const readerHref = props.selectedChapterId && props.hasDraft ? `/read/${encodeURIComponent(props.storySlug)}/${encodeURIComponent(props.selectedChapterId)}` : null;
   const workspaceLinks = [
     { label: "Shelf", href: "/shelf" },
     { label: "Write", href: `${storyBase}/write`, active: true },

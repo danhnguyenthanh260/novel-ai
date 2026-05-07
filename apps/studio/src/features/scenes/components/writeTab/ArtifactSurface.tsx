@@ -253,11 +253,15 @@ function ApproveArtifact({
   gate,
   storySlug,
   chapterId,
+  hasReadableArtifact,
 }: {
   gate: ApprovalGate;
   storySlug: string;
   chapterId: string;
+  hasReadableArtifact: boolean;
 }) {
+  const readerHref = hasReadableArtifact ? `/read/${encodeURIComponent(storySlug)}/${encodeURIComponent(chapterId)}` : null;
+
   return (
     <div className="document-artifact p-4">
       <div className="grid gap-3 text-sm">
@@ -269,6 +273,18 @@ function ApproveArtifact({
         <Link href={`/stories/${encodeURIComponent(storySlug)}/reviews`} className="shell-link w-fit px-3 py-2 text-xs">
           Open reviews
         </Link>
+        {readerHref ? (
+          <Link href={readerHref} className="shell-link w-fit px-3 py-2 text-xs">
+            Reader preview
+          </Link>
+        ) : (
+          <button type="button" className="shell-link w-fit px-3 py-2 text-xs" disabled title="Create a readable chapter draft before opening reader preview.">
+            Reader preview unavailable
+          </button>
+        )}
+        <button type="button" className="locked-action w-fit px-3 py-2 text-xs" disabled title="Publish preparation needs a durable approval and publishing workflow before it can be enabled.">
+          Publish unavailable
+        </button>
         {chapterId ? <span className="muted text-xs">Active chapter: {chapterId}</span> : null}
       </div>
     </div>
@@ -307,6 +323,7 @@ function ArtifactModePanel({
         gate={gate}
         storySlug={storySlug}
         chapterId={chapterId}
+        hasReadableArtifact={draftText.trim().length > 0 && Boolean(chapterId)}
       />
     );
   }
