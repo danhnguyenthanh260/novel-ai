@@ -11,6 +11,7 @@ export type IntentRoute = {
 type RouteIntentArgs = {
   message: string;
   readiness: ContextReadiness;
+  mode?: "chat" | "brainstorm";
 };
 
 const commandByIntent: Partial<Record<StudioChatIntent, CommandId>> = {
@@ -35,6 +36,7 @@ function includesAny(message: string, patterns: RegExp[]): boolean {
 export function detectStudioIntent(message: string): StudioChatIntent {
   const text = normalizedMessage(message);
   if (!text) return "AMBIGUOUS";
+  if (includesAny(text, [/^(hi|hello|hey|yo|chao|xin chao|chào)$/i, /\bhow are you\b/])) return "CHAT";
   if (includesAny(text, [/\bbrainstorm\b/, /\bno writing\b/, /\bno draft\b/, /\bjust chat\b/, /\btalk freely\b/])) return "BRAINSTORM";
   if (includesAny(text, [/\bswitch story\b/, /\bbrowse stories\b/, /\buse .* story\b/])) return "SWITCH_STORY";
   if (includesAny(text, [/\badd context\b/, /\badd characters?\b/, /\bmissing context\b/, /\bcharacter data\b/])) return "ADD_CONTEXT";
@@ -59,6 +61,24 @@ function goalFromMessage(message: string, intent: StudioChatIntent): string {
 export function routeStudioIntent(args: RouteIntentArgs): IntentRoute {
   const intent = detectStudioIntent(args.message);
   const goal = goalFromMessage(args.message, intent);
+  if (args.mode === "brainstorm" && intent === "AMBIGUOUS") {
+    return {
+      intent: "BRAINSTORM",
+      command: null,
+      goal: args.message.trim(),
+      needsClarification: false,
+      assistantText: "I can keep brainstorming here without starting a workflow. Tell me the direction, conflict, character, or scene problem you want to explore.",
+    };
+  }
+  if (intent === "CHAT") {
+    return {
+      intent,
+      command: null,
+      goal,
+      needsClarification: false,
+      assistantText: "Hi. I can chat freely, brainstorm, inspect context, analyze source, or help write when you're ready.",
+    };
+  }
   if (intent === "AMBIGUOUS") {
     return {
       intent,

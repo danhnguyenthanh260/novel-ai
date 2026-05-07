@@ -5,6 +5,7 @@ function assert(condition: boolean, message: string): void {
 }
 
 export function runIntentRouterSelfTest(): void {
+  assert(detectStudioIntent("Hi") === "CHAT", "greeting maps to CHAT");
   assert(detectStudioIntent("continue") === "WRITE", "continue maps to WRITE");
   assert(detectStudioIntent("plan first") === "PLAN", "plan first maps to PLAN");
   assert(detectStudioIntent("analyze source") === "ANALYZE", "analyze source maps to ANALYZE");
@@ -19,6 +20,9 @@ export function runIntentRouterSelfTest(): void {
 
   const ambiguous = routeStudioIntent({ message: "maybe later", readiness: "degraded" });
   assert(ambiguous.needsClarification && ambiguous.assistantText !== null, "ambiguous input asks one clarifying question");
+
+  const brainstormFollowup = routeStudioIntent({ message: "maybe a betrayal scene", readiness: "degraded", mode: "brainstorm" });
+  assert(brainstormFollowup.intent === "BRAINSTORM" && !brainstormFollowup.needsClarification, "brainstorm mode keeps free chat active");
 
   const blockedWrite = routeStudioIntent({ message: "continue", readiness: "blocked" });
   assert(blockedWrite.command === "/write chapter", "blocked write still routes through preflight");
