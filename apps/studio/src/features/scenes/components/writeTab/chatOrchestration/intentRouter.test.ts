@@ -17,12 +17,20 @@ export function runIntentRouterSelfTest(): void {
   assert(detectStudioIntent("split this chapter") === "SPLIT", "split maps to SPLIT");
   assert(detectStudioIntent("inspect context") === "INSPECT", "inspect maps to INSPECT");
   assert(detectStudioIntent("approve this") === "APPROVE", "approve maps to APPROVE");
+  assert(detectStudioIntent("what do we do now") === "CHAT", "next-step question maps to CHAT");
 
   const ambiguous = routeStudioIntent({ message: "maybe later", readiness: "degraded" });
   assert(ambiguous.needsClarification && ambiguous.assistantText !== null, "ambiguous input asks one clarifying question");
 
   const brainstormFollowup = routeStudioIntent({ message: "maybe a betrayal scene", readiness: "degraded", mode: "brainstorm" });
   assert(brainstormFollowup.intent === "BRAINSTORM" && !brainstormFollowup.needsClarification, "brainstorm mode keeps free chat active");
+
+  const adoptionBrainstorm = routeStudioIntent({
+    message: "a boy, who is adopted, living in normal family, he does not like it, confused",
+    readiness: "degraded",
+    mode: "brainstorm",
+  });
+  assert(adoptionBrainstorm.assistantText?.includes("adopted") === true, "brainstorm mode responds to adoption seed");
 
   const blockedWrite = routeStudioIntent({ message: "continue", readiness: "blocked" });
   assert(blockedWrite.command === "/write chapter", "blocked write still routes through preflight");
