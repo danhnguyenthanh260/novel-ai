@@ -187,13 +187,46 @@ function NavigationPanel(
   );
 }
 
+function workspaceColumns(isArtifactVisible: boolean): string {
+  return `236px 1fr ${isArtifactVisible ? "minmax(520px, 1.18fr)" : "320px"}`;
+}
+
+function selectedChapterTitle(selectedChapterId: string): string {
+  return selectedChapterId ? `${getChapterTitle(selectedChapterId)} Draft` : "No chapter selected";
+}
+
+function WorkspaceStatusMessages({ error, loadingDetail, loadingChapter }: Pick<NovelLabWorkspaceProps, "error" | "loadingDetail" | "loadingChapter">) {
+  return (
+    <>
+      {error ? <div className="mx-2 mt-2 rounded border border-[var(--danger)]/40 p-3 text-sm text-[var(--danger)]">{error}</div> : null}
+      {loadingDetail || loadingChapter ? <div className="mx-2 mt-2 muted text-xs">Loading current chapter artifact...</div> : null}
+    </>
+  );
+}
+
+function WorkspaceAutoWriteModal(
+  props: Pick<NovelLabWorkspaceProps, "storySlug" | "selectedChapterId" | "showAutoWrite" | "onAutoWriteComplete" | "setShowAutoWrite">
+) {
+  if (!props.showAutoWrite || !props.selectedChapterId) return null;
+  return (
+    <AutoWriteWizard
+      storySlug={props.storySlug}
+      chapterId={props.selectedChapterId}
+      onComplete={props.onAutoWriteComplete}
+      onClose={() => props.setShowAutoWrite(false)}
+    />
+  );
+}
+
 export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const { isArtifactVisible } = useStory();
   const [continuityQueued, setContinuityQueued] = useState(false);
   const [composerValue, setComposerValue] = useState(props.selectedChapterId ? `/write chapter ${props.selectedChapterId} ` : "");
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const draftSource = useMemo(() => buildDraftSource(props), [props]);
-  const chapterTitle = props.selectedChapterId ? `${getChapterTitle(props.selectedChapterId)} Draft` : "No chapter selected";
+  const chapterTitle = selectedChapterTitle(props.selectedChapterId);
+  const hasDraft = draftSource.text.trim().length > 0;
+  const loadingWorkspace = props.loadingScenes || props.loadingDetail || props.loadingChapter;
   const readiness: ContextReadiness = "degraded";
 
   return (
@@ -201,7 +234,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
       <main
         className="novel-lab-workspace"
         style={{
-          gridTemplateColumns: `236px 1fr ${isArtifactVisible ? "minmax(520px, 1.18fr)" : "320px"}`,
+          gridTemplateColumns: workspaceColumns(isArtifactVisible),
         }}
       >
         <NavigationPanel
@@ -211,15 +244,15 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           selectedChapterId={props.selectedChapterId}
           onChapterIdChange={props.onChapterIdChange}
           onCreateNewChapter={props.onCreateNewChapter}
-          hasDraft={draftSource.text.trim().length > 0}
-          loadingWorkspace={props.loadingScenes || props.loadingDetail || props.loadingChapter}
+          hasDraft={hasDraft}
+          loadingWorkspace={loadingWorkspace}
           continuityQueued={continuityQueued}
           readiness={readiness}
         />
         <CommandWorkStream
           storySlug={props.storySlug}
           chapterId={props.selectedChapterId}
-          hasDraft={draftSource.text.trim().length > 0}
+          hasDraft={hasDraft}
           continuityQueued={continuityQueued}
           composerValue={composerValue}
           commandMenuOpen={commandMenuOpen}
@@ -232,6 +265,8 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           storySlug={props.storySlug}
           chapterId={props.selectedChapterId}
           chapterTitle={chapterTitle}
+          currentVersionNo={props.current?.version_no ?? null}
+          currentVersionKind={props.current?.kind ?? null}
           draftKey={draftSource.key}
           draftText={draftSource.text}
           hasChapter={Boolean(props.selectedChapterId)}
@@ -244,16 +279,14 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
         />
       </main>
 
-      {props.error ? <div className="mx-2 mt-2 rounded border border-[var(--danger)]/40 p-3 text-sm text-[var(--danger)]">{props.error}</div> : null}
-      {props.loadingDetail || props.loadingChapter ? <div className="mx-2 mt-2 muted text-xs">Loading current chapter artifact...</div> : null}
-      {props.showAutoWrite && props.selectedChapterId ? (
-        <AutoWriteWizard
-          storySlug={props.storySlug}
-          chapterId={props.selectedChapterId}
-          onComplete={props.onAutoWriteComplete}
-          onClose={() => props.setShowAutoWrite(false)}
-        />
-      ) : null}
+      <WorkspaceStatusMessages error={props.error} loadingDetail={props.loadingDetail} loadingChapter={props.loadingChapter} />
+      <WorkspaceAutoWriteModal
+        storySlug={props.storySlug}
+        selectedChapterId={props.selectedChapterId}
+        showAutoWrite={props.showAutoWrite}
+        onAutoWriteComplete={props.onAutoWriteComplete}
+        setShowAutoWrite={props.setShowAutoWrite}
+      />
     </>
   );
 }

@@ -16,6 +16,8 @@ export type ArtifactInspectorDiagnostics = {
   hasChapter: boolean;
   hasDraft: boolean;
   draftWordCount: number;
+  currentVersionNo: number | null;
+  currentVersionKind: string | null;
   gateLabel: string;
   gateDetail: string;
   canApprove: boolean;
@@ -149,9 +151,11 @@ function IssuesPreview({
 }
 
 function MemoryPreview({ diagnostics }: { diagnostics: ArtifactInspectorDiagnostics }) {
-  const memoryItems = diagnostics.canApprove
-    ? ["Draft can enter reviewer approval before memory extraction.", "Memory candidates unlock after an approved revision."]
-    : ["Memory extraction is locked until approval is available.", diagnostics.gateDetail];
+  const memoryItems = [
+    "Memory diagnostics unavailable in this inspector.",
+    "Use the story Memory workspace for retrieval, conflicts, and extraction review.",
+    diagnostics.gateDetail,
+  ];
   return (
     <div className="inspector-stack">
       {memoryItems.map((item) => (
@@ -163,6 +167,7 @@ function MemoryPreview({ diagnostics }: { diagnostics: ArtifactInspectorDiagnost
 
 function VersionsPreview({ diagnostics, continuityQueued }: { diagnostics: ArtifactInspectorDiagnostics; continuityQueued: boolean }) {
   const versionItems = [
+    diagnostics.currentVersionNo !== null ? `Current version v${diagnostics.currentVersionNo} · ${diagnostics.currentVersionKind ?? "unknown"}` : "No current scene version",
     diagnostics.hasDraft ? `Current draft · ${diagnostics.draftWordCount} words` : "No draft version",
     continuityQueued ? "Continuity check queued" : "Continuity check not running",
     diagnostics.canApprove ? "Approval candidate ready" : `Approval locked · ${diagnostics.gateLabel}`,

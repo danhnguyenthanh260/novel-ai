@@ -9,6 +9,8 @@ type ArtifactSurfaceProps = {
   storySlug: string;
   chapterId: string;
   chapterTitle: string;
+  currentVersionNo: number | null;
+  currentVersionKind: string | null;
   draftKey: string;
   draftText: string;
   hasChapter: boolean;
@@ -69,6 +71,8 @@ function buildInspectorDiagnostics(args: {
   activeMode: ArtifactMode;
   chapterId: string;
   chapterTitle: string;
+  currentVersionNo: number | null;
+  currentVersionKind: string | null;
   draftText: string;
   gate: ApprovalGate;
   hasChapter: boolean;
@@ -81,6 +85,8 @@ function buildInspectorDiagnostics(args: {
     hasChapter: args.hasChapter,
     hasDraft: args.hasDraft,
     draftWordCount: wordCount(args.draftText),
+    currentVersionNo: args.currentVersionNo,
+    currentVersionKind: args.currentVersionKind,
     gateLabel: args.gate.label,
     gateDetail: args.gate.detail,
     canApprove: args.gate.canApprove,
@@ -320,6 +326,8 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
     activeMode,
     chapterId: props.chapterId,
     chapterTitle: props.chapterTitle,
+    currentVersionNo: props.currentVersionNo,
+    currentVersionKind: props.currentVersionKind,
     draftText: props.draftText,
     gate,
     hasChapter: props.hasChapter,
