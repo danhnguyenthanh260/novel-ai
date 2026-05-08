@@ -73,7 +73,6 @@ function resultBlock(result: CommandResult): TimelineBlock {
 
 function buildTimelineBlocks(args: {
   briefing: ReturnType<typeof buildAssistantReadiness>;
-  composerValue: string;
   conversationBlocks: TimelineBlock[];
   pendingAssistant: boolean;
   chapterId: string | null;
@@ -93,10 +92,6 @@ function buildTimelineBlocks(args: {
   ];
 
   blocks.push(...args.conversationBlocks);
-
-  if (args.composerValue.trim()) {
-    blocks.push({ id: "composer-echo", type: "text_message", source: "user", label: "You", text: args.composerValue.trim() });
-  }
 
   if (args.pendingAssistant) {
     blocks.push({
@@ -411,7 +406,6 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   });
   const blocks = buildTimelineBlocks({
     briefing,
-    composerValue: props.composerValue,
     conversationBlocks,
     pendingAssistant,
     chapterId: props.chapterId,
