@@ -145,6 +145,8 @@ function useCommandRunner(args: {
   readinessContext: AssistantReadinessContext;
   mode: "chat" | "brainstorm";
   onModeChange: (mode: "chat" | "brainstorm") => void;
+  recentBrainstormSeed: string | null;
+  onBrainstormSeedChange: (seed: string | null) => void;
   onConversationBlock: (block: TimelineBlock) => void;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
 }) {
@@ -331,8 +333,16 @@ function useCommandRunner(args: {
   );
 
   const submitMessage = React.useCallback((message: string) => {
-    const route = routeStudioIntent({ message, readiness: args.readinessContext.readiness, mode: args.mode });
+    const route = routeStudioIntent({
+      message,
+      readiness: args.readinessContext.readiness,
+      mode: args.mode,
+      recentBrainstormSeed: args.recentBrainstormSeed,
+    });
     setIntentBlock(null);
+    if (route.brainstormSeed !== undefined) {
+      args.onBrainstormSeedChange(route.brainstormSeed);
+    }
     if (route.intent === "SWITCH_STORY") {
       router.push("/shelf");
       setCommandResult({ tone: "ready", title: "Opening story selector", detail: "Choose the story you want to work on next." });
@@ -344,25 +354,19 @@ function useCommandRunner(args: {
       setCommandResult({ tone: "ready", title: "Context tools opened", detail: "I kept context recovery in Write and opened the context inspector." });
       return;
     }
-    if (route.intent === "BRAINSTORM") {
-      args.onModeChange("brainstorm");
+    if (route.assistantText) {
+      if (route.intent === "BRAINSTORM") {
+        args.onModeChange("brainstorm");
+      }
+      if (route.intent === "REPO_RUN_HELP" || route.intent === "REPO_TEST_HELP") {
+        args.onModeChange("chat");
+      }
       args.onConversationBlock({
         id: `assistant-${Date.now()}`,
         type: "text_message",
         source: "assistant",
         label: "Studio Writing Assistant",
-        text: route.assistantText ?? "I can brainstorm here without starting a writing workflow.",
-        tone: "ready",
-      });
-      return;
-    }
-    if (route.intent === "CHAT") {
-      args.onConversationBlock({
-        id: `assistant-${Date.now()}`,
-        type: "text_message",
-        source: "assistant",
-        label: "Studio Writing Assistant",
-        text: route.assistantText ?? "Hi. I can chat freely or help with writing workflows when you ask.",
+        text: route.assistantText,
         tone: "ready",
       });
       return;
@@ -387,6 +391,7 @@ function useCommandRunner(args: {
 export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const router = useRouter();
   const [chatMode, setChatMode] = React.useState<"chat" | "brainstorm">("chat");
+  const [recentBrainstormSeed, setRecentBrainstormSeed] = React.useState<string | null>(null);
   const [conversationBlocks, setConversationBlocks] = React.useState<TimelineBlock[]>([]);
   const [pendingAssistant, setPendingAssistant] = React.useState(false);
   const briefing = buildAssistantReadiness(props.assistantContext);
@@ -399,6 +404,8 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     readinessContext: props.assistantContext,
     mode: chatMode,
     onModeChange: setChatMode,
+    recentBrainstormSeed,
+    onBrainstormSeedChange: setRecentBrainstormSeed,
     onConversationBlock: (block) => setConversationBlocks((current) => [...current, block]),
     onInspectorModeChange: props.onInspectorModeChange,
   });

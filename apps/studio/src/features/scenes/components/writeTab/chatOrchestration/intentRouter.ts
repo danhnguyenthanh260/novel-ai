@@ -6,12 +6,14 @@ export type IntentRoute = {
   goal: string;
   needsClarification: boolean;
   assistantText: string | null;
+  brainstormSeed?: string | null;
 };
 
 type RouteIntentArgs = {
   message: string;
   readiness: ContextReadiness;
   mode?: "chat" | "brainstorm";
+  recentBrainstormSeed?: string | null;
 };
 
 const commandByIntent: Partial<Record<StudioChatIntent, CommandId>> = {
@@ -55,6 +57,95 @@ function wantsNextStep(message: string): boolean {
   return includesAny(normalizedMessage(message), [/\bwhat do we do now\b/, /\bwhat now\b/, /\bnext step\b/, /\bwhere do we start\b/]);
 }
 
+function isRepoRunHelp(message: string): boolean {
+  const text = normalizedMessage(message);
+  return includesAny(text, [
+    /\bhow do i run\b/,
+    /\bhow to run\b/,
+    /\brun (this )?(src|source|project|app|studio)\b/,
+    /\bstart (the )?(dev server|studio|app)\b/,
+    /\bnpm run (dev|start)\b/,
+    /\bdev server\b/,
+  ]);
+}
+
+function isRepoTestHelp(message: string): boolean {
+  const text = normalizedMessage(message);
+  return includesAny(text, [
+    /\bhow do i test\b/,
+    /\bhow to test\b/,
+    /\btest (this )?(src|source|project|app|studio)\b/,
+    /\brun tests?\b/,
+    /\bnpm run (typecheck|build|lint)\b/,
+    /\btypecheck\b/,
+  ]);
+}
+
+function isBrainstormClarification(message: string): boolean {
+  const text = normalizedMessage(message).replace(/[?.!]+$/g, "");
+  return includesAny(text, [
+    /^what angle$/,
+    /^wwhat angle$/,
+    /^which angle$/,
+    /^what do you mean$/,
+    /^explain$/,
+    /^explain options?$/,
+    /^can you clarify$/,
+    /\bw?what angle\b/,
+  ]);
+}
+
+function isQuotedAssistantQuestion(message: string): boolean {
+  const text = normalizedMessage(message);
+  return includesAny(text, [/\bi can work with this seed\b/, /\bthree angles to explore\b/, /\bpick one angle\b/]) && /[?]|\bw?what\b|\bexplain\b|\bclarify\b/.test(text);
+}
+
+function isBrainstormChoice(message: string): boolean {
+  return /^(1|2|3|one|two|three|hidden wound|trigger event|opening scene)\b/i.test(message.trim());
+}
+
+function stripQuotedAssistantText(message: string): string {
+  return message
+    .replace(/i can work with this seed:[\s\S]*?(three angles to explore:)?/gi, "")
+    .replace(/pick one angle and i will expand it\.?/gi, "")
+    .trim();
+}
+
+function optionLabels(seed: string): { title: string; detail: string }[] {
+  const lower = normalizedMessage(seed);
+  if (includesAny(lower, [/\bbomb\b/, /\bheart attack\b/, /\bheart atack\b/, /\bscience\b/, /\blab\b/])) {
+    return [
+      { title: "Hidden wound", detail: "The protagonist believes her research helped create the bomb design that caused a death by panic and heart failure." },
+      { title: "Trigger event", detail: "A second attack appears, and only she recognizes the scientific pattern linking it to the old tragedy." },
+      { title: "Opening scene", detail: "She is in a hospital corridor after a bombing, watching a heart monitor flatline while a lab sample in her pocket starts reacting." },
+    ];
+  }
+  if (includesAny(lower, [/\bsad\b/, /\bgirl\b/, /\bwound\b/, /\bgrief\b/])) {
+    return [
+      { title: "Hidden wound", detail: "The sad girl hides the real reason she stopped trusting the people who say they love her." },
+      { title: "Trigger event", detail: "A small public crisis forces her private grief into view before she is ready to explain it." },
+      { title: "Opening scene", detail: "Start with her performing one ordinary task while every detail quietly reveals what she has lost." },
+    ];
+  }
+  if (includesAny(lower, [/\badopt/, /\badopted\b/, /\badoption\b/, /\bfamily\b/])) {
+    return [
+      { title: "Quiet coming-of-age", detail: "He is loved but still feels like a guest, so the conflict has no obvious villain." },
+      { title: "Identity mystery", detail: "A normal family habit exposes a clue that his past was deliberately hidden from him." },
+      { title: "Family secret", detail: "The family knows why he does not belong, but protecting him has become another kind of lie." },
+    ];
+  }
+  return [
+    { title: "Hidden wound", detail: "Define the pain the protagonist is hiding and why they cannot say it directly." },
+    { title: "Trigger event", detail: "Choose the incident that forces the hidden conflict into the open." },
+    { title: "Opening scene", detail: "Find the first visual scene that reveals the conflict without explaining it." },
+  ];
+}
+
+function formatBrainstormOptions(seed: string): string {
+  const options = optionLabels(seed);
+  return options.map((option, index) => `${index + 1}. ${option.title}\n${option.detail}`).join("\n\n");
+}
+
 function brainstormReply(message: string): string {
   const text = message.trim();
   const lower = normalizedMessage(message);
@@ -64,17 +155,52 @@ function brainstormReply(message: string): string {
   if (/^brainstorm\b/i.test(text)) {
     return "I can brainstorm here without starting a writing workflow. Send a premise, character, conflict, or scene problem.";
   }
-  if (includesAny(lower, [/\badopt/, /\badopted\b/, /\badoption\b/, /\bfamily\b/])) {
-    return [
-      "This is a strong emotional seed: a boy is adopted into a normal family, but the normal life feels wrong to him.",
-      "The core tension can be that he is not unloved, but he still feels like a guest, so his confusion has no obvious villain.",
-      "For chapter 1, open with a normal family moment where everyone fits except him, then choose the angle: quiet coming-of-age, identity mystery, or family secret.",
-    ].join("\n\n");
-  }
+  const lead = includesAny(lower, [/\bbomb\b/, /\bheart attack\b/, /\bheart atack\b/, /\bscience\b/])
+    ? "Good, this shifts the idea toward a science-thriller tragedy."
+    : includesAny(lower, [/\badopt/, /\badopted\b/, /\badoption\b/, /\bfamily\b/])
+      ? "This is a strong emotional seed about an adopted child who feels out of place in a normal family."
+      : "I can shape this as a story seed.";
   return [
-    `I can work with this seed: ${text}`,
-    "Three angles to explore: what wound the protagonist hides, what event forces it into the open, and what first scene reveals the conflict without explaining it.",
-    "Pick one angle and I will expand it.",
+    lead,
+    "Here are three concrete angles:",
+    formatBrainstormOptions(text),
+    "Pick 1, 2, or 3.",
+  ].join("\n\n");
+}
+
+function brainstormClarificationReply(seed: string | null | undefined): string {
+  const source = seed?.trim() || "your current idea";
+  return [
+    "By \"angle\", I mean the direction we use to expand your idea.",
+    `For ${seed?.trim() ? `your seed \"${source}\"` : source}, you can choose:`,
+    formatBrainstormOptions(source),
+    "Pick 1, 2, or 3.",
+  ].join("\n\n");
+}
+
+function brainstormChoiceReply(message: string, seed: string | null | undefined): string {
+  const selected = normalizedMessage(message);
+  const options = optionLabels(seed || "your current idea");
+  const index = selected.startsWith("2") || selected.startsWith("two") || selected.startsWith("trigger") ? 1
+    : selected.startsWith("3") || selected.startsWith("three") || selected.startsWith("opening") ? 2
+      : 0;
+  const option = options[index];
+  return [
+    `I will expand angle ${index + 1}: ${option.title}.`,
+    option.detail,
+    "Next, turn it into a scene goal, a character contradiction, or a chapter opening.",
+  ].join("\n\n");
+}
+
+function repoHelpReply(): string {
+  return [
+    "I’ll switch from brainstorming to project setup help for this question.",
+    "To run the Studio locally:",
+    "1. Start the repo infrastructure if you need DB-backed flows.",
+    "2. From `apps/studio`, install dependencies if needed.",
+    "3. Run `npm run dev` for the Next.js Studio.",
+    "4. Start worker/memory services only when testing ingest, analysis, or writing pipelines.",
+    "For checks: run `npm run typecheck`, targeted `npx eslint <changed files>`, and `npm run build` before shipping.",
   ].join("\n\n");
 }
 
@@ -92,6 +218,11 @@ function staysInBrainstormMode(mode: RouteIntentArgs["mode"], intent: StudioChat
 export function detectStudioIntent(message: string): StudioChatIntent {
   const text = normalizedMessage(message);
   if (!text) return "AMBIGUOUS";
+  if (isRepoRunHelp(message)) return "REPO_RUN_HELP";
+  if (isRepoTestHelp(message)) return "REPO_TEST_HELP";
+  if (isQuotedAssistantQuestion(message)) return "QUOTED_PREVIOUS_RESPONSE_QUESTION";
+  if (isBrainstormClarification(message)) return "BRAINSTORM_CLARIFICATION";
+  if (isBrainstormChoice(message)) return "BRAINSTORM_EXPAND_CHOICE";
   if (includesAny(text, [/^(hi|hello|hey|yo|chao|xin chao|chào)$/i, /\bhow are you\b/])) return "CHAT";
   if (wantsNextStep(message)) return "CHAT";
   const matched = intentPatterns.find((entry) => includesAny(text, entry.patterns));
@@ -106,16 +237,30 @@ function goalFromMessage(message: string, intent: StudioChatIntent): string {
   return text;
 }
 
+// Keep routing priority visible because mode override order is the bug surface.
+// eslint-disable-next-line complexity
 export function routeStudioIntent(args: RouteIntentArgs): IntentRoute {
   const intent = detectStudioIntent(args.message);
   const goal = goalFromMessage(args.message, intent);
+  if (intent === "REPO_RUN_HELP" || intent === "REPO_TEST_HELP") {
+    return { intent, command: null, goal, needsClarification: false, assistantText: repoHelpReply(), brainstormSeed: null };
+  }
+  if (intent === "BRAINSTORM_CLARIFICATION" || intent === "QUOTED_PREVIOUS_RESPONSE_QUESTION") {
+    const seed = intent === "QUOTED_PREVIOUS_RESPONSE_QUESTION" ? args.recentBrainstormSeed || stripQuotedAssistantText(args.message) : args.recentBrainstormSeed;
+    return { intent, command: null, goal, needsClarification: false, assistantText: brainstormClarificationReply(seed), brainstormSeed: seed ?? null };
+  }
+  if (intent === "BRAINSTORM_EXPAND_CHOICE") {
+    return { intent, command: null, goal, needsClarification: false, assistantText: brainstormChoiceReply(args.message, args.recentBrainstormSeed), brainstormSeed: args.recentBrainstormSeed ?? null };
+  }
   if (staysInBrainstormMode(args.mode, intent)) {
+    const seed = args.message.trim();
     return {
       intent: "BRAINSTORM",
       command: null,
-      goal: args.message.trim(),
+      goal: seed,
       needsClarification: false,
       assistantText: brainstormReply(args.message),
+      brainstormSeed: isShortAcknowledgement(seed) || /^brainstorm\b/i.test(seed) ? args.recentBrainstormSeed ?? null : seed,
     };
   }
   if (intent === "CHAT") {
@@ -143,6 +288,7 @@ export function routeStudioIntent(args: RouteIntentArgs): IntentRoute {
       goal,
       needsClarification: false,
       assistantText: brainstormReply(args.message),
+      brainstormSeed: /^brainstorm\b/i.test(args.message.trim()) ? args.recentBrainstormSeed ?? null : args.message.trim(),
     };
   }
   if (intent === "SWITCH_STORY" || intent === "ADD_CONTEXT") {
