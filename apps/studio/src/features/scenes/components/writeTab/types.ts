@@ -96,6 +96,11 @@ export type StudioChatIntent =
   | "SPLIT"
   | "INSPECT"
   | "APPROVE"
+  | "REPO_RUN_HELP"
+  | "REPO_TEST_HELP"
+  | "BRAINSTORM_CLARIFICATION"
+  | "BRAINSTORM_EXPAND_CHOICE"
+  | "QUOTED_PREVIOUS_RESPONSE_QUESTION"
   | "AMBIGUOUS";
 
 export type ChatContextMiniBarPayload = {

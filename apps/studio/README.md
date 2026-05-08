@@ -56,6 +56,7 @@ Refactor direction for large modules:
 - The slash command menu is anchored above the composer with internal scrolling and must not shift the page layout.
 - Write workspace commands stay inside Write by default. Command handlers append the relevant timeline block and switch the shared right-inspector mode; they must not use route navigation for `/analyze`, `/research`, `/review`, `/memory`, `/pipeline`, `/context`, `/inspect`, or `/status`.
 - Inspector mode is workspace UI state, not route state. Deep Analysis, Reviews, Memory, and Pipelines pages remain available only through explicit secondary links such as "Open full analysis workspace".
+- Active chat mode is soft context, not a lock. Every user turn is routed through intent classification first, so brainstorm mode must yield to explicit repo/dev help, clarification, inspect/analyze/write commands, and quoted-response questions.
 - Chat artifact summary cards use the `artifact_preview` timeline block contract. The chat timeline renders a compact card with title, status, short description, and actions; full artifact or document content stays in the artifact panel or document workspace.
 - Workflow progress uses `workflow_progress` blocks mapped from backend-shaped pipeline/job events. The chat timeline renders compact progress, while the right inspector renders detailed step state. Worker logs and diagnostics stay in Operations surfaces.
 - Right inspector modes reuse timeline block contracts where possible:
