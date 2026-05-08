@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import ArtifactInspectorRail, { type ArtifactInspectorDiagnostics } from "@/features/scenes/components/writeTab/ArtifactInspectorRail";
-import type { ContextReadiness } from "@/features/scenes/components/writeTab/types";
+import type { ContextReadiness, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 type ArtifactMode = "read" | "edit" | "analysis" | "review" | "approve";
 
@@ -20,6 +20,8 @@ type ArtifactSurfaceProps = {
   onQueueContinuity: () => void;
   onSaveDraft: (text: string) => Promise<void>;
   isVisible: boolean;
+  inspectorMode: WriteInspectorMode;
+  onInspectorModeChange: (mode: WriteInspectorMode) => void;
 };
 
 type ApprovalGate = {
@@ -241,7 +243,7 @@ function ReviewArtifact({ storySlug, chapterId }: { storySlug: string; chapterId
         <div className="font-semibold">Review handoff</div>
         <p className="muted text-xs">Chapter review requests and reviewer scoring live in the story review workspace.</p>
         <Link href={`/stories/${encodeURIComponent(storySlug)}/reviews`} className="shell-link w-fit px-3 py-2 text-xs">
-          Open reviews
+          Open full reviews workspace
         </Link>
         {chapterId ? <span className="muted text-xs">Active chapter: {chapterId}</span> : null}
       </div>
@@ -271,7 +273,7 @@ function ApproveArtifact({
           {gate.canApprove ? "Ready for review" : "Approval locked"}
         </button>
         <Link href={`/stories/${encodeURIComponent(storySlug)}/reviews`} className="shell-link w-fit px-3 py-2 text-xs">
-          Open reviews
+          Open full reviews workspace
         </Link>
         {readerHref ? (
           <Link href={readerHref} className="shell-link w-fit px-3 py-2 text-xs">
@@ -382,7 +384,13 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
           )}
         </div>
       ) : (
-        <ArtifactInspectorRail readiness={props.readiness} continuityQueued={props.continuityQueued} diagnostics={inspectorDiagnostics} />
+        <ArtifactInspectorRail
+          readiness={props.readiness}
+          continuityQueued={props.continuityQueued}
+          diagnostics={inspectorDiagnostics}
+          mode={props.inspectorMode}
+          onModeChange={props.onInspectorModeChange}
+        />
       )}
     </section>
   );

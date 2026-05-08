@@ -1,7 +1,22 @@
 import React from "react";
 import { useRouter } from "next/navigation";
-import ChatComposer, { type ChatCommandOption } from "@/features/scenes/components/writeTab/chatOrchestration/ChatComposer";
+import ChatComposer from "@/features/scenes/components/writeTab/chatOrchestration/ChatComposer";
 import ChatTimeline from "@/features/scenes/components/writeTab/chatOrchestration/ChatTimeline";
+import {
+  approvalGateBlock,
+  buildCommands,
+  buildContextDigestBlock,
+  buildContextMiniBar,
+  buildWorkspaceArtifactBlock,
+  buildWorkspaceWorkflowBlock,
+  chipTarget,
+  commandDefinition,
+  commandLabel,
+  commandTail,
+  contextWithCommandIntent,
+  type CommandResult,
+  workspaceHref,
+} from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
 import { routeStudioIntent } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
 import {
@@ -10,11 +25,11 @@ import {
 } from "@/features/scenes/components/writeTab/chatOrchestration/workflowProgressEvents";
 import type {
   AssistantReadinessContext,
-  ChatContextMiniBarPayload,
   CommandId,
   FailureRecoveryBlock,
   RecoveryChip,
   TimelineBlock,
+  WriteInspectorMode,
 } from "@/features/scenes/components/writeTab/types";
 
 type CommandWorkStreamProps = {
@@ -28,129 +43,9 @@ type CommandWorkStreamProps = {
   onCommandMenuOpenChange: (value: boolean) => void;
   onOpenAutoWrite: () => void;
   onQueueContinuity: () => void;
+  onInspectorModeChange: (mode: WriteInspectorMode) => void;
   assistantContext: AssistantReadinessContext;
 };
-
-type CommandResult = {
-  tone: "ready" | "blocked" | "running";
-  title: string;
-  detail: string;
-};
-
-type CommandDefinition = {
-  id: CommandId;
-  description: string;
-  group: "primary" | "more" | "hidden";
-  visible: boolean;
-  unavailableDetail?: string;
-};
-
-const commandDefinitions: CommandDefinition[] = [
-  { id: "/write chapter", description: "Generate chapter draft", group: "primary", visible: true },
-  { id: "/plan", description: "Create chapter outline", group: "primary", visible: true },
-  { id: "/analyze chapter", description: "Analyze source or context", group: "primary", visible: true },
-  { id: "/research", description: "Research story or worldbuilding context", group: "primary", visible: true },
-  { id: "/inspect", description: "Show full context digest", group: "primary", visible: true },
-  { id: "/check continuity", description: "Review canon and timeline handoff", group: "primary", visible: true },
-  { id: "/extract memory", description: "Open story memory extraction", group: "more", visible: true },
-  { id: "/review chapter", description: "Open review panel", group: "more", visible: true },
-  { id: "/split", description: "Prepare chapter split request", group: "more", visible: true },
-  {
-    id: "/rewrite selection",
-    description: "Rewrite selected prose",
-    group: "hidden",
-    visible: false,
-    unavailableDetail: "Selection-backed rewriting is not wired in the Novel Lab artifact surface yet.",
-  },
-  {
-    id: "/continue from cursor",
-    description: "Continue from cursor",
-    group: "hidden",
-    visible: false,
-    unavailableDetail: "Cursor-backed continuation is not wired in the Novel Lab artifact surface yet.",
-  },
-  {
-    id: "/approve draft",
-    description: "Approve active draft",
-    group: "hidden",
-    visible: false,
-    unavailableDetail: "Approval gates are not connected to durable review state from the command surface yet.",
-  },
-  {
-    id: "/publish preview",
-    description: "Preview approved output",
-    group: "hidden",
-    visible: false,
-    unavailableDetail: "Publish preview remains owned by the artifact approval surface until publish workflow state is durable.",
-  },
-];
-
-function commandDefinition(command: CommandId): CommandDefinition | null {
-  return commandDefinitions.find((item) => item.id === command) ?? null;
-}
-
-function commandLabel(command: CommandId): string {
-  return command.replace("/", "").replaceAll("_", " ");
-}
-
-function commandTail(command: CommandId, goal: string): string {
-  return goal.trim() ? `${command} ${goal.trim()}` : `${command} `;
-}
-
-function contextWithCommandIntent(context: AssistantReadinessContext, command: CommandId, goal: string): AssistantReadinessContext {
-  if (command !== "/write chapter" && command !== "/plan" && command !== "/analyze chapter" && command !== "/research") return context;
-  return {
-    ...context,
-    availability: {
-      ...context.availability,
-      has_chapter_intent: context.availability.has_chapter_intent || goal.trim().length > 0,
-    },
-  };
-}
-
-function chipTarget(storySlug: string, chip: RecoveryChip): string | null {
-  const storyBase = `/stories/${encodeURIComponent(storySlug)}`;
-  if (chip.intent === "browse_stories" || chip.intent === "switch_story") return "/shelf";
-  if (chip.intent === "start_story") return "/";
-  if (chip.intent === "add_context" || chip.intent === "analyze_source") return `${storyBase}/analysis`;
-  if (chip.intent === "inspect_context") return `${storyBase}/memory`;
-  return null;
-}
-
-function buildCommands(context: AssistantReadinessContext, chapterId: string): ChatCommandOption[] {
-  const readiness = buildAssistantReadiness(context);
-
-  return commandDefinitions
-    .filter((command) => command.visible)
-    .map((command) => {
-      let blockedReason: string | undefined;
-      if (command.id === "/write chapter" && !readiness.canWrite) {
-        blockedReason = readiness.blockedWriteReason ?? "The chapter context is blocked.";
-      }
-      if (command.id === "/check continuity" && !chapterId) {
-        blockedReason = "Choose or create a chapter before checking continuity.";
-      }
-      if ((command.id === "/plan" || command.id === "/split") && !chapterId) {
-        blockedReason = "Choose or create a chapter before running this command.";
-      }
-
-      return {
-        id: command.id,
-        description: blockedReason ?? command.description,
-        group: command.group === "more" ? "more" : "primary",
-        status: blockedReason ? "blocked" : "ready",
-        blockedReason,
-      };
-    });
-}
-
-function buildContextMiniBar(context: AssistantReadinessContext, status: ChatContextMiniBarPayload["status"]): ChatContextMiniBarPayload {
-  return {
-    storyTitle: context.storyTitle?.trim() || "No story selected",
-    chapterLabel: context.chapterTitle?.trim() || context.chapterId || "No chapter selected",
-    status,
-  };
-}
 
 function resultBlock(result: CommandResult): TimelineBlock {
   if (result.tone === "blocked") {
@@ -240,55 +135,8 @@ function buildTimelineBlocks(args: {
   return blocks;
 }
 
-function buildContextDigestBlock(context: AssistantReadinessContext): TimelineBlock {
-  const included = [
-    context.storySelected ? "Story selected" : "",
-    context.chapterId ? "Chapter selected" : "",
-    context.availability.has_source_chapters ? "Source material" : "",
-    context.availability.has_active_characters ? "Active characters" : "",
-    context.availability.has_memory_snapshot ? "Memory snapshot" : "",
-    context.availability.has_style_profile ? "Style profile" : "",
-    context.availability.has_immediate_continuity ? "Immediate continuity" : "",
-    context.availability.has_chapter_intent ? "Chapter intent" : "",
-  ].filter(Boolean);
-  const missing = [
-    context.storySelected ? "" : "Story selected",
-    context.chapterId ? "" : "Chapter selected",
-    context.availability.has_source_chapters ? "" : "Source material",
-    context.availability.has_active_characters ? "" : "Active characters",
-    context.availability.has_chapter_intent ? "" : "Chapter intent",
-  ].filter(Boolean);
-  const degraded = [
-    context.availability.has_memory_snapshot ? "" : "Memory snapshot",
-    context.availability.has_style_profile ? "" : "Style profile",
-    context.availability.has_immediate_continuity ? "" : "Immediate continuity",
-  ].filter(Boolean);
-
-  return {
-    id: "intent-context-digest",
-    type: "context_digest",
-    source: "assistant",
-    title: context.chapterId ? `Chapter ${context.chapterId} context` : "Current story context",
-    included,
-    missing,
-    degraded,
-    conflicts: context.readiness === "blocked" ? ["Current context is blocked for writing."] : [],
-  };
-}
-
-function approvalGateBlock(chapterId: string): TimelineBlock {
-  return {
-    id: "intent-approval-gate",
-    type: "approval_gate",
-    source: "assistant",
-    gate_type: "import_to_editor",
-    description: chapterId
-      ? "This needs your sign-off before I can continue. Importing to the editor does not approve story memory or publish the chapter."
-      : "Choose a chapter before approving or importing draft content.",
-    actions: ["import_to_editor", "keep_as_draft", "run_continuity_check"],
-  };
-}
-
+// Command dispatch mirrors the slash-command contract table; keep branches explicit so blocked/degraded routing stays readable.
+// eslint-disable-next-line max-lines-per-function
 function useCommandRunner(args: {
   storySlug: string;
   chapterId: string;
@@ -298,14 +146,17 @@ function useCommandRunner(args: {
   mode: "chat" | "brainstorm";
   onModeChange: (mode: "chat" | "brainstorm") => void;
   onConversationBlock: (block: TimelineBlock) => void;
+  onInspectorModeChange: (mode: WriteInspectorMode) => void;
 }) {
   const router = useRouter();
   const [commandResult, setCommandResult] = React.useState<CommandResult | null>(null);
   const [intentBlock, setIntentBlock] = React.useState<TimelineBlock | null>(null);
 
   const runCommand = React.useCallback(
+    // eslint-disable-next-line complexity, max-lines-per-function
     (command: CommandId, goal: string) => {
       setIntentBlock(null);
+      setCommandResult(null);
       const definition = commandDefinition(command);
       if (definition?.visible === false) {
         setCommandResult({
@@ -316,11 +167,25 @@ function useCommandRunner(args: {
         return;
       }
 
-      const storyBase = `/stories/${encodeURIComponent(args.storySlug)}`;
       const commandContext = contextWithCommandIntent(args.readinessContext, command, goal);
-      if (command === "/inspect" || command === "/status") {
-        setIntentBlock(buildContextDigestBlock(commandContext));
+      if (command === "/inspect" || command === "/status" || command === "/context") {
+        args.onInspectorModeChange("context");
+        setIntentBlock(buildContextDigestBlock(commandContext, [{ label: "Open full memory workspace", href: workspaceHref(args.storySlug, "memory") }]));
         setCommandResult({ tone: "ready", title: "Context digest ready", detail: "I found the current story and chapter context state." });
+        return;
+      }
+
+      if (command === "/pipeline") {
+        args.onInspectorModeChange("progress");
+        args.onConversationBlock(buildWorkspaceWorkflowBlock({
+          id: `pipeline-${Date.now()}`,
+          workflowName: "Pipeline Progress",
+          stepLabel: "Inspecting active workflow state",
+          chapterId: args.chapterId,
+          actionLabel: "Open full pipelines workspace",
+          actionHref: workspaceHref(args.storySlug, "pipelines"),
+        }));
+        setCommandResult({ tone: "ready", title: "Pipeline progress opened", detail: "I kept the workflow state in the Write workspace inspector." });
         return;
       }
 
@@ -350,8 +215,25 @@ function useCommandRunner(args: {
       }
 
       if (command === "/research") {
-        router.push(`${storyBase}/analysis`);
-        setCommandResult({ tone: "ready", title: "Opening research context", detail: "Research and source analysis continue in the analysis workspace." });
+        args.onInspectorModeChange("context");
+        const stamp = Date.now();
+        args.onConversationBlock(buildWorkspaceWorkflowBlock({
+          id: `research-progress-${stamp}`,
+          workflowName: "Research Context",
+          stepLabel: "Preparing research context",
+          chapterId: args.chapterId,
+          actionLabel: "Open full analysis workspace",
+          actionHref: workspaceHref(args.storySlug, "analysis"),
+        }));
+        args.onConversationBlock(buildWorkspaceArtifactBlock({
+          id: `research-artifact-${stamp}`,
+          artifactType: "research",
+          title: "Research context",
+          description: "Research stays in this Write workspace; open the full analysis workspace only if you need the deep view.",
+          actionLabel: "Open full analysis workspace",
+          actionHref: workspaceHref(args.storySlug, "analysis"),
+        }));
+        setCommandResult({ tone: "ready", title: "Research context opened", detail: "I kept it in Write and opened the context inspector." });
         return;
       }
 
@@ -384,32 +266,68 @@ function useCommandRunner(args: {
           setCommandResult({ tone: "blocked", title: "Continuity Check", detail: "Choose or create a chapter before checking continuity." });
           return;
         }
+        args.onInspectorModeChange("progress");
         args.onQueueContinuity();
         setCommandResult({ tone: "running", title: "Continuity check queued", detail: "Canon, timeline, and reveal constraints are now marked for validation." });
         return;
       }
 
       if (command === "/analyze chapter") {
-        router.push(`${storyBase}/analysis`);
-        setCommandResult({ tone: "ready", title: "Opening analysis", detail: "The analysis workspace owns chapter and source diagnostics." });
+        args.onInspectorModeChange("context");
+        const stamp = Date.now();
+        args.onConversationBlock(buildWorkspaceWorkflowBlock({
+          id: `analysis-progress-${stamp}`,
+          workflowName: "Chapter Analysis",
+          stepLabel: "Analyzing chapter context",
+          chapterId: args.chapterId,
+          actionLabel: "Open full analysis workspace",
+          actionHref: workspaceHref(args.storySlug, "analysis"),
+        }));
+        args.onConversationBlock(buildWorkspaceArtifactBlock({
+          id: `analysis-artifact-${stamp}`,
+          artifactType: "analysis",
+          title: "Chapter analysis report",
+          description: "Analysis is attached to the Write timeline and expanded in the right inspector.",
+          actionLabel: "Open full analysis workspace",
+          actionHref: workspaceHref(args.storySlug, "analysis"),
+        }));
+        setCommandResult({ tone: "ready", title: "Analysis opened", detail: "I kept the command inside Write and opened the context inspector." });
         return;
       }
 
-      if (command === "/extract memory") {
-        router.push(`${storyBase}/memory`);
-        setCommandResult({ tone: "ready", title: "Opening memory hub", detail: "Memory extraction and conflict review continue in the story memory workspace." });
+      if (command === "/extract memory" || command === "/memory") {
+        args.onInspectorModeChange("memory");
+        setIntentBlock(buildContextDigestBlock(commandContext, [{ label: "Open full memory workspace", href: workspaceHref(args.storySlug, "memory") }]));
+        setCommandResult({ tone: "ready", title: "Memory notes opened", detail: "I kept memory and continuity notes in the Write workspace inspector." });
         return;
       }
 
       if (command === "/review chapter") {
-        router.push(`${storyBase}/reviews`);
-        setCommandResult({ tone: "ready", title: "Opening reviews", detail: "Chapter review requests, scoring, and responses live in the review workspace." });
+        args.onInspectorModeChange("artifacts");
+        const stamp = Date.now();
+        args.onConversationBlock(buildWorkspaceWorkflowBlock({
+          id: `review-progress-${stamp}`,
+          workflowName: "Chapter Review",
+          stepLabel: "Preparing review artifact",
+          chapterId: args.chapterId,
+          actionLabel: "Open full reviews workspace",
+          actionHref: workspaceHref(args.storySlug, "reviews"),
+        }));
+        args.onConversationBlock(buildWorkspaceArtifactBlock({
+          id: `review-artifact-${stamp}`,
+          artifactType: "review",
+          title: "Chapter review result",
+          description: "Review output is visible in Write and expands through the artifact inspector.",
+          actionLabel: "Open full reviews workspace",
+          actionHref: workspaceHref(args.storySlug, "reviews"),
+        }));
+        setCommandResult({ tone: "ready", title: "Review opened", detail: "I kept review output inside Write and opened the artifact inspector." });
         return;
       }
 
       setCommandResult({ tone: "blocked", title: `${commandLabel(command)} unavailable`, detail: "This command is not wired to a safe workflow action yet." });
     },
-    [args, router]
+    [args]
   );
 
   const submitMessage = React.useCallback((message: string) => {
@@ -421,8 +339,9 @@ function useCommandRunner(args: {
       return;
     }
     if (route.intent === "ADD_CONTEXT") {
-      router.push(`/stories/${encodeURIComponent(args.storySlug)}/analysis`);
-      setCommandResult({ tone: "ready", title: "Opening context tools", detail: "Add or analyze story context before writing." });
+      args.onInspectorModeChange("context");
+      setIntentBlock(buildContextDigestBlock(args.readinessContext, [{ label: "Open full analysis workspace", href: workspaceHref(args.storySlug, "analysis") }]));
+      setCommandResult({ tone: "ready", title: "Context tools opened", detail: "I kept context recovery in Write and opened the context inspector." });
       return;
     }
     if (route.intent === "BRAINSTORM") {
@@ -481,6 +400,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     mode: chatMode,
     onModeChange: setChatMode,
     onConversationBlock: (block) => setConversationBlocks((current) => [...current, block]),
+    onInspectorModeChange: props.onInspectorModeChange,
   });
   const blocks = buildTimelineBlocks({
     briefing,
@@ -496,10 +416,37 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   });
 
   const handleChip = (chip: RecoveryChip) => {
-    const target = chipTarget(props.storySlug, chip);
+    const target = chipTarget(chip);
     if (chip.intent === "describe_goal" || chip.intent === "continue_degraded") {
       props.onComposerValueChange(props.chapterId ? `/write chapter ${props.chapterId} ` : "/write chapter ");
       props.onCommandMenuOpenChange(false);
+      return;
+    }
+    if (chip.intent === "add_context" || chip.intent === "analyze_source") {
+      props.onInspectorModeChange("context");
+      setConversationBlocks((current) => [
+        ...current,
+        buildWorkspaceWorkflowBlock({
+          id: `recovery-analysis-${Date.now()}`,
+          workflowName: "Context Recovery",
+          stepLabel: chip.intent === "analyze_source" ? "Analyzing source context" : "Preparing missing context",
+          chapterId: props.chapterId,
+          actionLabel: "Open full analysis workspace",
+          actionHref: workspaceHref(props.storySlug, "analysis"),
+        }),
+      ]);
+      return;
+    }
+    if (chip.intent === "inspect_context") {
+      props.onInspectorModeChange("context");
+      setConversationBlocks((current) => [
+        ...current,
+        buildContextDigestBlock(
+          props.assistantContext,
+          [{ label: "Open full memory workspace", href: workspaceHref(props.storySlug, "memory") }],
+          `recovery-context-${Date.now()}`
+        ),
+      ]);
       return;
     }
     if (target) router.push(target);

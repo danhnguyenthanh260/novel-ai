@@ -11,6 +11,7 @@ import type {
   ContextReadiness,
   CurrentVersion,
   SceneItem,
+  WriteInspectorMode,
 } from "@/features/scenes/components/writeTab/types";
 
 type DraftSource = {
@@ -236,16 +237,21 @@ function WorkspaceAutoWriteModal(
 }
 
 export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
-  const { isArtifactVisible } = useStory();
+  const { isArtifactVisible, setIsArtifactVisible } = useStory();
   const [continuityQueued, setContinuityQueued] = useState(false);
   const [composerValue, setComposerValue] = useState("");
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const [inspectorMode, setInspectorMode] = useState<WriteInspectorMode>("progress");
   const draftSource = useMemo(() => buildDraftSource(props), [props]);
   const chapterTitle = selectedChapterTitle(props.selectedChapterId);
   const hasDraft = draftSource.text.trim().length > 0;
   const loadingWorkspace = props.loadingScenes || props.loadingDetail || props.loadingChapter;
   const readiness: ContextReadiness = "degraded";
   const availability = assistantAvailability(props, hasDraft);
+  const openInspectorMode = (mode: WriteInspectorMode) => {
+    setInspectorMode(mode);
+    setIsArtifactVisible(false);
+  };
 
   return (
     <>
@@ -278,6 +284,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           onCommandMenuOpenChange={setCommandMenuOpen}
           onOpenAutoWrite={() => props.setShowAutoWrite(true)}
           onQueueContinuity={() => setContinuityQueued(true)}
+          onInspectorModeChange={openInspectorMode}
           assistantContext={{
             storyTitle: storyLabelFromSlug(props.storySlug),
             storySelected: Boolean(props.storySlug),
@@ -298,6 +305,8 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           hasChapter={Boolean(props.selectedChapterId)}
           readiness={readiness}
           isVisible={isArtifactVisible}
+          inspectorMode={inspectorMode}
+          onInspectorModeChange={setInspectorMode}
           continuityQueued={continuityQueued}
           onOpenAutoWrite={() => props.setShowAutoWrite(true)}
           onQueueContinuity={() => setContinuityQueued(true)}

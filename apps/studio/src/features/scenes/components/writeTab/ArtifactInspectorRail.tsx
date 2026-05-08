@@ -8,14 +8,21 @@ import {
   continuityWorkflowProgressEvent,
   workflowProgressBlockFromEvent,
 } from "@/features/scenes/components/writeTab/chatOrchestration/workflowProgressEvents";
-import type { ContextReadiness, ContextReadinessLabel, TimelineBlock } from "@/features/scenes/components/writeTab/types";
+import type { ContextReadiness, ContextReadinessLabel, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
-type InspectorTab = "Progress" | "Context" | "Artifacts" | "Memory";
+const inspectorTabs: Array<{ mode: WriteInspectorMode; label: string }> = [
+  { mode: "progress", label: "Progress" },
+  { mode: "context", label: "Context" },
+  { mode: "artifacts", label: "Artifacts" },
+  { mode: "memory", label: "Memory" },
+];
 
 type ArtifactInspectorRailProps = {
   readiness: ContextReadiness;
   continuityQueued: boolean;
   diagnostics: ArtifactInspectorDiagnostics;
+  mode: WriteInspectorMode;
+  onModeChange: (mode: WriteInspectorMode) => void;
 };
 
 export type ArtifactInspectorDiagnostics = {
@@ -165,21 +172,20 @@ function TabPreview({
   diagnostics,
   continuityQueued,
 }: {
-  tab: InspectorTab;
+  tab: WriteInspectorMode;
   readiness: ContextReadiness;
   diagnostics: ArtifactInspectorDiagnostics;
   continuityQueued: boolean;
 }) {
-  if (tab === "Progress") return <WorkflowProgressBlockView block={buildWorkflowBlock(diagnostics, continuityQueued)} density="detail" />;
-  if (tab === "Context") return <ContextDigestBlockView block={buildContextDigestBlock(readiness, diagnostics, continuityQueued)} />;
-  if (tab === "Artifacts") return <ArtifactPreviewBlockView block={buildArtifactPreviewBlock(diagnostics)} density="detail" />;
-  if (tab === "Memory") return <MemoryPreview diagnostics={diagnostics} />;
+  if (tab === "progress") return <WorkflowProgressBlockView block={buildWorkflowBlock(diagnostics, continuityQueued)} density="detail" />;
+  if (tab === "context") return <ContextDigestBlockView block={buildContextDigestBlock(readiness, diagnostics, continuityQueued)} />;
+  if (tab === "artifacts") return <ArtifactPreviewBlockView block={buildArtifactPreviewBlock(diagnostics)} density="detail" />;
+  if (tab === "memory") return <MemoryPreview diagnostics={diagnostics} />;
   return null;
 }
 
-export default function ArtifactInspectorRail({ readiness, continuityQueued, diagnostics }: ArtifactInspectorRailProps) {
+export default function ArtifactInspectorRail({ readiness, continuityQueued, diagnostics, mode, onModeChange }: ArtifactInspectorRailProps) {
   const [inspectorWidth, setInspectorWidth] = useState(308);
-  const [activeTab, setActiveTab] = useState<InspectorTab>("Progress");
   const progress = progressPercent(diagnostics, continuityQueued);
   const warnings = warningCount(readiness, diagnostics, continuityQueued);
 
@@ -207,13 +213,13 @@ export default function ArtifactInspectorRail({ readiness, continuityQueued, dia
         <span className="muted text-[10px]">{warnings} warnings</span>
       </div>
       <div className="inspector-tabs" role="tablist">
-        {(["Progress", "Context", "Artifacts", "Memory"] as InspectorTab[]).map((tab) => (
-          <button key={tab} type="button" className={tab === activeTab ? "shell-link shell-link--active px-2 py-1 text-xs" : "shell-link px-2 py-1 text-xs"} onClick={() => setActiveTab(tab)}>
-            {tab}
+        {inspectorTabs.map((tab) => (
+          <button key={tab.mode} type="button" className={tab.mode === mode ? "shell-link shell-link--active px-2 py-1 text-xs" : "shell-link px-2 py-1 text-xs"} onClick={() => onModeChange(tab.mode)}>
+            {tab.label}
           </button>
         ))}
       </div>
-      <TabPreview tab={activeTab} readiness={readiness} diagnostics={diagnostics} continuityQueued={continuityQueued} />
+      <TabPreview tab={mode} readiness={readiness} diagnostics={diagnostics} continuityQueued={continuityQueued} />
     </aside>
   );
 }
