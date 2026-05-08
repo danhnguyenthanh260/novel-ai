@@ -53,6 +53,7 @@ Refactor direction for large modules:
 
 - The Write workspace is viewport locked: the app shell reserves the fixed top bar, the Write grid fills the remaining visible height, and only internal panels scroll. The browser page itself must not become the scrolling surface for `/stories/[slug]/write`.
 - The center chat owns conversation history and the persistent bottom composer. User/assistant prose renders as compact chat bubbles with text-only copy actions; system state renders as compact timeline blocks.
+- Composer draft text is private input state. It must never be rendered as a timeline message; only submitted messages appended by the submit handler enter conversation history.
 - The slash command menu is anchored above the composer with internal scrolling and must not shift the page layout.
 - Write workspace commands stay inside Write by default. Command handlers append the relevant timeline block and switch the shared right-inspector mode; they must not use route navigation for `/analyze`, `/research`, `/review`, `/memory`, `/pipeline`, `/context`, `/inspect`, or `/status`.
 - Inspector mode is workspace UI state, not route state. Deep Analysis, Reviews, Memory, and Pipelines pages remain available only through explicit secondary links such as "Open full analysis workspace".
