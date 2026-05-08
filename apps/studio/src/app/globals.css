@@ -959,6 +959,7 @@ body.write-route-lock {
 }
 
 .timeline-card__actions button,
+.timeline-card__actions a,
 .timeline-chip-row button {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-pill);
@@ -966,6 +967,7 @@ body.write-route-lock {
   color: var(--accent);
   padding: 6px 9px;
   font-size: 11px;
+  text-decoration: none;
 }
 
 .timeline-step-list,

@@ -101,6 +101,13 @@ export function WorkflowProgressBlockView({
           <button type="button">Cancel</button>
         </div>
       ) : null}
+      {block.action_links?.length ? (
+        <div className="timeline-card__actions">
+          {block.action_links.map((link) => (
+            <a key={link.href} href={link.href}>{link.label}</a>
+          ))}
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -138,6 +145,9 @@ export function ArtifactPreviewBlockView({
           <button key={action} type="button">
             {action.replaceAll("_", " ")}
           </button>
+        ))}
+        {block.action_links?.map((link) => (
+          <a key={link.href} href={link.href}>{link.label}</a>
         ))}
       </div>
     </article>
@@ -199,6 +209,13 @@ export function ContextDigestBlockView({ block }: { block: Extract<TimelineBlock
         </div>
       </div>
       {block.conflicts.length ? <p>{block.conflicts.join("; ")}</p> : null}
+      {block.action_links?.length ? (
+        <div className="timeline-card__actions">
+          {block.action_links.map((link) => (
+            <a key={link.href} href={link.href}>{link.label}</a>
+          ))}
+        </div>
+      ) : null}
     </article>
   );
 }

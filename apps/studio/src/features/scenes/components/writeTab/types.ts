@@ -110,6 +110,13 @@ export type InlineChoiceChip = RecoveryChip & {
 
 export type WorkflowStepStatus = "complete" | "active" | "pending" | "failed";
 
+export type WriteInspectorMode = "progress" | "context" | "artifacts" | "memory";
+
+export type TimelineActionLink = {
+  label: string;
+  href: string;
+};
+
 export type WorkflowProgressBlock = {
   type: "workflow_progress";
   source: "backend" | "assistant";
@@ -126,6 +133,7 @@ export type WorkflowProgressBlock = {
     label: string;
     status: WorkflowStepStatus;
   }>;
+  action_links?: TimelineActionLink[];
 };
 
 export type ArtifactPreviewBlock = {
@@ -144,6 +152,7 @@ export type ArtifactPreviewBlock = {
   beat_count: number | null;
   preview_lines: string[];
   actions: string[];
+  action_links?: TimelineActionLink[];
 };
 
 export type ApprovalGateBlock = {
@@ -185,6 +194,7 @@ export type ContextDigestBlock = {
   missing: string[];
   degraded: string[];
   conflicts: string[];
+  action_links?: TimelineActionLink[];
 };
 
 export type TimelineBlock =
@@ -204,6 +214,9 @@ export type CommandId =
   | "/plan"
   | "/analyze chapter"
   | "/research"
+  | "/context"
+  | "/pipeline"
+  | "/memory"
   | "/rewrite selection"
   | "/continue from cursor"
   | "/check continuity"
