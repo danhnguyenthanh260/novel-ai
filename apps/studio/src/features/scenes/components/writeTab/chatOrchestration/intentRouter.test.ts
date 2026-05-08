@@ -23,6 +23,7 @@ export function runIntentRouterSelfTest(): void {
   assert(detectStudioIntent("How do I run this src, and how do I test it?") === "REPO_RUN_HELP", "run/test help overrides brainstorm");
   assert(detectStudioIntent("what angle?") === "BRAINSTORM_CLARIFICATION", "angle question maps to brainstorm clarification");
   assert(detectStudioIntent("1") === "BRAINSTORM_EXPAND_CHOICE", "numbered brainstorm choice maps to expand choice");
+  assert(detectStudioIntent("Let's go with a character contradiction") !== "WRITE", "let's go with brainstorm follow-up is not generic WRITE");
 
   const ambiguous = routeStudioIntent({ message: "maybe later", readiness: "degraded" });
   assert(ambiguous.needsClarification && ambiguous.assistantText !== null, "ambiguous input asks one clarifying question");
@@ -76,6 +77,35 @@ export function runIntentRouterSelfTest(): void {
   });
   assert(quotedClarification.intent === "QUOTED_PREVIOUS_RESPONSE_QUESTION", "quoted assistant text plus question maps to clarification");
   assert(quotedClarification.assistantText?.startsWith("By \"angle\"") === true, "quoted assistant text is not treated as a new seed");
+
+  const selectedAngle = routeStudioIntent({
+    message: "1",
+    readiness: "degraded",
+    mode: "brainstorm",
+    recentBrainstormSeed: "a girl",
+  });
+  assert(selectedAngle.brainstormFollowupActions?.includes("character_contradiction") === true, "angle expansion offers brainstorm follow-up actions");
+
+  const characterContradiction = routeStudioIntent({
+    message: "Let's go with a character contradiction. She is known as the most reliable, fiercely loyal problem-solver.",
+    readiness: "degraded",
+    mode: "brainstorm",
+    recentBrainstormSeed: "a girl",
+    pendingBrainstormActions: ["scene_goal", "character_contradiction", "chapter_opening"],
+  });
+  assert(characterContradiction.intent === "BRAINSTORM_CHARACTER_CONTRADICTION", "pending character contradiction wins over write routing");
+  assert(characterContradiction.command === null, "brainstorm continuation does not start a workflow command");
+  assert(characterContradiction.assistantText?.includes("Character contradiction") === true, "character contradiction reply labels the continuation");
+  assert(characterContradiction.assistantText?.includes("Core tension") === true, "character contradiction reply expands tension");
+
+  const explicitWrite = routeStudioIntent({
+    message: "write the chapter",
+    readiness: "degraded",
+    mode: "brainstorm",
+    recentBrainstormSeed: "a girl",
+    pendingBrainstormActions: ["scene_goal", "character_contradiction", "chapter_opening"],
+  });
+  assert(explicitWrite.command === "/write chapter", "explicit chapter write still routes to write command");
 
   const blockedWrite = routeStudioIntent({ message: "continue", readiness: "blocked" });
   assert(blockedWrite.command === "/write chapter", "blocked write still routes through preflight");
