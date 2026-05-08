@@ -1,5 +1,7 @@
 import type { CommandId, ContextReadiness, StudioChatIntent } from "@/features/scenes/components/writeTab/types";
 
+export type BrainstormFollowupAction = "scene_goal" | "character_contradiction" | "chapter_opening";
+
 export type IntentRoute = {
   intent: StudioChatIntent;
   command: CommandId | null;
@@ -7,6 +9,7 @@ export type IntentRoute = {
   needsClarification: boolean;
   assistantText: string | null;
   brainstormSeed?: string | null;
+  brainstormFollowupActions?: BrainstormFollowupAction[] | null;
 };
 
 type RouteIntentArgs = {
@@ -14,6 +17,7 @@ type RouteIntentArgs = {
   readiness: ContextReadiness;
   mode?: "chat" | "brainstorm";
   recentBrainstormSeed?: string | null;
+  pendingBrainstormActions?: BrainstormFollowupAction[] | null;
 };
 
 const commandByIntent: Partial<Record<StudioChatIntent, CommandId>> = {
@@ -38,8 +42,10 @@ const intentPatterns: Array<{ intent: StudioChatIntent; patterns: RegExp[] }> = 
   { intent: "PLAN", patterns: [/\bplan first\b/, /\boutline\b/, /\bchapter plan\b/, /\bplan\b/] },
   { intent: "REVIEW", patterns: [/\breview\b/, /\bshow draft\b/, /\bopen draft\b/] },
   { intent: "SPLIT", patterns: [/\bsplit\b/, /\btoo long\b/, /\bbreak.*chapter\b/] },
-  { intent: "WRITE", patterns: [/\bcontinue\b/, /\bkeep writing\b/, /\blet'?s go\b/, /\bwrite\b/, /\bdraft\b/] },
+  { intent: "WRITE", patterns: [/^continue$/, /\bkeep writing\b/, /^let'?s go$/, /\bwrite( the)? chapter\b/, /\bdraft( the)? chapter\b/, /\bgenerate( the)? chapter\b/, /\bstart chapter write\b/, /\brun autowrite\b/, /^\/?write\b/] },
 ];
+
+const brainstormFollowupActions: BrainstormFollowupAction[] = ["scene_goal", "character_contradiction", "chapter_opening"];
 
 function normalizedMessage(message: string): string {
   return message.trim().toLowerCase().replace(/\s+/g, " ");
@@ -102,6 +108,36 @@ function isQuotedAssistantQuestion(message: string): boolean {
 
 function isBrainstormChoice(message: string): boolean {
   return /^(1|2|3|one|two|three|hidden wound|trigger event|opening scene)\b/i.test(message.trim());
+}
+
+function isExplicitChapterWrite(message: string): boolean {
+  const text = normalizedMessage(message);
+  return includesAny(text, [
+    /^\/write\b/,
+    /\bwrite( the)? chapter\b/,
+    /\bdraft( the)? chapter\b/,
+    /\bgenerate( the)? chapter\b/,
+    /\bstart chapter write\b/,
+    /\brun autowrite\b/,
+    /\bwrite chapter \d+\b/,
+    /\bdraft chapter \d+\b/,
+    /\bgenerate chapter \d+\b/,
+  ]);
+}
+
+function pendingBrainstormIntent(message: string, pendingActions: BrainstormFollowupAction[] | null | undefined, mode: RouteIntentArgs["mode"]): StudioChatIntent | null {
+  if (mode !== "brainstorm" || !pendingActions?.length) return null;
+  const text = normalizedMessage(message);
+  if (pendingActions.includes("scene_goal") && includesAny(text, [/\bscene goals?\b/, /^goals?$/, /\blet'?s go with (a )?scene goals?\b/])) {
+    return "BRAINSTORM_SCENE_GOAL";
+  }
+  if (pendingActions.includes("character_contradiction") && includesAny(text, [/\bcharacter contradiction\b/, /^contradiction$/, /\blet'?s go with (a )?character contradiction\b/])) {
+    return "BRAINSTORM_CHARACTER_CONTRADICTION";
+  }
+  if (pendingActions.includes("chapter_opening") && includesAny(text, [/\bchapter opening\b/, /\bopening scene\b/, /^opening$/, /\blet'?s go with (a )?chapter opening\b/])) {
+    return "BRAINSTORM_CHAPTER_OPENING";
+  }
+  return null;
 }
 
 function stripQuotedAssistantText(message: string): string {
@@ -192,6 +228,46 @@ function brainstormChoiceReply(message: string, seed: string | null | undefined)
   ].join("\n\n");
 }
 
+function brainstormContinuationReply(intent: StudioChatIntent, message: string, seed: string | null | undefined): string {
+  const detail = message.trim();
+  const context = seed?.trim() ? ` from "${seed.trim()}"` : "";
+  if (intent === "BRAINSTORM_CHARACTER_CONTRADICTION") {
+    return [
+      "Good. This contradiction is strong because her loyalty is behavioral, not emotional.",
+      "Character contradiction:",
+      detail || `Externally, she is the dependable person everyone trusts in a crisis${context}. Internally, she has already categorized every bond as temporary.`,
+      "Core tension:",
+      "She helps people as if she loves them forever, but plans as if they will betray her tomorrow.",
+      "Scene expression:",
+      "Show her solving a friend's problem with total competence, then quietly deleting a shared calendar, packing emergency cash, or checking an escape route afterward.",
+      "Next options:",
+      "1. Turn this into a scene goal.",
+      "2. Turn this into a chapter opening.",
+      "3. Add the event that breaks her logic.",
+    ].join("\n\n");
+  }
+  if (intent === "BRAINSTORM_SCENE_GOAL") {
+    return [
+      "Scene goal:",
+      detail || `Force the protagonist to prove competence while revealing the private fear underneath${context}.`,
+      "The scene should make the contradiction visible through behavior, not explanation.",
+      "Next options:",
+      "1. Turn this into a character contradiction.",
+      "2. Turn this into a chapter opening.",
+      "3. Add the event that breaks the scene.",
+    ].join("\n\n");
+  }
+  return [
+    "Chapter opening:",
+    detail || `Open with a concrete pressure point where the protagonist's public role and private logic collide${context}.`,
+    "Keep the first scene visual: one problem to solve, one relationship at risk, one private escape plan the reader notices.",
+    "Next options:",
+    "1. Turn this into a scene goal.",
+    "2. Turn this into a character contradiction.",
+    "3. Add the event that breaks her logic.",
+  ].join("\n\n");
+}
+
 function repoHelpReply(): string {
   return [
     "I’ll switch from brainstorming to project setup help for this question.",
@@ -240,7 +316,8 @@ function goalFromMessage(message: string, intent: StudioChatIntent): string {
 // Keep routing priority visible because mode override order is the bug surface.
 // eslint-disable-next-line complexity
 export function routeStudioIntent(args: RouteIntentArgs): IntentRoute {
-  const intent = detectStudioIntent(args.message);
+  const brainstormIntent = isExplicitChapterWrite(args.message) ? null : pendingBrainstormIntent(args.message, args.pendingBrainstormActions, args.mode);
+  const intent = brainstormIntent ?? detectStudioIntent(args.message);
   const goal = goalFromMessage(args.message, intent);
   if (intent === "REPO_RUN_HELP" || intent === "REPO_TEST_HELP") {
     return { intent, command: null, goal, needsClarification: false, assistantText: repoHelpReply(), brainstormSeed: null };
@@ -250,7 +327,18 @@ export function routeStudioIntent(args: RouteIntentArgs): IntentRoute {
     return { intent, command: null, goal, needsClarification: false, assistantText: brainstormClarificationReply(seed), brainstormSeed: seed ?? null };
   }
   if (intent === "BRAINSTORM_EXPAND_CHOICE") {
-    return { intent, command: null, goal, needsClarification: false, assistantText: brainstormChoiceReply(args.message, args.recentBrainstormSeed), brainstormSeed: args.recentBrainstormSeed ?? null };
+    return { intent, command: null, goal, needsClarification: false, assistantText: brainstormChoiceReply(args.message, args.recentBrainstormSeed), brainstormSeed: args.recentBrainstormSeed ?? null, brainstormFollowupActions };
+  }
+  if (intent === "BRAINSTORM_SCENE_GOAL" || intent === "BRAINSTORM_CHARACTER_CONTRADICTION" || intent === "BRAINSTORM_CHAPTER_OPENING") {
+    return {
+      intent,
+      command: null,
+      goal,
+      needsClarification: false,
+      assistantText: brainstormContinuationReply(intent, args.message, args.recentBrainstormSeed),
+      brainstormSeed: args.recentBrainstormSeed ?? null,
+      brainstormFollowupActions,
+    };
   }
   if (staysInBrainstormMode(args.mode, intent)) {
     const seed = args.message.trim();
@@ -261,6 +349,7 @@ export function routeStudioIntent(args: RouteIntentArgs): IntentRoute {
       needsClarification: false,
       assistantText: brainstormReply(args.message),
       brainstormSeed: isShortAcknowledgement(seed) || /^brainstorm\b/i.test(seed) ? args.recentBrainstormSeed ?? null : seed,
+      brainstormFollowupActions: null,
     };
   }
   if (intent === "CHAT") {
@@ -289,6 +378,7 @@ export function routeStudioIntent(args: RouteIntentArgs): IntentRoute {
       needsClarification: false,
       assistantText: brainstormReply(args.message),
       brainstormSeed: /^brainstorm\b/i.test(args.message.trim()) ? args.recentBrainstormSeed ?? null : args.message.trim(),
+      brainstormFollowupActions: null,
     };
   }
   if (intent === "SWITCH_STORY" || intent === "ADD_CONTEXT") {

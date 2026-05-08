@@ -18,6 +18,7 @@ import {
   workspaceHref,
 } from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
 import { routeStudioIntent } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
+import type { BrainstormFollowupAction } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
 import {
   continuityWorkflowProgressEvent,
@@ -142,6 +143,8 @@ function useCommandRunner(args: {
   onModeChange: (mode: "chat" | "brainstorm") => void;
   recentBrainstormSeed: string | null;
   onBrainstormSeedChange: (seed: string | null) => void;
+  pendingBrainstormActions: BrainstormFollowupAction[] | null;
+  onPendingBrainstormActionsChange: (actions: BrainstormFollowupAction[] | null) => void;
   onConversationBlock: (block: TimelineBlock) => void;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
 }) {
@@ -333,10 +336,14 @@ function useCommandRunner(args: {
       readiness: args.readinessContext.readiness,
       mode: args.mode,
       recentBrainstormSeed: args.recentBrainstormSeed,
+      pendingBrainstormActions: args.pendingBrainstormActions,
     });
     setIntentBlock(null);
     if (route.brainstormSeed !== undefined) {
       args.onBrainstormSeedChange(route.brainstormSeed);
+    }
+    if (route.brainstormFollowupActions !== undefined) {
+      args.onPendingBrainstormActionsChange(route.brainstormFollowupActions);
     }
     if (route.intent === "SWITCH_STORY") {
       router.push("/shelf");
@@ -387,6 +394,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const router = useRouter();
   const [chatMode, setChatMode] = React.useState<"chat" | "brainstorm">("chat");
   const [recentBrainstormSeed, setRecentBrainstormSeed] = React.useState<string | null>(null);
+  const [pendingBrainstormActions, setPendingBrainstormActions] = React.useState<BrainstormFollowupAction[] | null>(null);
   const [conversationBlocks, setConversationBlocks] = React.useState<TimelineBlock[]>([]);
   const [pendingAssistant, setPendingAssistant] = React.useState(false);
   const briefing = buildAssistantReadiness(props.assistantContext);
@@ -401,6 +409,8 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     onModeChange: setChatMode,
     recentBrainstormSeed,
     onBrainstormSeedChange: setRecentBrainstormSeed,
+    pendingBrainstormActions,
+    onPendingBrainstormActionsChange: setPendingBrainstormActions,
     onConversationBlock: (block) => setConversationBlocks((current) => [...current, block]),
     onInspectorModeChange: props.onInspectorModeChange,
   });
