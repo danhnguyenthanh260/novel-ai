@@ -1,12 +1,15 @@
 "use client";
 
 import React from "react";
+import { choiceSelectionFromBlock } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
 import ReadinessBriefing from "@/features/scenes/components/writeTab/chatOrchestration/ReadinessBriefing";
-import type { RecoveryChip, TimelineBlock, WorkflowStepStatus } from "@/features/scenes/components/writeTab/types";
+import type { ChoiceGroupChoice, RecoveryChip, TimelineBlock, WorkflowStepStatus } from "@/features/scenes/components/writeTab/types";
+import type { StructuredChoiceSelection } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
 
 type TimelineBlocksProps = {
   blocks: TimelineBlock[];
   onChip: (chip: RecoveryChip) => void;
+  onChoice: (selection: StructuredChoiceSelection) => void;
 };
 
 function workflowMarker(status: WorkflowStepStatus): string {
@@ -60,6 +63,44 @@ function ChoiceChipsBlock({ block, onChip }: { block: Extract<TimelineBlock, { t
         </button>
       ))}
     </div>
+  );
+}
+
+function ChoiceGroup({
+  block,
+  onChoice,
+}: {
+  block: Extract<TimelineBlock, { type: "choice_group" }>;
+  onChoice: (block: Extract<TimelineBlock, { type: "choice_group" }>, choice: ChoiceGroupChoice) => void;
+}) {
+  const selectedIds = block.choices.filter((choice) => choice.selected).map((choice) => choice.id);
+  const hasSelection = selectedIds.length > 0;
+  return (
+    <article className="choice-group-card" aria-label={block.prompt}>
+      <div className="choice-group-card__prompt">{block.prompt}</div>
+      <div className={`choice-group-card__choices choice-group-card__choices--${block.selectionMode}`}>
+        {block.choices.map((choice) => {
+          const selected = Boolean(choice.selected);
+          const disabled = Boolean(choice.disabled || (hasSelection && block.selectionMode === "single"));
+          return (
+            <button
+              key={choice.id}
+              type="button"
+              className={`choice-option ${selected ? "choice-option--selected" : ""}`}
+              aria-pressed={selected}
+              disabled={disabled}
+              onClick={() => onChoice(block, choice)}
+            >
+              <span className="choice-option__marker">{selected ? "✓" : block.selectionMode === "multiple" ? "□" : "○"}</span>
+              <span>
+                <strong>{choice.label}</strong>
+                {choice.description ? <small>{choice.description}</small> : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </article>
   );
 }
 
@@ -220,13 +261,14 @@ export function ContextDigestBlockView({ block }: { block: Extract<TimelineBlock
   );
 }
 
-export default function TimelineBlocks({ blocks, onChip }: TimelineBlocksProps) {
+export default function TimelineBlocks({ blocks, onChip, onChoice }: TimelineBlocksProps) {
   return (
     <>
       {blocks.map((block) => {
         if (block.type === "text_message") return <TextBlock key={block.id} block={block} />;
         if (block.type === "readiness_card") return <ReadinessBriefing key={block.id} briefing={block.briefing} onChip={onChip} />;
         if (block.type === "inline_choice_chips") return <ChoiceChipsBlock key={block.id} block={block} onChip={onChip} />;
+        if (block.type === "choice_group") return <ChoiceGroup key={block.id} block={block} onChoice={(choiceBlock, choice) => onChoice(choiceSelectionFromBlock(choiceBlock, choice))} />;
         if (block.type === "workflow_progress") return <WorkflowProgressBlockView key={block.id} block={block} />;
         if (block.type === "artifact_preview") return <ArtifactPreviewBlockView key={block.id} block={block} />;
         if (block.type === "approval_gate") return <ApprovalGate key={block.id} block={block} />;

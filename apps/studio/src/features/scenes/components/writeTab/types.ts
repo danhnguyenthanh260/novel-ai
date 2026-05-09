@@ -116,6 +116,31 @@ export type InlineChoiceChip = RecoveryChip & {
   action: RecoveryIntent;
 };
 
+export type ChoiceGroupChoice = {
+  id: string;
+  label: string;
+  description?: string;
+  value: string;
+  selected?: boolean;
+  disabled?: boolean;
+};
+
+export type ChoiceGroupBlock = {
+  type: "choice_group";
+  id: string;
+  source: "assistant";
+  prompt: string;
+  selectionMode: "single" | "multiple";
+  choices: ChoiceGroupChoice[];
+  submitBehavior: "immediate" | "requires_confirm";
+  metadata?: {
+    intent?: StudioChatIntent;
+    groupKind?: "brainstorm_angle" | "brainstorm_followup" | "context_recovery";
+    seed?: string | null;
+    [key: string]: unknown;
+  };
+};
+
 export type WorkflowStepStatus = "complete" | "active" | "pending" | "failed";
 
 export type WriteInspectorMode = "progress" | "context" | "artifacts" | "memory";
@@ -206,9 +231,10 @@ export type ContextDigestBlock = {
 };
 
 export type TimelineBlock =
-  | { type: "text_message"; id: string; source: "user" | "assistant"; label: string; text: string; tone?: "ready" | "blocked" | "running"; pending?: boolean }
+  | { type: "text_message"; id: string; source: "user" | "assistant"; label: string; text: string; tone?: "ready" | "blocked" | "running"; pending?: boolean; metadata?: Record<string, unknown> }
   | { type: "readiness_card"; id: string; briefing: AssistantReadinessBriefing }
   | { type: "inline_choice_chips"; id: string; chips: InlineChoiceChip[] }
+  | ChoiceGroupBlock
   | (WorkflowProgressBlock & { id: string })
   | (ArtifactPreviewBlock & { id: string })
   | (ApprovalGateBlock & { id: string })

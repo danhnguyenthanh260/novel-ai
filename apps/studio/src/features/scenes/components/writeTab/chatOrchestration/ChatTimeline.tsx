@@ -3,11 +3,13 @@
 import React from "react";
 import TimelineBlocks from "@/features/scenes/components/writeTab/chatOrchestration/TimelineBlocks";
 import type { ChatContextMiniBarPayload, RecoveryChip, TimelineBlock } from "@/features/scenes/components/writeTab/types";
+import type { StructuredChoiceSelection } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
 
 type ChatTimelineProps = {
   context: ChatContextMiniBarPayload;
   blocks: TimelineBlock[];
   onChip: (chip: RecoveryChip) => void;
+  onChoice: (selection: StructuredChoiceSelection) => void;
 };
 
 function statusClass(status: ChatContextMiniBarPayload["status"]): string {
@@ -16,7 +18,7 @@ function statusClass(status: ChatContextMiniBarPayload["status"]): string {
   return "status-pill status-pill--blocked";
 }
 
-export default function ChatTimeline({ context, blocks, onChip }: ChatTimelineProps) {
+export default function ChatTimeline({ context, blocks, onChip, onChoice }: ChatTimelineProps) {
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const [nearBottom, setNearBottom] = React.useState(true);
 
@@ -43,7 +45,7 @@ export default function ChatTimeline({ context, blocks, onChip }: ChatTimelinePr
       </div>
       <div ref={scrollRef} className="work-stream__scroll" onScroll={updateNearBottom}>
         <div className="timeline-stack">
-          <TimelineBlocks blocks={blocks} onChip={onChip} />
+          <TimelineBlocks blocks={blocks} onChip={onChip} onChoice={onChoice} />
         </div>
         {!nearBottom ? (
           <button type="button" className="jump-to-bottom" onClick={() => {

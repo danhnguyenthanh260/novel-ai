@@ -172,6 +172,7 @@ type TimelineBlock =
   | "text_message"
   | "readiness_card"
   | "inline_choice_chips"
+  | "choice_group"
   | "workflow_progress"
   | "artifact_preview"
   | "approval_gate"
@@ -189,7 +190,7 @@ Block source ownership is strict:
 
 | Source | Blocks |
 |---|---|
-| Assistant-originated | `text_message`, `readiness_card`, `inline_choice_chips`, assistant-detected `failure_recovery` |
+| Assistant-originated | `text_message`, `readiness_card`, `inline_choice_chips`, `choice_group`, assistant-detected `failure_recovery` |
 | Backend/workflow-originated | `workflow_progress`, `artifact_preview`, `approval_gate`, backend failure `failure_recovery`, `context_digest` |
 
 The assistant may acknowledge backend-originated blocks with short text, but it must not generate their payloads.
@@ -214,6 +215,14 @@ The assistant may acknowledge backend-originated blocks with short text, but it 
 - Minimum 2, maximum 4.
 - Each chip maps to an executable intent.
 - A blocked chip opens recovery, not silent failure.
+
+### `choice_group`
+
+- Use when the assistant asks the user to choose among explicit options.
+- Single-choice decisions render as selectable cards or chips, not checkboxes.
+- Multi-choice decisions render as checkboxes with a confirm/apply action.
+- Choice clicks must carry structured metadata such as `choiceGroupId`, `choiceId`, and intended route, while typed freeform fallback remains valid.
+- Selected state must remain visible when a conversation is restored from history.
 
 ### `workflow_progress`
 
