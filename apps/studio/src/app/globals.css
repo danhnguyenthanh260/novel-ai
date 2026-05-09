@@ -891,6 +891,7 @@ body.write-route-lock {
 
 .work-message,
 .timeline-card,
+.choice-group-card,
 .timeline-chip-row {
   max-width: min(620px, 78%);
   width: fit-content;
@@ -905,6 +906,7 @@ body.write-route-lock {
 
 .work-message--assistant,
 .timeline-card,
+.choice-group-card,
 .timeline-chip-row {
   justify-self: start;
 }
@@ -996,6 +998,79 @@ body.write-route-lock {
   border-radius: var(--radius-md);
   background: rgba(17, 24, 39, 0.72);
   padding: 12px;
+}
+
+.choice-group-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  background: rgba(17, 24, 39, 0.58);
+  padding: 10px;
+}
+
+.choice-group-card__prompt {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.choice-group-card__choices {
+  display: grid;
+  gap: 7px;
+}
+
+.choice-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  width: 100%;
+  min-width: min(520px, 70vw);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-secondary);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.choice-option:hover:not(:disabled),
+.choice-option:focus-visible {
+  border-color: rgba(66, 199, 184, 0.42);
+  color: var(--text-primary);
+}
+
+.choice-option--selected {
+  border-color: rgba(66, 199, 184, 0.5);
+  background: rgba(66, 199, 184, 0.12);
+  color: var(--text-primary);
+}
+
+.choice-option:disabled:not(.choice-option--selected) {
+  opacity: 0.52;
+}
+
+.choice-option__marker {
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.choice-option strong,
+.choice-option small {
+  display: block;
+}
+
+.choice-option strong {
+  font-size: 13px;
+}
+
+.choice-option small {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .timeline-card--failure {

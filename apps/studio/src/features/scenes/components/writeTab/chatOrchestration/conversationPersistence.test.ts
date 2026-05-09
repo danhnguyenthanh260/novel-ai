@@ -29,6 +29,7 @@ export function runConversationPersistenceSelfTest(): void {
   assert(state.chatMode === "brainstorm", "brainstorm mode restores from metadata");
   assert(state.recentBrainstormSeed === "a girl", "recent brainstorm seed restores from metadata");
   assert(state.pendingBrainstormActions?.[0] === "character_contradiction", "pending follow-up actions restore from metadata");
+  assert(Object.keys(state.choiceSelections).length === 0, "choice selections default to an object");
 
   const fallback = normalizeConversationState({ chatMode: "invalid", recentBrainstormSeed: 1 });
   assert(fallback.chatMode === "chat", "invalid state falls back to chat mode");

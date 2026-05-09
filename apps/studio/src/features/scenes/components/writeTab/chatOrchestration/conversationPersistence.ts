@@ -5,12 +5,14 @@ export type AssistantConversationState = {
   chatMode: "chat" | "brainstorm";
   recentBrainstormSeed: string | null;
   pendingBrainstormActions: BrainstormFollowupAction[] | null;
+  choiceSelections: Record<string, string[]>;
 };
 
 export const defaultConversationState: AssistantConversationState = {
   chatMode: "chat",
   recentBrainstormSeed: null,
   pendingBrainstormActions: null,
+  choiceSelections: {},
 };
 
 export function isTimelineBlock(value: unknown): value is TimelineBlock {
@@ -23,6 +25,9 @@ export function normalizeConversationState(value: unknown): AssistantConversatio
     chatMode: obj.chatMode === "brainstorm" ? "brainstorm" : "chat",
     recentBrainstormSeed: typeof obj.recentBrainstormSeed === "string" ? obj.recentBrainstormSeed : null,
     pendingBrainstormActions: Array.isArray(obj.pendingBrainstormActions) ? obj.pendingBrainstormActions : null,
+    choiceSelections: obj.choiceSelections && typeof obj.choiceSelections === "object" && !Array.isArray(obj.choiceSelections)
+      ? obj.choiceSelections as Record<string, string[]>
+      : {},
   };
 }
 
@@ -35,6 +40,7 @@ export function blockRole(block: TimelineBlock): "user" | "assistant" | "workflo
 
 export function blockContent(block: TimelineBlock): string {
   if (block.type === "text_message") return block.text;
+  if (block.type === "choice_group") return block.prompt;
   if (block.type === "workflow_progress") return `${block.workflow_name}: ${block.current_step_label}`;
   if (block.type === "artifact_preview") return block.title;
   if (block.type === "approval_gate") return block.description;

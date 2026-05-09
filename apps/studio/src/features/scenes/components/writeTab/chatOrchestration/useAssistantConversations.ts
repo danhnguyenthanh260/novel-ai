@@ -69,11 +69,23 @@ export function useAssistantConversations(args: { storySlug: string; chapterId: 
       const res = await fetch(`/api/stories/${encodeURIComponent(args.storySlug)}/assistant/conversations/${conversationId}/messages`, { cache: "no-store" });
       const json = await jsonOrError(res);
       const rows = Array.isArray(json.items) ? json.items as AssistantConversationMessage[] : [];
+      const found = itemsRef.current.find((item) => item.id === conversationId);
+      const restoredState = normalizeConversationState(found?.state_json);
       activeIdRef.current = conversationId;
       setActiveConversationId(conversationId);
-      setConversationBlocks(rows.map((row) => row.block).filter(isTimelineBlock));
-      const found = itemsRef.current.find((item) => item.id === conversationId);
-      setConversationState(normalizeConversationState(found?.state_json));
+      setConversationBlocks(rows.map((row) => row.block).filter(isTimelineBlock).map((block) => {
+        if (block.type !== "choice_group") return block;
+        const selectedIds = restoredState.choiceSelections[block.id] ?? [];
+        return {
+          ...block,
+          choices: block.choices.map((choice) => ({
+            ...choice,
+            selected: selectedIds.includes(choice.id),
+            disabled: selectedIds.length > 0 && !selectedIds.includes(choice.id),
+          })),
+        };
+      }));
+      setConversationState(restoredState);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "LOAD_CONVERSATION_FAILED");
     } finally {
@@ -175,6 +187,28 @@ export function useAssistantConversations(args: { storySlug: string; chapterId: 
     }).then(jsonOrError).catch(() => undefined);
   }, [args.storySlug]);
 
+  const selectChoice = React.useCallback(async (choiceGroupId: string, choiceId: string) => {
+    const nextState = {
+      ...conversationState,
+      choiceSelections: {
+        ...conversationState.choiceSelections,
+        [choiceGroupId]: [choiceId],
+      },
+    };
+    setConversationBlocks((current) => current.map((block) => {
+      if (block.type !== "choice_group" || block.id !== choiceGroupId) return block;
+      return {
+        ...block,
+        choices: block.choices.map((choice) => ({
+          ...choice,
+          selected: choice.id === choiceId,
+          disabled: choice.id !== choiceId,
+        })),
+      };
+    }));
+    await persistConversationState(nextState);
+  }, [conversationState, persistConversationState]);
+
   return {
     scope,
     setScope,
@@ -188,5 +222,6 @@ export function useAssistantConversations(args: { storySlug: string; chapterId: 
     startNewConversation,
     appendBlock,
     persistConversationState,
+    selectChoice,
   };
 }

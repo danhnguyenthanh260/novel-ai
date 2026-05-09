@@ -18,6 +18,7 @@ type RouteIntentArgs = {
   mode?: "chat" | "brainstorm";
   recentBrainstormSeed?: string | null;
   pendingBrainstormActions?: BrainstormFollowupAction[] | null;
+  structuredIntent?: StudioChatIntent | null;
 };
 
 const commandByIntent: Partial<Record<StudioChatIntent, CommandId>> = {
@@ -317,7 +318,7 @@ function goalFromMessage(message: string, intent: StudioChatIntent): string {
 // eslint-disable-next-line complexity
 export function routeStudioIntent(args: RouteIntentArgs): IntentRoute {
   const brainstormIntent = isExplicitChapterWrite(args.message) ? null : pendingBrainstormIntent(args.message, args.pendingBrainstormActions, args.mode);
-  const intent = brainstormIntent ?? detectStudioIntent(args.message);
+  const intent = args.structuredIntent ?? brainstormIntent ?? detectStudioIntent(args.message);
   const goal = goalFromMessage(args.message, intent);
   if (intent === "REPO_RUN_HELP" || intent === "REPO_TEST_HELP") {
     return { intent, command: null, goal, needsClarification: false, assistantText: repoHelpReply(), brainstormSeed: null };

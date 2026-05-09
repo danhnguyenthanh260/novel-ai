@@ -4,6 +4,11 @@ import ChatComposer from "@/features/scenes/components/writeTab/chatOrchestratio
 import ChatTimeline from "@/features/scenes/components/writeTab/chatOrchestration/ChatTimeline";
 import ConversationHistoryPanel from "@/features/scenes/components/writeTab/chatOrchestration/ConversationHistoryPanel";
 import {
+  buildBrainstormAngleChoiceGroup,
+  buildBrainstormFollowupChoiceGroup,
+  type StructuredChoiceSelection,
+} from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
+import {
   approvalGateBlock,
   buildCommands,
   buildContextDigestBlock,
@@ -27,6 +32,7 @@ import type {
   AssistantReadinessContext,
   CommandId,
   RecoveryChip,
+  StudioChatIntent,
   TimelineBlock,
   WriteInspectorMode,
 } from "@/features/scenes/components/writeTab/types";
@@ -245,13 +251,15 @@ function useCommandRunner(args: {
     [args]
   );
 
-  const submitMessage = React.useCallback((message: string) => {
+  // eslint-disable-next-line complexity
+  const submitMessage = React.useCallback((message: string, structuredIntent?: StudioChatIntent | null) => {
     const route = routeStudioIntent({
       message,
       readiness: args.readinessContext.readiness,
       mode: args.mode,
       recentBrainstormSeed: args.recentBrainstormSeed,
       pendingBrainstormActions: args.pendingBrainstormActions,
+      structuredIntent,
     });
     setIntentBlock(null);
     if (route.brainstormSeed !== undefined) {
@@ -278,14 +286,24 @@ function useCommandRunner(args: {
       if (route.intent === "REPO_RUN_HELP" || route.intent === "REPO_TEST_HELP") {
         args.onModeChange("chat");
       }
+      const stamp = Date.now();
       args.onConversationBlock({
-        id: `assistant-${Date.now()}`,
+        id: `assistant-${stamp}`,
         type: "text_message",
         source: "assistant",
         label: "Studio Writing Assistant",
         text: route.assistantText,
         tone: "ready",
       });
+      if (route.intent === "BRAINSTORM" && route.brainstormSeed && route.brainstormSeed === message.trim()) {
+        args.onConversationBlock(buildBrainstormAngleChoiceGroup(route.brainstormSeed, `choice-angle-${stamp}`));
+      }
+      if (route.intent === "BRAINSTORM_EXPAND_CHOICE") {
+        args.onConversationBlock(buildBrainstormFollowupChoiceGroup(route.brainstormSeed, `choice-followup-${stamp}`));
+      }
+      if (route.intent === "BRAINSTORM_SCENE_GOAL" || route.intent === "BRAINSTORM_CHARACTER_CONTRADICTION" || route.intent === "BRAINSTORM_CHAPTER_OPENING") {
+        args.onConversationBlock(buildBrainstormFollowupChoiceGroup(route.brainstormSeed, `choice-followup-${stamp}`));
+      }
       return;
     }
     if (route.needsClarification) {
@@ -323,6 +341,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     loadConversation,
     loading: conversationsLoading,
     persistConversationState,
+    selectChoice,
     scope: conversationScope,
     setScope: setConversationScope,
     startNewConversation,
@@ -341,8 +360,9 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
       chatMode,
       recentBrainstormSeed,
       pendingBrainstormActions,
+      choiceSelections: conversationState.choiceSelections,
     });
-  }, [chatMode, pendingBrainstormActions, persistConversationState, recentBrainstormSeed]);
+  }, [chatMode, conversationState.choiceSelections, pendingBrainstormActions, persistConversationState, recentBrainstormSeed]);
 
   const { commandResult, intentBlock, runCommand, submitMessage } = useCommandRunner({
     storySlug: props.storySlug,
@@ -406,6 +426,31 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     if (target) router.push(target);
   };
 
+  const handleChoice = (selection: StructuredChoiceSelection) => {
+    const userBlock: TimelineBlock = {
+      id: `user-choice-${Date.now()}`,
+      type: "text_message",
+      source: "user",
+      label: "You",
+      text: `Selected: ${selection.label}`,
+      metadata: {
+        source: "choice_group",
+        choiceGroupId: selection.choiceGroupId,
+        choiceId: selection.choiceId,
+        intent: selection.intent,
+      },
+    };
+    setPendingAssistant(true);
+    void selectChoice(selection.choiceGroupId, selection.choiceId)
+      .then(() => appendBlock(userBlock))
+      .then(() => {
+        window.setTimeout(() => {
+          submitMessage(selection.value, selection.intent);
+          setPendingAssistant(false);
+        }, 220);
+      });
+  };
+
   return (
     <section className="work-stream" aria-label="Studio chat work stream">
       <ConversationHistoryPanel
@@ -418,7 +463,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
         onNewChat={() => void startNewConversation()}
         onSelectConversation={(id) => void loadConversation(id)}
       />
-      <ChatTimeline context={buildContextMiniBar(props.assistantContext, briefing.status)} blocks={blocks} onChip={handleChip} />
+      <ChatTimeline context={buildContextMiniBar(props.assistantContext, briefing.status)} blocks={blocks} onChip={handleChip} onChoice={handleChoice} />
       <ChatComposer
         value={props.composerValue}
         menuOpen={props.commandMenuOpen}
