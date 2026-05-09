@@ -2,6 +2,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import ChatComposer from "@/features/scenes/components/writeTab/chatOrchestration/ChatComposer";
 import ChatTimeline from "@/features/scenes/components/writeTab/chatOrchestration/ChatTimeline";
+import ConversationHistoryPanel from "@/features/scenes/components/writeTab/chatOrchestration/ConversationHistoryPanel";
 import {
   approvalGateBlock,
   buildCommands,
@@ -20,14 +21,11 @@ import {
 import { routeStudioIntent } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import type { BrainstormFollowupAction } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
-import {
-  continuityWorkflowProgressEvent,
-  workflowProgressBlockFromEvent,
-} from "@/features/scenes/components/writeTab/chatOrchestration/workflowProgressEvents";
+import { buildTimelineBlocks } from "@/features/scenes/components/writeTab/chatOrchestration/timelineBlockBuilder";
+import { useAssistantConversations } from "@/features/scenes/components/writeTab/chatOrchestration/useAssistantConversations";
 import type {
   AssistantReadinessContext,
   CommandId,
-  FailureRecoveryBlock,
   RecoveryChip,
   TimelineBlock,
   WriteInspectorMode,
@@ -47,89 +45,6 @@ type CommandWorkStreamProps = {
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
   assistantContext: AssistantReadinessContext;
 };
-
-function resultBlock(result: CommandResult): TimelineBlock {
-  if (result.tone === "blocked") {
-    return {
-      id: "command-recovery",
-      type: "failure_recovery",
-      source: "assistant",
-      workflow_name: result.title,
-      stopped_at_step: "Preflight",
-      plain_reason: result.detail,
-      draft_preserved: true,
-      actions: ["retry", "cancel"],
-    } satisfies FailureRecoveryBlock & { id: string };
-  }
-
-  return {
-    id: "command-result",
-    type: "text_message",
-    source: "assistant",
-    label: "Studio Writing Assistant",
-    text: `${result.title}. ${result.detail}`,
-    tone: result.tone,
-  };
-}
-
-function buildTimelineBlocks(args: {
-  briefing: ReturnType<typeof buildAssistantReadiness>;
-  conversationBlocks: TimelineBlock[];
-  pendingAssistant: boolean;
-  chapterId: string | null;
-  hasDraft: boolean;
-  showDraftPreview: boolean;
-  continuityQueued: boolean;
-  commandResult: CommandResult | null;
-  intentBlock: TimelineBlock | null;
-}): TimelineBlock[] {
-  const blocks: TimelineBlock[] = [
-    { id: "readiness", type: "readiness_card", briefing: args.briefing },
-    {
-      id: "readiness-chips",
-      type: "inline_choice_chips",
-      chips: args.briefing.chips.map((chip) => ({ ...chip, action: chip.intent })),
-    },
-  ];
-
-  blocks.push(...args.conversationBlocks);
-
-  if (args.pendingAssistant) {
-    blocks.push({
-      id: "assistant-pending",
-      type: "text_message",
-      source: "assistant",
-      label: "Studio Writing Assistant",
-      text: "Thinking",
-      tone: "running",
-      pending: true,
-    });
-  }
-
-  const continuityEvent = continuityWorkflowProgressEvent({ chapterId: args.chapterId, queued: args.continuityQueued });
-  if (continuityEvent) blocks.push(workflowProgressBlockFromEvent(continuityEvent));
-
-  if (args.hasDraft && args.showDraftPreview) {
-    blocks.push({
-      id: "draft-preview",
-      type: "artifact_preview",
-      source: "backend",
-      artifact_id: "current-draft",
-      artifact_type: "draft",
-      title: "Current chapter draft",
-      status: "draft",
-      description: "Draft content is open in the artifact workspace.",
-      word_count: null,
-      beat_count: null,
-      preview_lines: ["Draft content is open in the artifact workspace.", "Use the editor surface for prose edits and approval gates."],
-      actions: ["open_draft", "review_continuity", "edit_in_document"],
-    });
-  }
-
-  if (args.commandResult) blocks.push(resultBlock(args.commandResult));
-  if (args.intentBlock) blocks.push(args.intentBlock);
-  return blocks;
-}
 
 // Command dispatch mirrors the slash-command contract table; keep branches explicit so blocked/degraded routing stays readable.
 // eslint-disable-next-line max-lines-per-function
@@ -390,15 +305,45 @@ function useCommandRunner(args: {
   return { commandResult, intentBlock, runCommand, submitMessage };
 }
 
+// eslint-disable-next-line max-lines-per-function
 export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const router = useRouter();
   const [chatMode, setChatMode] = React.useState<"chat" | "brainstorm">("chat");
   const [recentBrainstormSeed, setRecentBrainstormSeed] = React.useState<string | null>(null);
   const [pendingBrainstormActions, setPendingBrainstormActions] = React.useState<BrainstormFollowupAction[] | null>(null);
-  const [conversationBlocks, setConversationBlocks] = React.useState<TimelineBlock[]>([]);
   const [pendingAssistant, setPendingAssistant] = React.useState(false);
+  const assistantConversations = useAssistantConversations({ storySlug: props.storySlug, chapterId: props.chapterId });
+  const {
+    activeConversationId,
+    appendBlock,
+    conversationBlocks,
+    conversationState,
+    conversations,
+    error: conversationError,
+    loadConversation,
+    loading: conversationsLoading,
+    persistConversationState,
+    scope: conversationScope,
+    setScope: setConversationScope,
+    startNewConversation,
+  } = assistantConversations;
   const briefing = buildAssistantReadiness(props.assistantContext);
   const commands = buildCommands(props.assistantContext, props.chapterId);
+
+  React.useEffect(() => {
+    setChatMode(conversationState.chatMode);
+    setRecentBrainstormSeed(conversationState.recentBrainstormSeed);
+    setPendingBrainstormActions(conversationState.pendingBrainstormActions);
+  }, [activeConversationId, conversationState]);
+
+  React.useEffect(() => {
+    void persistConversationState({
+      chatMode,
+      recentBrainstormSeed,
+      pendingBrainstormActions,
+    });
+  }, [chatMode, pendingBrainstormActions, persistConversationState, recentBrainstormSeed]);
+
   const { commandResult, intentBlock, runCommand, submitMessage } = useCommandRunner({
     storySlug: props.storySlug,
     chapterId: props.chapterId,
@@ -411,7 +356,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     onBrainstormSeedChange: setRecentBrainstormSeed,
     pendingBrainstormActions,
     onPendingBrainstormActionsChange: setPendingBrainstormActions,
-    onConversationBlock: (block) => setConversationBlocks((current) => [...current, block]),
+    onConversationBlock: (block) => void appendBlock(block),
     onInspectorModeChange: props.onInspectorModeChange,
   });
   const blocks = buildTimelineBlocks({
@@ -435,8 +380,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     }
     if (chip.intent === "add_context" || chip.intent === "analyze_source") {
       props.onInspectorModeChange("context");
-      setConversationBlocks((current) => [
-        ...current,
+      void appendBlock(
         buildWorkspaceWorkflowBlock({
           id: `recovery-analysis-${Date.now()}`,
           workflowName: "Context Recovery",
@@ -444,20 +388,19 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
           chapterId: props.chapterId,
           actionLabel: "Open full analysis workspace",
           actionHref: workspaceHref(props.storySlug, "analysis"),
-        }),
-      ]);
+        })
+      );
       return;
     }
     if (chip.intent === "inspect_context") {
       props.onInspectorModeChange("context");
-      setConversationBlocks((current) => [
-        ...current,
+      void appendBlock(
         buildContextDigestBlock(
           props.assistantContext,
           [{ label: "Open full memory workspace", href: workspaceHref(props.storySlug, "memory") }],
           `recovery-context-${Date.now()}`
-        ),
-      ]);
+        )
+      );
       return;
     }
     if (target) router.push(target);
@@ -465,6 +408,16 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
 
   return (
     <section className="work-stream" aria-label="Studio chat work stream">
+      <ConversationHistoryPanel
+        conversations={conversations}
+        activeConversationId={activeConversationId}
+        scope={conversationScope}
+        loading={conversationsLoading}
+        error={conversationError}
+        onScopeChange={setConversationScope}
+        onNewChat={() => void startNewConversation()}
+        onSelectConversation={(id) => void loadConversation(id)}
+      />
       <ChatTimeline context={buildContextMiniBar(props.assistantContext, briefing.status)} blocks={blocks} onChip={handleChip} />
       <ChatComposer
         value={props.composerValue}
@@ -477,17 +430,16 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
           runCommand(command, goal);
         }}
         onSubmitMessage={(message) => {
-          setConversationBlocks((current) => [
-            ...current,
-            { id: `user-${Date.now()}`, type: "text_message", source: "user", label: "You", text: message },
-          ]);
+          const userBlock: TimelineBlock = { id: `user-${Date.now()}`, type: "text_message", source: "user", label: "You", text: message };
           setPendingAssistant(true);
           props.onComposerValueChange("");
           props.onCommandMenuOpenChange(false);
-          window.setTimeout(() => {
-            submitMessage(message);
-            setPendingAssistant(false);
-          }, 220);
+          void appendBlock(userBlock).then(() => {
+            window.setTimeout(() => {
+              submitMessage(message);
+              setPendingAssistant(false);
+            }, 220);
+          });
         }}
       />
     </section>

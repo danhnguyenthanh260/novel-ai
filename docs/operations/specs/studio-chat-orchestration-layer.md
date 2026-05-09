@@ -70,6 +70,14 @@ type StudioChatContext = {
 };
 ```
 
+## Conversation Sessions
+
+The Studio Writing Assistant chat timeline is backed by durable conversation sessions. A session is scoped by story, `write_assistant` workspace, and optional chapter. The UI may filter history to the current chapter or all story chats.
+
+Persist only committed timeline blocks: submitted user messages, final assistant messages, workflow/status blocks, artifact previews, approval gates, failure recovery, and context digests. Composer draft text, typing indicators, command-menu filter text, hover actions, and incomplete streaming chunks are transient UI state and must not be persisted as messages.
+
+Conversation metadata stores assistant continuation state such as brainstorm mode, recent brainstorm seed, and pending brainstorm follow-up actions. When a conversation is reopened, this metadata restores routing context before the next user turn. Restored history must not automatically trigger AutoWrite, preflight, or any workflow.
+
 If the context block is absent or malformed, the assistant must use the hard fallback:
 
 > "I'm missing the story context I need to help you. This usually means the Studio didn't load correctly. Try refreshing, or tell me which story and chapter you want to work on and I'll do my best."
