@@ -28,6 +28,7 @@ const commandDefinitions: CommandDefinition[] = [
   { id: "/analyze chapter", description: "Analyze source or context", group: "primary", visible: true },
   { id: "/research", description: "Research story or worldbuilding context", group: "primary", visible: true },
   { id: "/inspect", description: "Show full context digest", group: "primary", visible: true },
+  { id: "/status", description: "Show workspace status", group: "primary", visible: true },
   { id: "/context", description: "Inspect context readiness", group: "primary", visible: true },
   { id: "/pipeline", description: "Show pipeline progress", group: "primary", visible: true },
   { id: "/check continuity", description: "Review canon and timeline handoff", group: "primary", visible: true },
@@ -225,6 +226,26 @@ export function buildWorkspaceArtifactBlock(args: {
     preview_lines: [args.description],
     actions: [],
     action_links: [{ label: args.actionLabel, href: args.actionHref }],
+  };
+}
+
+export function buildSourceArtifactBlock(text: string, stamp = Date.now()): TimelineBlock {
+  return {
+    id: `source-artifact-${stamp}`,
+    type: "artifact_preview",
+    source: "assistant",
+    artifact_id: `source-${stamp}`,
+    artifact_type: "source",
+    title: "Pasted source text",
+    status: "draft",
+    description: "Long pasted text was captured as a source artifact instead of a chat message.",
+    word_count: text.trim().split(/\s+/).filter(Boolean).length,
+    beat_count: null,
+    preview_lines: [
+      `${text.length.toLocaleString()} characters captured`,
+      "Use ingest or source review before promoting this material.",
+    ],
+    actions: ["open_source_artifact"],
   };
 }
 

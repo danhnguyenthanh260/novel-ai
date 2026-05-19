@@ -13,6 +13,7 @@ import {
   buildCommands,
   buildContextDigestBlock,
   buildContextMiniBar,
+  buildSourceArtifactBlock,
   buildWorkspaceArtifactBlock,
   buildWorkspaceWorkflowBlock,
   chipTarget,
@@ -30,6 +31,7 @@ import { buildTimelineBlocks } from "@/features/scenes/components/writeTab/chatO
 import { useAssistantConversations } from "@/features/scenes/components/writeTab/chatOrchestration/useAssistantConversations";
 import type {
   AssistantReadinessContext,
+  ChatScope,
   CommandId,
   RecoveryChip,
   StudioChatIntent,
@@ -40,6 +42,7 @@ import type {
 type CommandWorkStreamProps = {
   storySlug: string;
   chapterId: string;
+  chatScope: ChatScope;
   hasDraft: boolean;
   continuityQueued: boolean;
   composerValue: string;
@@ -331,7 +334,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const [recentBrainstormSeed, setRecentBrainstormSeed] = React.useState<string | null>(null);
   const [pendingBrainstormActions, setPendingBrainstormActions] = React.useState<BrainstormFollowupAction[] | null>(null);
   const [pendingAssistant, setPendingAssistant] = React.useState(false);
-  const assistantConversations = useAssistantConversations({ storySlug: props.storySlug, chapterId: props.chapterId });
+  const assistantConversations = useAssistantConversations({ storySlug: props.storySlug, chapterId: props.chapterId, chatScope: props.chatScope });
   const {
     activeConversationId,
     appendBlock,
@@ -460,26 +463,9 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   };
 
   const handleCreateSourceArtifact = (text: string) => {
-    const stamp = Date.now();
     props.onInspectorModeChange("artifacts");
     props.onOpenArtifactDrawer();
-    void appendBlock({
-      id: `source-artifact-${stamp}`,
-      type: "artifact_preview",
-      source: "assistant",
-      artifact_id: `source-${stamp}`,
-      artifact_type: "source",
-      title: "Pasted source text",
-      status: "draft",
-      description: "Long pasted text was captured as a source artifact instead of a chat message.",
-      word_count: text.trim().split(/\s+/).filter(Boolean).length,
-      beat_count: null,
-      preview_lines: [
-        `${text.length.toLocaleString()} characters captured`,
-        "Use ingest or source review before promoting this material.",
-      ],
-      actions: ["open_source_artifact"],
-    });
+    void appendBlock(buildSourceArtifactBlock(text));
   };
 
   return (

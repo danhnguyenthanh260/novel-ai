@@ -7,6 +7,7 @@ import ArtifactSurface from "@/features/scenes/components/writeTab/ArtifactSurfa
 import CommandWorkStream from "@/features/scenes/components/writeTab/CommandWorkStream";
 import type {
   AssistantAvailability,
+  ChatScope,
   ChapterSceneItem,
   ContextReadiness,
   CurrentVersion,
@@ -21,6 +22,7 @@ type DraftSource = {
 
 type NovelLabWorkspaceProps = {
   storySlug: string;
+  chatScope: ChatScope;
   chapterIds: string[];
   scene: SceneItem | null;
   current: CurrentVersion | null;
@@ -82,12 +84,16 @@ function buildDraftSource(props: NovelLabWorkspaceProps): DraftSource {
   };
 }
 
+// Navigation owns route links, chapter selection, artifact visibility, and chat scope controls in one compact rail.
+// eslint-disable-next-line complexity
 function NavigationPanel(
   props: Pick<NovelLabWorkspaceProps, "storySlug" | "chapterIds" | "loadingScenes" | "selectedChapterId" | "onChapterIdChange" | "onCreateNewChapter"> & {
     hasDraft: boolean;
     loadingWorkspace: boolean;
     continuityQueued: boolean;
     readiness: ContextReadiness;
+    chatScope: ChatScope;
+    onChatScopeChange: (scope: ChatScope) => void;
     onOpenArtifactDrawer: () => void;
   }
 ) {
@@ -128,6 +134,14 @@ function NavigationPanel(
           readiness={props.readiness}
           loading={props.loadingWorkspace}
         />
+        <div className="chat-scope-toggle" role="group" aria-label="Chat scope">
+          <button type="button" className={props.chatScope === "story" ? "is-active" : ""} onClick={() => props.onChatScopeChange("story")}>
+            Story
+          </button>
+          <button type="button" className={props.chatScope === "chapter" ? "is-active" : ""} onClick={() => props.onChatScopeChange("chapter")}>
+            Chapter
+          </button>
+        </div>
       </div>
 
       <div className="novel-lab-nav__scroll">
@@ -242,6 +256,7 @@ function WorkspaceAutoWriteModal(
 
 export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const { isArtifactVisible, setIsArtifactVisible } = useStory();
+  const [activeChatScope, setActiveChatScope] = useState<ChatScope>(props.chatScope);
   const [continuityQueued, setContinuityQueued] = useState(false);
   const [composerValue, setComposerValue] = useState("");
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
@@ -253,6 +268,8 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const loadingWorkspace = props.loadingScenes || props.loadingDetail || props.loadingChapter;
   const readiness: ContextReadiness = "degraded";
   const availability = assistantAvailability(props, hasDraft);
+  const scopedChapterId = activeChatScope === "story" ? "" : props.selectedChapterId;
+  const scopedChapterTitle = activeChatScope === "story" ? "Story scope" : chapterTitle;
   const openInspectorMode = (mode: WriteInspectorMode) => {
     setInspectorMode(mode);
     setIsArtifactVisible(false);
@@ -278,11 +295,14 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           loadingWorkspace={loadingWorkspace}
           continuityQueued={continuityQueued}
           readiness={readiness}
+          chatScope={activeChatScope}
+          onChatScopeChange={setActiveChatScope}
           onOpenArtifactDrawer={() => setArtifactDrawerOpen(true)}
         />
         <CommandWorkStream
           storySlug={props.storySlug}
-          chapterId={props.selectedChapterId}
+          chapterId={scopedChapterId}
+          chatScope={activeChatScope}
           hasDraft={hasDraft}
           continuityQueued={continuityQueued}
           composerValue={composerValue}
@@ -296,8 +316,8 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           assistantContext={{
             storyTitle: storyLabelFromSlug(props.storySlug),
             storySelected: Boolean(props.storySlug),
-            chapterId: props.selectedChapterId || null,
-            chapterTitle,
+            chapterId: scopedChapterId || null,
+            chapterTitle: scopedChapterTitle,
             readiness,
             availability,
           }}

@@ -145,6 +145,14 @@ export type WorkflowStepStatus = "complete" | "active" | "pending" | "failed";
 
 export type WriteInspectorMode = "progress" | "context" | "artifacts" | "memory";
 
+export type ChatScope = "chapter" | "story";
+
+export type WorkspaceChatMode = {
+  scope: ChatScope;
+  conversationWorkspace: "write_assistant" | "story";
+  chapterId: string | null;
+};
+
 export type ArtifactType = "memory" | "analysis" | "source" | "generated" | "review" | "progress";
 
 export type ArtifactStatus = "draft" | "staged" | "pending" | "approved" | "rejected" | "applied" | "published" | "stale";
