@@ -145,6 +145,42 @@ export type WorkflowStepStatus = "complete" | "active" | "pending" | "failed";
 
 export type WriteInspectorMode = "progress" | "context" | "artifacts" | "memory";
 
+export type ArtifactType = "memory" | "analysis" | "source" | "generated" | "review" | "progress";
+
+export type ArtifactStatus = "draft" | "staged" | "pending" | "approved" | "rejected" | "applied" | "published" | "stale";
+
+export type ArtifactCardAction = {
+  id: string;
+  label: string;
+  href?: string;
+  disabled?: boolean;
+};
+
+export type TimelineArtifactCard = {
+  type: ArtifactType;
+  status: ArtifactStatus;
+  title: string;
+  wordCount?: number | null;
+  actions: ArtifactCardAction[];
+};
+
+export type ReviewArtifactStateTransition = {
+  from: ArtifactStatus;
+  to: ArtifactStatus;
+  action: "stage" | "submit" | "approve" | "reject" | "apply" | "publish";
+};
+
+export const REVIEW_ARTIFACT_STATE_TRANSITIONS: ReviewArtifactStateTransition[] = [
+  { from: "draft", to: "staged", action: "stage" },
+  { from: "staged", to: "pending", action: "submit" },
+  { from: "pending", to: "approved", action: "approve" },
+  { from: "pending", to: "rejected", action: "reject" },
+  { from: "approved", to: "applied", action: "apply" },
+  { from: "applied", to: "staged", action: "stage" },
+  { from: "applied", to: "pending", action: "submit" },
+  { from: "applied", to: "published", action: "publish" },
+];
+
 export type TimelineActionLink = {
   label: string;
   href: string;
@@ -177,7 +213,7 @@ export type ArtifactPreviewBlock = {
   chapter_id?: string | null;
   job_id?: number | null;
   artifact_id: string;
-  artifact_type: "plan" | "draft" | "analysis" | "review" | "research";
+  artifact_type: "plan" | "draft" | "analysis" | "review" | "research" | "memory" | "source" | "progress";
   title: string;
   status: "draft" | "needs_approval" | "approved" | "failed" | "superseded";
   description?: string;

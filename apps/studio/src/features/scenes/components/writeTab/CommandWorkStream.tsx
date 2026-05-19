@@ -47,6 +47,7 @@ type CommandWorkStreamProps = {
   onComposerValueChange: (value: string) => void;
   onCommandMenuOpenChange: (value: boolean) => void;
   onOpenAutoWrite: () => void;
+  onOpenArtifactDrawer: () => void;
   onQueueContinuity: () => void;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
   assistantContext: AssistantReadinessContext;
@@ -451,6 +452,36 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
       });
   };
 
+  const handleOpenArtifact = (block: Extract<TimelineBlock, { type: "artifact_preview" }>) => {
+    if (block.artifact_type === "memory") props.onInspectorModeChange("memory");
+    else if (block.artifact_type === "progress") props.onInspectorModeChange("progress");
+    else props.onInspectorModeChange("artifacts");
+    props.onOpenArtifactDrawer();
+  };
+
+  const handleCreateSourceArtifact = (text: string) => {
+    const stamp = Date.now();
+    props.onInspectorModeChange("artifacts");
+    props.onOpenArtifactDrawer();
+    void appendBlock({
+      id: `source-artifact-${stamp}`,
+      type: "artifact_preview",
+      source: "assistant",
+      artifact_id: `source-${stamp}`,
+      artifact_type: "source",
+      title: "Pasted source text",
+      status: "draft",
+      description: "Long pasted text was captured as a source artifact instead of a chat message.",
+      word_count: text.trim().split(/\s+/).filter(Boolean).length,
+      beat_count: null,
+      preview_lines: [
+        `${text.length.toLocaleString()} characters captured`,
+        "Use ingest or source review before promoting this material.",
+      ],
+      actions: ["open_source_artifact"],
+    });
+  };
+
   return (
     <section className="work-stream" aria-label="Studio chat work stream">
       <ConversationHistoryPanel
@@ -463,7 +494,13 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
         onNewChat={() => void startNewConversation()}
         onSelectConversation={(id) => void loadConversation(id)}
       />
-      <ChatTimeline context={buildContextMiniBar(props.assistantContext, briefing.status)} blocks={blocks} onChip={handleChip} onChoice={handleChoice} />
+      <ChatTimeline
+        context={buildContextMiniBar(props.assistantContext, briefing.status)}
+        blocks={blocks}
+        onChip={handleChip}
+        onChoice={handleChoice}
+        onOpenArtifact={handleOpenArtifact}
+      />
       <ChatComposer
         value={props.composerValue}
         menuOpen={props.commandMenuOpen}
@@ -474,6 +511,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
           props.onComposerValueChange(commandTail(command, goal));
           runCommand(command, goal);
         }}
+        onCreateSourceArtifact={handleCreateSourceArtifact}
         onSubmitMessage={(message) => {
           const userBlock: TimelineBlock = { id: `user-${Date.now()}`, type: "text_message", source: "user", label: "You", text: message };
           setPendingAssistant(true);

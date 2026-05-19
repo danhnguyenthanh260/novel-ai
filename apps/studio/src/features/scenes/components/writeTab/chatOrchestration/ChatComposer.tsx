@@ -25,7 +25,11 @@ type ChatComposerProps = {
   onMenuOpenChange: (value: boolean) => void;
   onSubmitCommand: (command: CommandId, goal: string) => void;
   onSubmitMessage: (message: string) => void;
+  onCreateSourceArtifact: (text: string) => void;
 };
+
+export const LONG_INPUT_CHAR_THRESHOLD = 8000;
+export const LONG_INPUT_LINE_THRESHOLD = 120;
 
 const defaultDraft: CommandFormDraft = {
   goal: "",
@@ -48,6 +52,13 @@ function composerState(value: string, menuOpen: boolean, activeCommand: CommandI
 
 function statusClass(status: ChatCommandOption["status"]): string {
   return status === "ready" ? "status-pill status-pill--clean" : "status-pill status-pill--blocked";
+}
+
+function longInputReason(text: string): string | null {
+  if (text.length >= LONG_INPUT_CHAR_THRESHOLD) return `${text.length.toLocaleString()} characters`;
+  const lineCount = text.split(/\r\n|\r|\n/).length;
+  if (lineCount >= LONG_INPUT_LINE_THRESHOLD) return `${lineCount.toLocaleString()} lines`;
+  return null;
 }
 
 function SlashCommandMenu({
@@ -177,12 +188,41 @@ function CommandForm({
   );
 }
 
-export default function ChatComposer({ value, menuOpen, commands, onValueChange, onMenuOpenChange, onSubmitCommand, onSubmitMessage }: ChatComposerProps) {
+function LongInputConfirm({
+  reason,
+  onCreate,
+  onKeepEditing,
+}: {
+  reason: string;
+  onCreate: () => void;
+  onKeepEditing: () => void;
+}) {
+  return (
+    <div className="long-input-confirm" role="alertdialog" aria-label="Long input confirmation">
+      <div>
+        <strong>Create source artifact from pasted text?</strong>
+        <p>{reason} is too large for a normal chat message.</p>
+      </div>
+      <div className="long-input-confirm__actions">
+        <button type="button" className="primary-action px-3 py-2 text-xs" onClick={onCreate}>
+          Create source artifact
+        </button>
+        <button type="button" className="shell-link px-3 py-2 text-xs" onClick={onKeepEditing}>
+          Keep editing
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function ChatComposer({ value, menuOpen, commands, onValueChange, onMenuOpenChange, onSubmitCommand, onSubmitMessage, onCreateSourceArtifact }: ChatComposerProps) {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [activeCommand, setActiveCommand] = React.useState<CommandId | null>(null);
   const [draft, setDraft] = React.useState<CommandFormDraft>(defaultDraft);
+  const [pendingLongInput, setPendingLongInput] = React.useState<string | null>(null);
   const state = composerState(value, menuOpen, activeCommand);
   const filteredCommands = commands.filter((command) => command.id.toLowerCase().includes(value.trimStart().replace(/^\/+/, "").toLowerCase()));
+  const pendingReason = pendingLongInput ? longInputReason(pendingLongInput) : null;
 
   React.useEffect(() => {
     setActiveIndex(0);
@@ -212,6 +252,18 @@ export default function ChatComposer({ value, menuOpen, commands, onValueChange,
         <SlashCommandMenu commands={commands} filter={value} activeIndex={activeIndex} onActiveIndexChange={setActiveIndex} onSelect={selectCommand} />
       ) : null}
 
+      {pendingLongInput && pendingReason ? (
+        <LongInputConfirm
+          reason={pendingReason}
+          onCreate={() => {
+            onCreateSourceArtifact(pendingLongInput);
+            setPendingLongInput(null);
+            onValueChange("");
+          }}
+          onKeepEditing={() => setPendingLongInput(null)}
+        />
+      ) : null}
+
       {state === "command_form_active" && activeCommand ? (
         <CommandForm
           command={activeCommand}
@@ -233,6 +285,10 @@ export default function ChatComposer({ value, menuOpen, commands, onValueChange,
             if (state === "slash_command_menu" || text.startsWith("/")) {
               const selected = filteredCommands[activeIndex] ?? commands.find((command) => text.startsWith(command.id));
               if (selected) selectCommand(selected);
+              return;
+            }
+            if (longInputReason(text)) {
+              setPendingLongInput(text);
               return;
             }
             onSubmitMessage(text);
@@ -263,7 +319,10 @@ export default function ChatComposer({ value, menuOpen, commands, onValueChange,
           </button>
           <textarea
             value={value}
-            onChange={(event) => onValueChange(event.target.value)}
+            onChange={(event) => {
+              onValueChange(event.target.value);
+              if (pendingLongInput && !longInputReason(event.target.value)) setPendingLongInput(null);
+            }}
             onKeyDown={(event) => {
               if (event.key !== "Enter" || event.shiftKey || state === "slash_command_menu") return;
               event.preventDefault();

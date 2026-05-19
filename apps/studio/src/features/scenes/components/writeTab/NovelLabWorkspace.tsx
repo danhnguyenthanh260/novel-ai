@@ -88,6 +88,7 @@ function NavigationPanel(
     loadingWorkspace: boolean;
     continuityQueued: boolean;
     readiness: ContextReadiness;
+    onOpenArtifactDrawer: () => void;
   }
 ) {
   const { isArtifactVisible, setIsArtifactVisible } = useStory();
@@ -147,7 +148,10 @@ function NavigationPanel(
               isArtifactVisible ? "novel-lab-nav-row--active" : ""
             }`}
             aria-pressed={isArtifactVisible}
-            onClick={() => setIsArtifactVisible(!isArtifactVisible)}
+            onClick={() => {
+              setIsArtifactVisible(!isArtifactVisible);
+              props.onOpenArtifactDrawer();
+            }}
           >
             <span aria-hidden>A</span>
             <span>Artifacts</span>
@@ -242,6 +246,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const [composerValue, setComposerValue] = useState("");
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [inspectorMode, setInspectorMode] = useState<WriteInspectorMode>("progress");
+  const [artifactDrawerOpen, setArtifactDrawerOpen] = useState(false);
   const draftSource = useMemo(() => buildDraftSource(props), [props]);
   const chapterTitle = selectedChapterTitle(props.selectedChapterId);
   const hasDraft = draftSource.text.trim().length > 0;
@@ -251,6 +256,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const openInspectorMode = (mode: WriteInspectorMode) => {
     setInspectorMode(mode);
     setIsArtifactVisible(false);
+    setArtifactDrawerOpen(true);
   };
 
   return (
@@ -272,6 +278,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           loadingWorkspace={loadingWorkspace}
           continuityQueued={continuityQueued}
           readiness={readiness}
+          onOpenArtifactDrawer={() => setArtifactDrawerOpen(true)}
         />
         <CommandWorkStream
           storySlug={props.storySlug}
@@ -283,6 +290,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           onComposerValueChange={setComposerValue}
           onCommandMenuOpenChange={setCommandMenuOpen}
           onOpenAutoWrite={() => props.setShowAutoWrite(true)}
+          onOpenArtifactDrawer={() => setArtifactDrawerOpen(true)}
           onQueueContinuity={() => setContinuityQueued(true)}
           onInspectorModeChange={openInspectorMode}
           assistantContext={{
@@ -307,6 +315,8 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           isVisible={isArtifactVisible}
           inspectorMode={inspectorMode}
           onInspectorModeChange={setInspectorMode}
+          drawerOpen={artifactDrawerOpen}
+          onDrawerOpenChange={setArtifactDrawerOpen}
           continuityQueued={continuityQueued}
           onOpenAutoWrite={() => props.setShowAutoWrite(true)}
           onQueueContinuity={() => setContinuityQueued(true)}

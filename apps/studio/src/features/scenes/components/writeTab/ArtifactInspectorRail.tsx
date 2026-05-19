@@ -214,7 +214,14 @@ export default function ArtifactInspectorRail({ readiness, continuityQueued, dia
       </div>
       <div className="inspector-tabs" role="tablist">
         {inspectorTabs.map((tab) => (
-          <button key={tab.mode} type="button" className={tab.mode === mode ? "shell-link shell-link--active px-2 py-1 text-xs" : "shell-link px-2 py-1 text-xs"} onClick={() => onModeChange(tab.mode)}>
+          <button
+            key={tab.mode}
+            type="button"
+            role="tab"
+            aria-selected={tab.mode === mode}
+            className={tab.mode === mode ? "shell-link shell-link--active px-2 py-1 text-xs" : "shell-link px-2 py-1 text-xs"}
+            onClick={() => onModeChange(tab.mode)}
+          >
             {tab.label}
           </button>
         ))}
