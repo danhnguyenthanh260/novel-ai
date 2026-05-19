@@ -40,6 +40,25 @@ async function mockStoryWorkspace(page: Page) {
     });
   });
 
+  await page.route(`**/api/stories/${storySlug}/assistant/status**`, async (route) => {
+    await route.fulfill({
+      json: {
+        ok: true,
+        item: {
+          scope: "story",
+          chapterId: null,
+          chapterCount: 2,
+          lastWriteAt: "2026-05-18 12:00:00",
+          memoryCompleteness: 75,
+          analysisFlags: { activeSnapshots: 1, sourceDocs: 2, hasActiveSnapshot: true },
+          readiness: "ready",
+          missing: [],
+          nextAction: "Continue with the next writing command.",
+        },
+      },
+    });
+  });
+
   await page.route(`**/api/stories/${storySlug}/assistant/conversations**`, async (route) => {
     const request = route.request();
     if (request.method() === "POST") {
@@ -106,8 +125,9 @@ test.describe("Story-level chat entry", () => {
     await mockStoryWorkspace(page);
     await page.goto(`/stories/${storySlug}/write?scope=story`);
     await runCommand(page, "/status");
-    await expect(page.getByText("Current story context")).toBeVisible();
-    await expect(page.getByText("Story scope")).toBeVisible();
+    const digest = page.locator(".timeline-card--digest").filter({ hasText: "Story status: ready" }).first();
+    await expect(digest.getByRole("heading", { name: "Story status: ready" })).toBeVisible();
+    await expect(digest.getByText("Story scope")).toBeVisible();
   });
 
   test("chapter switch keeps story scope and conversation history", async ({ page }) => {

@@ -3,11 +3,9 @@ import { useRouter } from "next/navigation";
 import ChatComposer from "@/features/scenes/components/writeTab/chatOrchestration/ChatComposer";
 import ChatTimeline from "@/features/scenes/components/writeTab/chatOrchestration/ChatTimeline";
 import ConversationHistoryPanel from "@/features/scenes/components/writeTab/chatOrchestration/ConversationHistoryPanel";
-import {
-  buildBrainstormAngleChoiceGroup,
-  buildBrainstormFollowupChoiceGroup,
-  type StructuredChoiceSelection,
-} from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
+import { runContextCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/contextCommandHandler";
+import { runStatusCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/statusCommandHandler";
+import { buildBrainstormAngleChoiceGroup, buildBrainstormFollowupChoiceGroup, type StructuredChoiceSelection } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
 import {
   approvalGateBlock,
   buildCommands,
@@ -29,15 +27,7 @@ import type { BrainstormFollowupAction } from "@/features/scenes/components/writ
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
 import { buildTimelineBlocks } from "@/features/scenes/components/writeTab/chatOrchestration/timelineBlockBuilder";
 import { useAssistantConversations } from "@/features/scenes/components/writeTab/chatOrchestration/useAssistantConversations";
-import type {
-  AssistantReadinessContext,
-  ChatScope,
-  CommandId,
-  RecoveryChip,
-  StudioChatIntent,
-  TimelineBlock,
-  WriteInspectorMode,
-} from "@/features/scenes/components/writeTab/types";
+import type { AssistantReadinessContext, ChatScope, CommandId, RecoveryChip, StudioChatIntent, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 type CommandWorkStreamProps = {
   storySlug: string;
@@ -61,6 +51,7 @@ type CommandWorkStreamProps = {
 function useCommandRunner(args: {
   storySlug: string;
   chapterId: string;
+  chatScope: ChatScope;
   onOpenAutoWrite: () => void;
   onQueueContinuity: () => void;
   readinessContext: AssistantReadinessContext;
@@ -93,7 +84,25 @@ function useCommandRunner(args: {
       }
 
       const commandContext = contextWithCommandIntent(args.readinessContext, command, goal);
-      if (command === "/inspect" || command === "/status" || command === "/context") {
+      if (command === "/status" || command === "/context") {
+        const commandRunner = command === "/status" ? runStatusCommand : runContextCommand;
+        args.onInspectorModeChange("context");
+        setCommandResult(command === "/status"
+          ? { tone: "running", title: "Checking workspace status", detail: "Reading current workflow state." }
+          : { tone: "running", title: "Loading context snapshot", detail: "Reading story memory, arcs, tags, and style notes." });
+        void commandRunner({
+          storySlug: args.storySlug,
+          chapterId: args.chapterId,
+          chatScope: args.chatScope,
+          readinessContext: commandContext,
+        }).then(({ block, result }) => {
+          args.onConversationBlock(block);
+          setCommandResult(result);
+        });
+        return;
+      }
+
+      if (command === "/inspect") {
         args.onInspectorModeChange("context");
         setIntentBlock(buildContextDigestBlock(commandContext, [{ label: "Open full memory workspace", href: workspaceHref(args.storySlug, "memory") }]));
         setCommandResult({ tone: "ready", title: "Context digest ready", detail: "I found the current story and chapter context state." });
@@ -371,6 +380,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const { commandResult, intentBlock, runCommand, submitMessage } = useCommandRunner({
     storySlug: props.storySlug,
     chapterId: props.chapterId,
+    chatScope: props.chatScope,
     onOpenAutoWrite: props.onOpenAutoWrite,
     onQueueContinuity: props.onQueueContinuity,
     readinessContext: props.assistantContext,
