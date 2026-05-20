@@ -95,22 +95,30 @@ export function chipTarget(chip: RecoveryChip): string | null {
   return null;
 }
 
+function blockedReasonForCommand(
+  command: CommandId,
+  context: AssistantReadinessContext,
+  chapterId: string,
+  readiness: ReturnType<typeof buildAssistantReadiness>
+): string | undefined {
+  if (command === "/write chapter") {
+    if (!context.storySelected) return "No story is selected.";
+    if (!chapterId) return "Choose or create a chapter before writing.";
+    if (!context.availability.has_active_characters) return "I don't have enough character data for this chapter's plan.";
+    if (context.readiness === "blocked") return readiness.blockedWriteReason ?? "The chapter context is blocked.";
+  }
+  if (command === "/check continuity" && !chapterId) return "Choose or create a chapter before checking continuity.";
+  if ((command === "/plan" || command === "/split") && !chapterId) return "Choose or create a chapter before running this command.";
+  return undefined;
+}
+
 export function buildCommands(context: AssistantReadinessContext, chapterId: string): ChatCommandOption[] {
   const readiness = buildAssistantReadiness(context);
 
   return commandDefinitions
     .filter((command) => command.visible)
     .map((command) => {
-      let blockedReason: string | undefined;
-      if (command.id === "/write chapter" && !readiness.canWrite) {
-        blockedReason = readiness.blockedWriteReason ?? "The chapter context is blocked.";
-      }
-      if (command.id === "/check continuity" && !chapterId) {
-        blockedReason = "Choose or create a chapter before checking continuity.";
-      }
-      if ((command.id === "/plan" || command.id === "/split") && !chapterId) {
-        blockedReason = "Choose or create a chapter before running this command.";
-      }
+      const blockedReason = blockedReasonForCommand(command.id, context, chapterId, readiness);
 
       return {
         id: command.id,

@@ -221,11 +221,12 @@ function selectedChapterTitle(selectedChapterId: string): string {
 
 function assistantAvailability(props: NovelLabWorkspaceProps, hasDraft: boolean): AssistantAvailability {
   const hasSourceChapters = props.chapterScenes.length > 0 || Boolean(props.current?.text_content || props.stagingData?.llm_prose || props.v3Draft?.full_text);
+  const hasMemorySnapshot = Boolean(props.v3Draft?.virtual_scenes?.length || props.stagingData || hasDraft);
   return {
     has_source_chapters: hasSourceChapters,
-    has_active_characters: false,
-    has_memory_snapshot: Boolean(props.v3Draft?.virtual_scenes?.length || props.stagingData),
-    has_style_profile: false,
+    has_active_characters: hasSourceChapters,
+    has_memory_snapshot: hasMemorySnapshot,
+    has_style_profile: hasMemorySnapshot || hasSourceChapters,
     has_chapter_intent: false,
     has_immediate_continuity: hasDraft,
   };

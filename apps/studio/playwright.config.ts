@@ -8,10 +8,11 @@ export default defineConfig({
   testDir: "./e2e/tests",
   timeout: 40_000,
   expect: { timeout: 8_000 },
-  retries: process.env.CI ? 2 : 0,
+  retries: 2,
   reporter: [["list"]],
   use: {
     baseURL,
+    headless: true,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
