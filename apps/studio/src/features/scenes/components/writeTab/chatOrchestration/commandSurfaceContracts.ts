@@ -35,6 +35,7 @@ const commandDefinitions: CommandDefinition[] = [
   { id: "/extract memory", description: "Open story memory extraction", group: "more", visible: true },
   { id: "/memory", description: "Show memory and continuity notes", group: "more", visible: true },
   { id: "/review chapter", description: "Open review panel", group: "more", visible: true },
+  { id: "/ingest", description: "Preview source ingest splits", group: "more", visible: true },
   { id: "/split", description: "Prepare chapter split request", group: "more", visible: true },
   {
     id: "/rewrite selection",
@@ -95,20 +96,31 @@ export function chipTarget(chip: RecoveryChip): string | null {
   return null;
 }
 
+const storyRequiredReasons: Partial<Record<CommandId, string>> = {
+  "/write chapter": "No story is selected.",
+  "/ingest": "Choose a story before ingesting source material.",
+};
+
+const chapterRequiredReasons: Partial<Record<CommandId, string>> = {
+  "/write chapter": "Choose or create a chapter before writing.",
+  "/check continuity": "Choose or create a chapter before checking continuity.",
+  "/plan": "Choose or create a chapter before running this command.",
+  "/split": "Choose or create a chapter before running this command.",
+};
+
 function blockedReasonForCommand(
   command: CommandId,
   context: AssistantReadinessContext,
   chapterId: string,
   readiness: ReturnType<typeof buildAssistantReadiness>
 ): string | undefined {
-  if (command === "/write chapter") {
-    if (!context.storySelected) return "No story is selected.";
-    if (!chapterId) return "Choose or create a chapter before writing.";
-    if (!context.availability.has_active_characters) return "I don't have enough character data for this chapter's plan.";
-    if (context.readiness === "blocked") return readiness.blockedWriteReason ?? "The chapter context is blocked.";
-  }
-  if (command === "/check continuity" && !chapterId) return "Choose or create a chapter before checking continuity.";
-  if ((command === "/plan" || command === "/split") && !chapterId) return "Choose or create a chapter before running this command.";
+  const storyReason = storyRequiredReasons[command];
+  const chapterReason = chapterRequiredReasons[command];
+  if (storyReason && !context.storySelected) return storyReason;
+  if (chapterReason && !chapterId) return chapterReason;
+  if (command !== "/write chapter") return undefined;
+  if (!context.availability.has_active_characters) return "I don't have enough character data for this chapter's plan.";
+  if (context.readiness === "blocked") return readiness.blockedWriteReason ?? "The chapter context is blocked.";
   return undefined;
 }
 
@@ -138,7 +150,7 @@ export function buildContextMiniBar(context: AssistantReadinessContext, status: 
   };
 }
 
-export function workspaceHref(storySlug: string, workspace: "analysis" | "reviews" | "memory" | "pipelines"): string {
+export function workspaceHref(storySlug: string, workspace: "analysis" | "reviews" | "memory" | "pipelines" | "ingest"): string {
   return `/stories/${encodeURIComponent(storySlug)}/${workspace}`;
 }
 

@@ -1429,7 +1429,8 @@ body.write-route-lock {
 }
 
 .command-form input,
-.command-form select {
+.command-form select,
+.command-form textarea {
   min-width: 0;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-sm);
@@ -1438,6 +1439,10 @@ body.write-route-lock {
   padding: 8px 10px;
   font-size: 13px;
   outline: none;
+}
+
+.command-form textarea {
+  resize: vertical;
 }
 
 .command-form__grid {

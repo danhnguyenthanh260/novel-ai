@@ -15,6 +15,7 @@ type CommandFormDraft = {
   wordTarget: number;
   target: "source" | "context" | "characters" | "memory";
   depth: "quick" | "deep";
+  attachmentName: string | null;
 };
 
 type ChatComposerProps = {
@@ -37,6 +38,7 @@ const defaultDraft: CommandFormDraft = {
   wordTarget: 1500,
   target: "source",
   depth: "quick",
+  attachmentName: null,
 };
 
 function commandLabel(command: CommandId): string {
@@ -115,6 +117,12 @@ function CommandForm({
 }) {
   const isGoalCommand = command === "/write chapter" || command === "/plan" || command === "/research";
   const isAnalyze = command === "/analyze chapter" || command === "/extract memory";
+  const isIngest = command === "/ingest";
+  const readIngestFile = async (file: File | undefined) => {
+    if (!file) return;
+    const text = await file.text();
+    onDraftChange({ ...draft, goal: text, attachmentName: file.name });
+  };
 
   return (
     <form
@@ -177,7 +185,31 @@ function CommandForm({
         </div>
       ) : null}
 
-      {!isGoalCommand && !isAnalyze ? <p>Run preflight for {commandLabel(command)} using the current story and chapter context.</p> : null}
+      {isIngest ? (
+        <>
+          <label>
+            <span>Source URL or text</span>
+            <textarea
+              value={draft.goal}
+              onChange={(event) => onDraftChange({ ...draft, goal: event.target.value, attachmentName: null })}
+              placeholder="Paste source text or a source URL"
+              rows={4}
+            />
+          </label>
+          <label>
+            <span>Source file</span>
+            <input
+              aria-label="Attach source file"
+              type="file"
+              accept=".txt,.md,.markdown,.text"
+              onChange={(event) => void readIngestFile(event.currentTarget.files?.[0])}
+            />
+          </label>
+          {draft.attachmentName ? <p>Attached: {draft.attachmentName}</p> : null}
+        </>
+      ) : null}
+
+      {!isGoalCommand && !isAnalyze && !isIngest ? <p>Run preflight for {commandLabel(command)} using the current story and chapter context.</p> : null}
 
       <div className="command-form__actions">
         <button type="submit" className="primary-action px-3 py-2 text-xs">
@@ -228,15 +260,15 @@ export default function ChatComposer({ value, menuOpen, commands, onValueChange,
     setActiveIndex(0);
   }, [value]);
 
-  const selectCommand = (command: ChatCommandOption) => {
-    onValueChange(`${command.id} `);
+  const selectCommand = (command: ChatCommandOption, initialGoal = "") => {
+    onValueChange(initialGoal ? `${command.id} ${initialGoal}` : `${command.id} `);
     onMenuOpenChange(false);
     if (command.status === "blocked") {
       onSubmitCommand(command.id, "");
       setActiveCommand(null);
       return;
     }
-    setDraft(defaultDraft);
+    setDraft({ ...defaultDraft, goal: initialGoal });
     setActiveCommand(command.id);
   };
 
@@ -284,7 +316,7 @@ export default function ChatComposer({ value, menuOpen, commands, onValueChange,
             if (!text) return;
             if (state === "slash_command_menu" || text.startsWith("/")) {
               const selected = filteredCommands[activeIndex] ?? commands.find((command) => text.startsWith(command.id));
-              if (selected) selectCommand(selected);
+              if (selected) selectCommand(selected, text.startsWith(selected.id) ? text.slice(selected.id.length).trim() : "");
               return;
             }
             if (longInputReason(text)) {

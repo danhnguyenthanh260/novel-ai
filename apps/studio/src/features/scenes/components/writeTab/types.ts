@@ -346,6 +346,7 @@ export type CommandId =
   | "/check continuity"
   | "/extract memory"
   | "/review chapter"
+  | "/ingest"
   | "/approve draft"
   | "/publish preview"
   | "/status"

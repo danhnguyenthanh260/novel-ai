@@ -3,11 +3,13 @@ import { useRouter } from "next/navigation";
 import ChatComposer from "@/features/scenes/components/writeTab/chatOrchestration/ChatComposer";
 import ChatTimeline from "@/features/scenes/components/writeTab/chatOrchestration/ChatTimeline";
 import ConversationHistoryPanel from "@/features/scenes/components/writeTab/chatOrchestration/ConversationHistoryPanel";
+import { runArtifactAction } from "@/features/scenes/components/writeTab/chatOrchestration/artifactActions";
 import { runAnalyzeCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/analyzeCommandHandler";
 import { runContextCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/contextCommandHandler";
+import { runIngestCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/ingestCommandHandler";
 import { runMemoryCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/memoryCommandHandler";
 import { runPipelineCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/pipelineCommandHandler";
-import { runReviewAction, runReviewCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/reviewCommandHandler";
+import { runReviewCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/reviewCommandHandler";
 import { runStatusCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/statusCommandHandler";
 import { buildBrainstormAngleChoiceGroup, buildBrainstormFollowupChoiceGroup, type StructuredChoiceSelection } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
 import { approvalGateBlock, buildCommands, buildContextDigestBlock, buildContextMiniBar, buildSourceArtifactBlock, buildWorkspaceArtifactBlock, buildWorkspaceWorkflowBlock, chipTarget, commandDefinition, commandLabel, commandTail, contextWithCommandIntent, type CommandResult, workspaceHref } from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
@@ -105,7 +107,6 @@ function useCommandRunner(args: {
         setCommandResult({ tone: "ready", title: "Context digest ready", detail: "I found the current story and chapter context state." });
         return;
       }
-
       if (command === "/pipeline") {
         args.onInspectorModeChange("progress");
         setCommandResult({ tone: "running", title: "Loading pipeline progress", detail: "Reading current and recent pipeline run state." });
@@ -116,7 +117,15 @@ function useCommandRunner(args: {
         });
         return;
       }
-
+      if (command === "/ingest") {
+        args.onInspectorModeChange("artifacts");
+        setCommandResult({ tone: "running", title: "Preparing ingest preview", detail: "Reading the source input and proposing split boundaries." });
+        void runIngestCommand({ storySlug: args.storySlug, chapterId: args.chapterId, chatScope: args.chatScope, readinessContext: commandContext }, goal).then(({ block, result }) => {
+          args.onConversationBlock(block);
+          setCommandResult(result);
+        });
+        return;
+      }
       if (command === "/approve draft") {
         setIntentBlock(approvalGateBlock(args.chapterId));
         setCommandResult({ tone: "blocked", title: "Approval required", detail: "I surfaced the approval gate, but I cannot approve or promote the draft for you." });
@@ -315,7 +324,7 @@ function useCommandRunner(args: {
 // eslint-disable-next-line max-lines-per-function
 export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const router = useRouter();
-  const reviewActionLocks = React.useRef(new Set<string>());
+  const artifactActionLocks = React.useRef(new Set<string>());
   const [chatMode, setChatMode] = React.useState<"chat" | "brainstorm">("chat");
   const [recentBrainstormSeed, setRecentBrainstormSeed] = React.useState<string | null>(null);
   const [pendingBrainstormActions, setPendingBrainstormActions] = React.useState<BrainstormFollowupAction[] | null>(null);
@@ -445,34 +454,28 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
         }, 220);
       });
   };
-
   const handleOpenArtifact = (block: Extract<TimelineBlock, { type: "artifact_preview" }>) => {
     if (block.artifact_type === "memory") props.onInspectorModeChange("memory");
     else if (block.artifact_type === "progress") props.onInspectorModeChange("progress");
     else props.onInspectorModeChange("artifacts");
     props.onOpenArtifactDrawer();
   };
-
   const handleArtifactAction = (block: Extract<TimelineBlock, { type: "artifact_preview" }>, actionId: string) => {
-    if (block.artifact_type !== "review") return;
-    const requestId = Number(block.artifact_id.match(/review-request-(\d+)/)?.[1] ?? 0);
-    if (!requestId || reviewActionLocks.current.has(`${requestId}:${actionId}`)) return;
-    reviewActionLocks.current.add(`${requestId}:${actionId}`);
-    if (actionId === "rewrite_review") props.onOpenAutoWrite();
-    void runReviewAction({ storySlug: props.storySlug, chapterId: props.chapterId, chatScope: props.chatScope, readinessContext: props.assistantContext }, requestId, actionId)
-      .then(({ block: nextBlock, snapshot }) => {
-        props.onReviewSnapshotChange(snapshot);
-        return appendBlock(nextBlock);
-      })
-      .catch(() => undefined);
+    runArtifactAction({
+      block,
+      actionId,
+      locks: artifactActionLocks.current,
+      commandArgs: { storySlug: props.storySlug, chapterId: props.chapterId, chatScope: props.chatScope, readinessContext: props.assistantContext },
+      appendBlock,
+      onOpenAutoWrite: props.onOpenAutoWrite,
+      onReviewSnapshotChange: props.onReviewSnapshotChange,
+    });
   };
-
   const handleCreateSourceArtifact = (text: string) => {
     props.onInspectorModeChange("artifacts");
     props.onOpenArtifactDrawer();
     void appendBlock(buildSourceArtifactBlock(text));
   };
-
   return (
     <section className="work-stream" aria-label="Studio chat work stream">
       <ConversationHistoryPanel

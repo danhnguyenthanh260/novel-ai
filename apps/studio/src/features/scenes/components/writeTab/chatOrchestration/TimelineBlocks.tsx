@@ -178,6 +178,7 @@ export function ArtifactPreviewBlockView({
         ? `${block.beat_count} beats · ${block.status.replace("_", " ")}`
         : block.status.replace("_", " ");
   const description = block.description ?? block.preview_lines[0] ?? "Open the artifact surface for full content.";
+  const previewLines = density === "detail" || block.artifact_type === "source" ? block.preview_lines.slice(0, density === "detail" ? 3 : 4) : [];
 
   return (
     <article className="timeline-card timeline-card--artifact">
@@ -192,9 +193,9 @@ export function ArtifactPreviewBlockView({
       />
       <div className="timeline-card__meta">{meta}</div>
       <p className="timeline-card__description">{description}</p>
-      {density === "detail" ? (
+      {previewLines.length ? (
         <div className="timeline-preview-lines">
-          {block.preview_lines.slice(0, 3).map((line) => (
+          {previewLines.map((line) => (
             <p key={line}>{line}</p>
           ))}
         </div>
