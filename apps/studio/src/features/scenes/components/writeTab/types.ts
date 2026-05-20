@@ -164,6 +164,18 @@ export type ArtifactCardAction = {
   disabled?: boolean;
 };
 
+export type MemorySnapshot = {
+  title: string;
+  scope: ChatScope;
+  chapterId: string | null;
+  characters: string[];
+  arcs: string[];
+  tags: string[];
+  styleNotes: string[];
+  missing: string[];
+  conflicts: string[];
+};
+
 export type TimelineArtifactCard = {
   type: ArtifactType;
   status: ArtifactStatus;

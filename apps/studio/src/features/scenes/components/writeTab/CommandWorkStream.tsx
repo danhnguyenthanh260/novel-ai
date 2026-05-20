@@ -4,30 +4,16 @@ import ChatComposer from "@/features/scenes/components/writeTab/chatOrchestratio
 import ChatTimeline from "@/features/scenes/components/writeTab/chatOrchestration/ChatTimeline";
 import ConversationHistoryPanel from "@/features/scenes/components/writeTab/chatOrchestration/ConversationHistoryPanel";
 import { runContextCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/contextCommandHandler";
+import { runMemoryCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/memoryCommandHandler";
 import { runStatusCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/statusCommandHandler";
 import { buildBrainstormAngleChoiceGroup, buildBrainstormFollowupChoiceGroup, type StructuredChoiceSelection } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
-import {
-  approvalGateBlock,
-  buildCommands,
-  buildContextDigestBlock,
-  buildContextMiniBar,
-  buildSourceArtifactBlock,
-  buildWorkspaceArtifactBlock,
-  buildWorkspaceWorkflowBlock,
-  chipTarget,
-  commandDefinition,
-  commandLabel,
-  commandTail,
-  contextWithCommandIntent,
-  type CommandResult,
-  workspaceHref,
-} from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
+import { approvalGateBlock, buildCommands, buildContextDigestBlock, buildContextMiniBar, buildSourceArtifactBlock, buildWorkspaceArtifactBlock, buildWorkspaceWorkflowBlock, chipTarget, commandDefinition, commandLabel, commandTail, contextWithCommandIntent, type CommandResult, workspaceHref } from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
 import { routeStudioIntent } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import type { BrainstormFollowupAction } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
 import { buildTimelineBlocks } from "@/features/scenes/components/writeTab/chatOrchestration/timelineBlockBuilder";
 import { useAssistantConversations } from "@/features/scenes/components/writeTab/chatOrchestration/useAssistantConversations";
-import type { AssistantReadinessContext, ChatScope, CommandId, RecoveryChip, StudioChatIntent, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
+import type { AssistantReadinessContext, ChatScope, CommandId, MemorySnapshot, RecoveryChip, StudioChatIntent, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 type CommandWorkStreamProps = {
   storySlug: string;
@@ -43,6 +29,7 @@ type CommandWorkStreamProps = {
   onOpenArtifactDrawer: () => void;
   onQueueContinuity: () => void;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
+  onMemorySnapshotChange: (snapshot: MemorySnapshot | null) => void;
   assistantContext: AssistantReadinessContext;
 };
 
@@ -63,6 +50,7 @@ function useCommandRunner(args: {
   onPendingBrainstormActionsChange: (actions: BrainstormFollowupAction[] | null) => void;
   onConversationBlock: (block: TimelineBlock) => void;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
+  onMemorySnapshotChange: (snapshot: MemorySnapshot | null) => void;
 }) {
   const router = useRouter();
   const [commandResult, setCommandResult] = React.useState<CommandResult | null>(null);
@@ -231,8 +219,12 @@ function useCommandRunner(args: {
 
       if (command === "/extract memory" || command === "/memory") {
         args.onInspectorModeChange("memory");
-        setIntentBlock(buildContextDigestBlock(commandContext, [{ label: "Open full memory workspace", href: workspaceHref(args.storySlug, "memory") }]));
-        setCommandResult({ tone: "ready", title: "Memory notes opened", detail: "I kept memory and continuity notes in the Write workspace inspector." });
+        setCommandResult({ tone: "running", title: "Loading memory snapshot", detail: "Reading characters, arcs, tags, and style notes." });
+        void runMemoryCommand({ storySlug: args.storySlug, chapterId: args.chapterId, chatScope: args.chatScope, readinessContext: commandContext }).then(({ blocks, result, snapshot }) => {
+          blocks.forEach(args.onConversationBlock);
+          args.onMemorySnapshotChange(snapshot);
+          setCommandResult(result);
+        });
         return;
       }
 
@@ -392,6 +384,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     onPendingBrainstormActionsChange: setPendingBrainstormActions,
     onConversationBlock: (block) => void appendBlock(block),
     onInspectorModeChange: props.onInspectorModeChange,
+    onMemorySnapshotChange: props.onMemorySnapshotChange,
   });
   const blocks = buildTimelineBlocks({
     briefing,

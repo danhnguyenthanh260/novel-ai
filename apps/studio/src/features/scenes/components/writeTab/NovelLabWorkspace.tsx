@@ -11,6 +11,7 @@ import type {
   ChapterSceneItem,
   ContextReadiness,
   CurrentVersion,
+  MemorySnapshot,
   SceneItem,
   WriteInspectorMode,
 } from "@/features/scenes/components/writeTab/types";
@@ -263,6 +264,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [inspectorMode, setInspectorMode] = useState<WriteInspectorMode>("progress");
   const [artifactDrawerOpen, setArtifactDrawerOpen] = useState(false);
+  const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshot | null>(null);
   const draftSource = useMemo(() => buildDraftSource(props), [props]);
   const chapterTitle = selectedChapterTitle(props.selectedChapterId);
   const hasDraft = draftSource.text.trim().length > 0;
@@ -314,6 +316,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           onOpenArtifactDrawer={() => setArtifactDrawerOpen(true)}
           onQueueContinuity={() => setContinuityQueued(true)}
           onInspectorModeChange={openInspectorMode}
+          onMemorySnapshotChange={setMemorySnapshot}
           assistantContext={{
             storyTitle: storyLabelFromSlug(props.storySlug),
             storySelected: Boolean(props.storySlug),
@@ -335,6 +338,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           readiness={readiness}
           isVisible={isArtifactVisible}
           inspectorMode={inspectorMode}
+          memorySnapshot={memorySnapshot}
           onInspectorModeChange={setInspectorMode}
           drawerOpen={artifactDrawerOpen}
           onDrawerOpenChange={setArtifactDrawerOpen}

@@ -62,6 +62,27 @@ async function mockWriteWorkspace(page: Page) {
     });
   });
 
+  await page.route(`**/api/stories/${storySlug}/assistant/context**`, async (route) => {
+    await route.fulfill({
+      json: {
+        ok: true,
+        item: {
+          scope: "chapter",
+          chapterId: "1",
+          title: "Chapter 1 context snapshot",
+          characters: ["Mira: signal diver"],
+          arcs: ["Recovery thread (sub)"],
+          tags: ["subcurrent", "coastal"],
+          styleNotes: ["Voice: sparse, sensory prose"],
+          included: [],
+          missing: [],
+          degraded: [],
+          conflicts: [],
+        },
+      },
+    });
+  });
+
   await page.route(`**/api/stories/${storySlug}/assistant/conversations**`, async (route) => {
     const request = route.request();
     if (request.method() === "POST") {
@@ -177,7 +198,7 @@ test.describe("Chat artifact interactions", () => {
   test("secondary workspace nav guard keeps commands on write route", async ({ page }) => {
     await openWriteWorkspace(page);
     await runCommand(page, "/memory");
-    await expect(page.getByText("Open full memory workspace")).toBeVisible();
+    await expect(page.getByText("Open full Memory Hub")).toBeVisible();
     await expect(page).toHaveURL(/\/stories\/subcurrent\/write/);
   });
 });
