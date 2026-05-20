@@ -6,6 +6,7 @@ import ConversationHistoryPanel from "@/features/scenes/components/writeTab/chat
 import { runAnalyzeCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/analyzeCommandHandler";
 import { runContextCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/contextCommandHandler";
 import { runMemoryCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/memoryCommandHandler";
+import { runPipelineCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/pipelineCommandHandler";
 import { runStatusCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/statusCommandHandler";
 import { buildBrainstormAngleChoiceGroup, buildBrainstormFollowupChoiceGroup, type StructuredChoiceSelection } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
 import { approvalGateBlock, buildCommands, buildContextDigestBlock, buildContextMiniBar, buildSourceArtifactBlock, buildWorkspaceArtifactBlock, buildWorkspaceWorkflowBlock, chipTarget, commandDefinition, commandLabel, commandTail, contextWithCommandIntent, type CommandResult, workspaceHref } from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
@@ -14,7 +15,7 @@ import type { BrainstormFollowupAction } from "@/features/scenes/components/writ
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
 import { buildTimelineBlocks } from "@/features/scenes/components/writeTab/chatOrchestration/timelineBlockBuilder";
 import { useAssistantConversations } from "@/features/scenes/components/writeTab/chatOrchestration/useAssistantConversations";
-import type { AnalysisSnapshot, AssistantReadinessContext, ChatScope, CommandId, MemorySnapshot, RecoveryChip, StudioChatIntent, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
+import type { AnalysisSnapshot, AssistantReadinessContext, ChatScope, CommandId, MemorySnapshot, PipelineSnapshot, RecoveryChip, StudioChatIntent, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 type CommandWorkStreamProps = {
   storySlug: string;
@@ -32,6 +33,7 @@ type CommandWorkStreamProps = {
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
   onAnalysisSnapshotChange: (snapshot: AnalysisSnapshot | null) => void;
   onMemorySnapshotChange: (snapshot: MemorySnapshot | null) => void;
+  onPipelineSnapshotChange: (snapshot: PipelineSnapshot | null) => void;
   assistantContext: AssistantReadinessContext;
 };
 
@@ -54,6 +56,7 @@ function useCommandRunner(args: {
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
   onAnalysisSnapshotChange: (snapshot: AnalysisSnapshot | null) => void;
   onMemorySnapshotChange: (snapshot: MemorySnapshot | null) => void;
+  onPipelineSnapshotChange: (snapshot: PipelineSnapshot | null) => void;
 }) {
   const router = useRouter();
   const [commandResult, setCommandResult] = React.useState<CommandResult | null>(null);
@@ -102,15 +105,12 @@ function useCommandRunner(args: {
 
       if (command === "/pipeline") {
         args.onInspectorModeChange("progress");
-        args.onConversationBlock(buildWorkspaceWorkflowBlock({
-          id: `pipeline-${Date.now()}`,
-          workflowName: "Pipeline Progress",
-          stepLabel: "Inspecting active workflow state",
-          chapterId: args.chapterId,
-          actionLabel: "Open full pipelines workspace",
-          actionHref: workspaceHref(args.storySlug, "pipelines"),
-        }));
-        setCommandResult({ tone: "ready", title: "Pipeline progress opened", detail: "I kept the workflow state in the Write workspace inspector." });
+        setCommandResult({ tone: "running", title: "Loading pipeline progress", detail: "Reading current and recent pipeline run state." });
+        void runPipelineCommand({ storySlug: args.storySlug, chapterId: args.chapterId, chatScope: args.chatScope, readinessContext: commandContext }).then(({ block, result, snapshot }) => {
+          args.onConversationBlock(block);
+          args.onPipelineSnapshotChange(snapshot);
+          setCommandResult(result);
+        });
         return;
       }
 
@@ -377,6 +377,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     onInspectorModeChange: props.onInspectorModeChange,
     onAnalysisSnapshotChange: props.onAnalysisSnapshotChange,
     onMemorySnapshotChange: props.onMemorySnapshotChange,
+    onPipelineSnapshotChange: props.onPipelineSnapshotChange,
   });
   const blocks = buildTimelineBlocks({
     briefing,

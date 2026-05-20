@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import ArtifactInspectorRail, { type ArtifactInspectorDiagnostics } from "@/features/scenes/components/writeTab/ArtifactInspectorRail";
-import type { AnalysisSnapshot, ContextReadiness, MemorySnapshot, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
+import type { AnalysisSnapshot, ContextReadiness, MemorySnapshot, PipelineSnapshot, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 type ArtifactMode = "read" | "edit" | "analysis" | "review" | "approve";
 
@@ -23,6 +23,7 @@ type ArtifactSurfaceProps = {
   inspectorMode: WriteInspectorMode;
   analysisSnapshot: AnalysisSnapshot | null;
   memorySnapshot: MemorySnapshot | null;
+  pipelineSnapshot: PipelineSnapshot | null;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
   drawerOpen: boolean;
   onDrawerOpenChange: (open: boolean) => void;
@@ -466,6 +467,7 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
           mode={props.inspectorMode}
           analysisSnapshot={props.analysisSnapshot}
           memorySnapshot={props.memorySnapshot}
+          pipelineSnapshot={props.pipelineSnapshot}
           onModeChange={props.onInspectorModeChange}
         />
       )}

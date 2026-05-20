@@ -83,6 +83,27 @@ async function mockWriteWorkspace(page: Page) {
     });
   });
 
+  await page.route(`**/api/${storySlug}/pipelines/overview`, async (route) => {
+    await route.fulfill({
+      json: {
+        ok: true,
+        kpi: { total_jobs: 1, running_jobs: 1, failed_jobs: 0, wait_review_jobs: 0, done_jobs: 0 },
+        health: { ready_backlog: 0, running_tasks: 1, alert_count: 0 },
+        alerts: [],
+        jobs: [{
+          id: 14401,
+          status: "RUNNING",
+          mode: "CHAPTER_WRITE_V3",
+          total_tasks: 3,
+          completed_tasks: 1,
+          created_by: "writing_pipeline",
+          created_at: "2026-05-20 10:00:00",
+          updated_at: "2026-05-20 10:02:00",
+        }],
+      },
+    });
+  });
+
   await page.route(`**/api/stories/${storySlug}/assistant/conversations**`, async (route) => {
     const request = route.request();
     if (request.method() === "POST") {
@@ -183,8 +204,10 @@ test.describe("Chat artifact interactions", () => {
   test("progress command renders workflow stages", async ({ page }) => {
     await openWriteWorkspace(page);
     await runCommand(page, "/pipeline");
-    await expect(page.locator(".timeline-card--workflow").getByText("Pipeline Progress")).toBeVisible();
-    await expect(page.getByText("Inspecting active workflow state")).toBeVisible();
+    const timeline = page.getByLabel("Studio chat work stream");
+    const progress = timeline.locator(".timeline-card--workflow").first();
+    await expect(progress.getByText("Pipeline Progress")).toBeVisible();
+    await expect(progress.getByText("Running CHAPTER_WRITE_V3")).toBeVisible();
   });
 
   test("review cards expose review state labels", async ({ page }) => {

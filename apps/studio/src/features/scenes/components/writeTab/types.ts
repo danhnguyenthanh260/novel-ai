@@ -238,6 +238,17 @@ export type WorkflowProgressBlock = {
   action_links?: TimelineActionLink[];
 };
 
+export type PipelineSnapshot = {
+  title: string;
+  jobId: number | null;
+  status: WorkflowProgressBlock["status"];
+  mode: string;
+  updatedAt: string | null;
+  timing: string[];
+  logs: string[];
+  block: WorkflowProgressBlock & { id: string };
+};
+
 export type ArtifactPreviewBlock = {
   type: "artifact_preview";
   source: "backend" | "assistant";
