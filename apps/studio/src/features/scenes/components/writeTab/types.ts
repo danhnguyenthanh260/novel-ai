@@ -189,6 +189,16 @@ export type AnalysisSnapshot = {
   plotFindings: string[];
 };
 
+export type ReviewSnapshot = {
+  requestId: number;
+  chapterId: string | null;
+  title: string;
+  status: ArtifactStatus;
+  score: number | null;
+  feedback: string[];
+  actions: string[];
+};
+
 export type TimelineArtifactCard = {
   type: ArtifactType;
   status: ArtifactStatus;
@@ -259,7 +269,7 @@ export type ArtifactPreviewBlock = {
   artifact_id: string;
   artifact_type: "plan" | "draft" | "analysis" | "review" | "research" | "memory" | "source" | "progress";
   title: string;
-  status: "draft" | "needs_approval" | "approved" | "failed" | "superseded";
+  status: "draft" | "needs_approval" | "approved" | "rejected" | "applied" | "failed" | "superseded";
   description?: string;
   word_count: number | null;
   beat_count: number | null;

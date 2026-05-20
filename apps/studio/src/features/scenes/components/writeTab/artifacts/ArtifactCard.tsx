@@ -7,6 +7,7 @@ export type ArtifactCardProps = {
   wordCount?: number | null;
   actions: ArtifactCardAction[];
   onOpen?: () => void;
+  onAction?: (actionId: string) => void;
 };
 
 function artifactTypeLabel(type: ArtifactType): string {
@@ -18,7 +19,7 @@ function artifactStatusLabel(status: ArtifactStatus): string {
   return status.replaceAll("_", " ");
 }
 
-export default function ArtifactCard({ type, status, title, wordCount, actions, onOpen }: ArtifactCardProps) {
+export default function ArtifactCard({ type, status, title, wordCount, actions, onOpen, onAction }: ArtifactCardProps) {
   return (
     <article className="artifact-card" data-artifact-card data-artifact-type={type} data-artifact-status={status}>
       <div className="artifact-card__topline">
@@ -38,7 +39,7 @@ export default function ArtifactCard({ type, status, title, wordCount, actions, 
             {action.label}
           </a>
         ) : (
-          <button key={action.id} type="button" disabled={action.disabled}>
+          <button key={action.id} type="button" disabled={action.disabled} onClick={() => onAction?.(action.id)}>
             {action.label}
           </button>
         ))}

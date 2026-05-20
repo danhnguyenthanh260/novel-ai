@@ -12,6 +12,7 @@ type TimelineBlocksProps = {
   onChip: (chip: RecoveryChip) => void;
   onChoice: (selection: StructuredChoiceSelection) => void;
   onOpenArtifact?: (block: Extract<TimelineBlock, { type: "artifact_preview" }>) => void;
+  onArtifactAction?: (block: Extract<TimelineBlock, { type: "artifact_preview" }>, actionId: string) => void;
 };
 
 function workflowMarker(status: WorkflowStepStatus): string {
@@ -159,10 +160,12 @@ export function ArtifactPreviewBlockView({
   block,
   density = "compact",
   onOpen,
+  onAction,
 }: {
   block: Extract<TimelineBlock, { type: "artifact_preview" }>;
   density?: "compact" | "detail";
   onOpen?: () => void;
+  onAction?: (actionId: string) => void;
 }) {
   const actions: ArtifactCardAction[] = [
     ...block.actions.map((action) => ({ id: action, label: action.replaceAll("_", " ") })),
@@ -185,6 +188,7 @@ export function ArtifactPreviewBlockView({
         wordCount={block.word_count}
         actions={actions}
         onOpen={onOpen}
+        onAction={onAction}
       />
       <div className="timeline-card__meta">{meta}</div>
       <p className="timeline-card__description">{description}</p>
@@ -211,6 +215,8 @@ function timelineArtifactType(type: Extract<TimelineBlock, { type: "artifact_pre
 function timelineArtifactStatus(status: Extract<TimelineBlock, { type: "artifact_preview" }>["status"]): ArtifactStatus {
   if (status === "needs_approval") return "pending";
   if (status === "approved") return "approved";
+  if (status === "rejected") return "rejected";
+  if (status === "applied") return "applied";
   if (status === "failed" || status === "superseded") return "stale";
   return "draft";
 }
@@ -281,7 +287,7 @@ export function ContextDigestBlockView({ block }: { block: Extract<TimelineBlock
   );
 }
 
-export default function TimelineBlocks({ blocks, onChip, onChoice, onOpenArtifact }: TimelineBlocksProps) {
+export default function TimelineBlocks({ blocks, onChip, onChoice, onOpenArtifact, onArtifactAction }: TimelineBlocksProps) {
   return (
     <>
       {blocks.map((block) => {
@@ -290,7 +296,7 @@ export default function TimelineBlocks({ blocks, onChip, onChoice, onOpenArtifac
         if (block.type === "inline_choice_chips") return <ChoiceChipsBlock key={block.id} block={block} onChip={onChip} />;
         if (block.type === "choice_group") return <ChoiceGroup key={block.id} block={block} onChoice={(choiceBlock, choice) => onChoice(choiceSelectionFromBlock(choiceBlock, choice))} />;
         if (block.type === "workflow_progress") return <WorkflowProgressBlockView key={block.id} block={block} />;
-        if (block.type === "artifact_preview") return <ArtifactPreviewBlockView key={block.id} block={block} onOpen={onOpenArtifact ? () => onOpenArtifact(block) : undefined} />;
+        if (block.type === "artifact_preview") return <ArtifactPreviewBlockView key={block.id} block={block} onOpen={onOpenArtifact ? () => onOpenArtifact(block) : undefined} onAction={onArtifactAction ? (actionId) => onArtifactAction(block, actionId) : undefined} />;
         if (block.type === "approval_gate") return <ApprovalGate key={block.id} block={block} />;
         if (block.type === "failure_recovery") return <FailureRecovery key={block.id} block={block} />;
         return <ContextDigestBlockView key={block.id} block={block} />;

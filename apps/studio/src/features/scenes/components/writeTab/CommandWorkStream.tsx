@@ -7,6 +7,7 @@ import { runAnalyzeCommand } from "@/features/scenes/components/writeTab/chatOrc
 import { runContextCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/contextCommandHandler";
 import { runMemoryCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/memoryCommandHandler";
 import { runPipelineCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/pipelineCommandHandler";
+import { runReviewAction, runReviewCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/reviewCommandHandler";
 import { runStatusCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/statusCommandHandler";
 import { buildBrainstormAngleChoiceGroup, buildBrainstormFollowupChoiceGroup, type StructuredChoiceSelection } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
 import { approvalGateBlock, buildCommands, buildContextDigestBlock, buildContextMiniBar, buildSourceArtifactBlock, buildWorkspaceArtifactBlock, buildWorkspaceWorkflowBlock, chipTarget, commandDefinition, commandLabel, commandTail, contextWithCommandIntent, type CommandResult, workspaceHref } from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
@@ -15,7 +16,7 @@ import type { BrainstormFollowupAction } from "@/features/scenes/components/writ
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
 import { buildTimelineBlocks } from "@/features/scenes/components/writeTab/chatOrchestration/timelineBlockBuilder";
 import { useAssistantConversations } from "@/features/scenes/components/writeTab/chatOrchestration/useAssistantConversations";
-import type { AnalysisSnapshot, AssistantReadinessContext, ChatScope, CommandId, MemorySnapshot, PipelineSnapshot, RecoveryChip, StudioChatIntent, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
+import type { AnalysisSnapshot, AssistantReadinessContext, ChatScope, CommandId, MemorySnapshot, PipelineSnapshot, RecoveryChip, ReviewSnapshot, StudioChatIntent, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 type CommandWorkStreamProps = {
   storySlug: string;
@@ -34,6 +35,7 @@ type CommandWorkStreamProps = {
   onAnalysisSnapshotChange: (snapshot: AnalysisSnapshot | null) => void;
   onMemorySnapshotChange: (snapshot: MemorySnapshot | null) => void;
   onPipelineSnapshotChange: (snapshot: PipelineSnapshot | null) => void;
+  onReviewSnapshotChange: (snapshot: ReviewSnapshot | null) => void;
   assistantContext: AssistantReadinessContext;
 };
 
@@ -57,6 +59,7 @@ function useCommandRunner(args: {
   onAnalysisSnapshotChange: (snapshot: AnalysisSnapshot | null) => void;
   onMemorySnapshotChange: (snapshot: MemorySnapshot | null) => void;
   onPipelineSnapshotChange: (snapshot: PipelineSnapshot | null) => void;
+  onReviewSnapshotChange: (snapshot: ReviewSnapshot | null) => void;
 }) {
   const router = useRouter();
   const [commandResult, setCommandResult] = React.useState<CommandResult | null>(null);
@@ -199,6 +202,7 @@ function useCommandRunner(args: {
 
       if (command === "/analyze chapter") {
         args.onInspectorModeChange("artifacts");
+        args.onReviewSnapshotChange(null);
         setCommandResult({ tone: "running", title: "Loading analysis artifact", detail: "Reading cached continuity, character, and plot findings." });
         void runAnalyzeCommand({ storySlug: args.storySlug, chapterId: args.chapterId, chatScope: args.chatScope, readinessContext: commandContext }).then(({ block, result, snapshot }) => {
           args.onConversationBlock(block);
@@ -221,24 +225,13 @@ function useCommandRunner(args: {
 
       if (command === "/review chapter") {
         args.onInspectorModeChange("artifacts");
-        const stamp = Date.now();
-        args.onConversationBlock(buildWorkspaceWorkflowBlock({
-          id: `review-progress-${stamp}`,
-          workflowName: "Chapter Review",
-          stepLabel: "Preparing review artifact",
-          chapterId: args.chapterId,
-          actionLabel: "Open full reviews workspace",
-          actionHref: workspaceHref(args.storySlug, "reviews"),
-        }));
-        args.onConversationBlock(buildWorkspaceArtifactBlock({
-          id: `review-artifact-${stamp}`,
-          artifactType: "review",
-          title: "Chapter review result",
-          description: "Review output is visible in Write and expands through the artifact inspector.",
-          actionLabel: "Open full reviews workspace",
-          actionHref: workspaceHref(args.storySlug, "reviews"),
-        }));
-        setCommandResult({ tone: "ready", title: "Review opened", detail: "I kept review output inside Write and opened the artifact inspector." });
+        args.onAnalysisSnapshotChange(null);
+        setCommandResult({ tone: "running", title: "Loading review artifacts", detail: "Reading pending review requests and latest feedback." });
+        void runReviewCommand({ storySlug: args.storySlug, chapterId: args.chapterId, chatScope: args.chatScope, readinessContext: commandContext }).then(({ block, result, snapshot }) => {
+          args.onConversationBlock(block);
+          args.onReviewSnapshotChange(snapshot);
+          setCommandResult(result);
+        });
         return;
       }
 
@@ -322,6 +315,7 @@ function useCommandRunner(args: {
 // eslint-disable-next-line max-lines-per-function
 export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const router = useRouter();
+  const reviewActionLocks = React.useRef(new Set<string>());
   const [chatMode, setChatMode] = React.useState<"chat" | "brainstorm">("chat");
   const [recentBrainstormSeed, setRecentBrainstormSeed] = React.useState<string | null>(null);
   const [pendingBrainstormActions, setPendingBrainstormActions] = React.useState<BrainstormFollowupAction[] | null>(null);
@@ -378,6 +372,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     onAnalysisSnapshotChange: props.onAnalysisSnapshotChange,
     onMemorySnapshotChange: props.onMemorySnapshotChange,
     onPipelineSnapshotChange: props.onPipelineSnapshotChange,
+    onReviewSnapshotChange: props.onReviewSnapshotChange,
   });
   const blocks = buildTimelineBlocks({
     briefing,
@@ -458,6 +453,20 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     props.onOpenArtifactDrawer();
   };
 
+  const handleArtifactAction = (block: Extract<TimelineBlock, { type: "artifact_preview" }>, actionId: string) => {
+    if (block.artifact_type !== "review") return;
+    const requestId = Number(block.artifact_id.match(/review-request-(\d+)/)?.[1] ?? 0);
+    if (!requestId || reviewActionLocks.current.has(`${requestId}:${actionId}`)) return;
+    reviewActionLocks.current.add(`${requestId}:${actionId}`);
+    if (actionId === "rewrite_review") props.onOpenAutoWrite();
+    void runReviewAction({ storySlug: props.storySlug, chapterId: props.chapterId, chatScope: props.chatScope, readinessContext: props.assistantContext }, requestId, actionId)
+      .then(({ block: nextBlock, snapshot }) => {
+        props.onReviewSnapshotChange(snapshot);
+        return appendBlock(nextBlock);
+      })
+      .catch(() => undefined);
+  };
+
   const handleCreateSourceArtifact = (text: string) => {
     props.onInspectorModeChange("artifacts");
     props.onOpenArtifactDrawer();
@@ -482,6 +491,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
         onChip={handleChip}
         onChoice={handleChoice}
         onOpenArtifact={handleOpenArtifact}
+        onArtifactAction={handleArtifactAction}
       />
       <ChatComposer
         value={props.composerValue}

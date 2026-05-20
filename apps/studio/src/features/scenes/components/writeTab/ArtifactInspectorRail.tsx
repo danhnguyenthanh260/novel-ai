@@ -8,7 +8,7 @@ import {
   continuityWorkflowProgressEvent,
   workflowProgressBlockFromEvent,
 } from "@/features/scenes/components/writeTab/chatOrchestration/workflowProgressEvents";
-import type { AnalysisSnapshot, ContextReadiness, ContextReadinessLabel, MemorySnapshot, PipelineSnapshot, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
+import type { AnalysisSnapshot, ContextReadiness, ContextReadinessLabel, MemorySnapshot, PipelineSnapshot, ReviewSnapshot, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 const inspectorTabs: Array<{ mode: WriteInspectorMode; label: string }> = [
   { mode: "progress", label: "Progress" },
@@ -25,6 +25,7 @@ type ArtifactInspectorRailProps = {
   analysisSnapshot: AnalysisSnapshot | null;
   memorySnapshot: MemorySnapshot | null;
   pipelineSnapshot: PipelineSnapshot | null;
+  reviewSnapshot: ReviewSnapshot | null;
   onModeChange: (mode: WriteInspectorMode) => void;
 };
 
@@ -214,6 +215,20 @@ function AnalysisPreview({ diagnostics, snapshot }: { diagnostics: ArtifactInspe
   );
 }
 
+function ReviewPreview({ snapshot }: { snapshot: ReviewSnapshot }) {
+  return (
+    <div className="inspector-stack">
+      <div className="inspector-note">
+        <strong>{snapshot.title}</strong>
+        <span>State: {snapshot.status}</span>
+        {snapshot.score !== null ? <span>Score: {snapshot.score.toFixed(1)}</span> : <span>Score: pending</span>}
+      </div>
+      {sectionItems("Feedback", snapshot.feedback)}
+      {sectionItems("Available actions", snapshot.actions.length ? snapshot.actions.map((action) => action.replaceAll("_", " ")) : ["No inline actions available"])}
+    </div>
+  );
+}
+
 function PipelinePreview({ diagnostics, continuityQueued, snapshot }: { diagnostics: ArtifactInspectorDiagnostics; continuityQueued: boolean; snapshot: PipelineSnapshot | null }) {
   if (!snapshot) return <WorkflowProgressBlockView block={buildWorkflowBlock(diagnostics, continuityQueued)} density="detail" />;
   return (
@@ -233,6 +248,7 @@ function TabPreview({
   analysisSnapshot,
   memorySnapshot,
   pipelineSnapshot,
+  reviewSnapshot,
 }: {
   tab: WriteInspectorMode;
   readiness: ContextReadiness;
@@ -241,15 +257,17 @@ function TabPreview({
   analysisSnapshot: AnalysisSnapshot | null;
   memorySnapshot: MemorySnapshot | null;
   pipelineSnapshot: PipelineSnapshot | null;
+  reviewSnapshot: ReviewSnapshot | null;
 }) {
   if (tab === "progress") return <PipelinePreview diagnostics={diagnostics} continuityQueued={continuityQueued} snapshot={pipelineSnapshot} />;
   if (tab === "context") return <ContextDigestBlockView block={buildContextDigestBlock(readiness, diagnostics, continuityQueued)} />;
+  if (tab === "artifacts" && reviewSnapshot) return <ReviewPreview snapshot={reviewSnapshot} />;
   if (tab === "artifacts") return <AnalysisPreview diagnostics={diagnostics} snapshot={analysisSnapshot} />;
   if (tab === "memory") return <MemoryPreview diagnostics={diagnostics} snapshot={memorySnapshot} />;
   return null;
 }
 
-export default function ArtifactInspectorRail({ readiness, continuityQueued, diagnostics, mode, analysisSnapshot, memorySnapshot, pipelineSnapshot, onModeChange }: ArtifactInspectorRailProps) {
+export default function ArtifactInspectorRail({ readiness, continuityQueued, diagnostics, mode, analysisSnapshot, memorySnapshot, pipelineSnapshot, reviewSnapshot, onModeChange }: ArtifactInspectorRailProps) {
   const [inspectorWidth, setInspectorWidth] = useState(308);
   const progress = progressPercent(diagnostics, continuityQueued);
   const warnings = warningCount(readiness, diagnostics, continuityQueued);
@@ -291,7 +309,7 @@ export default function ArtifactInspectorRail({ readiness, continuityQueued, dia
           </button>
         ))}
       </div>
-      <TabPreview tab={mode} readiness={readiness} diagnostics={diagnostics} continuityQueued={continuityQueued} analysisSnapshot={analysisSnapshot} memorySnapshot={memorySnapshot} pipelineSnapshot={pipelineSnapshot} />
+      <TabPreview tab={mode} readiness={readiness} diagnostics={diagnostics} continuityQueued={continuityQueued} analysisSnapshot={analysisSnapshot} memorySnapshot={memorySnapshot} pipelineSnapshot={pipelineSnapshot} reviewSnapshot={reviewSnapshot} />
     </aside>
   );
 }
