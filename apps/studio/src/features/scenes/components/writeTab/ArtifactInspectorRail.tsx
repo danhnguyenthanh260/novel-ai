@@ -8,7 +8,7 @@ import {
   continuityWorkflowProgressEvent,
   workflowProgressBlockFromEvent,
 } from "@/features/scenes/components/writeTab/chatOrchestration/workflowProgressEvents";
-import type { ContextReadiness, ContextReadinessLabel, MemorySnapshot, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
+import type { AnalysisSnapshot, ContextReadiness, ContextReadinessLabel, MemorySnapshot, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 const inspectorTabs: Array<{ mode: WriteInspectorMode; label: string }> = [
   { mode: "progress", label: "Progress" },
@@ -22,6 +22,7 @@ type ArtifactInspectorRailProps = {
   continuityQueued: boolean;
   diagnostics: ArtifactInspectorDiagnostics;
   mode: WriteInspectorMode;
+  analysisSnapshot: AnalysisSnapshot | null;
   memorySnapshot: MemorySnapshot | null;
   onModeChange: (mode: WriteInspectorMode) => void;
 };
@@ -194,27 +195,47 @@ function MemoryPreview({ diagnostics, snapshot }: { diagnostics: ArtifactInspect
   );
 }
 
+function AnalysisPreview({ diagnostics, snapshot }: { diagnostics: ArtifactInspectorDiagnostics; snapshot: AnalysisSnapshot | null }) {
+  if (!snapshot) return <ArtifactPreviewBlockView block={buildArtifactPreviewBlock(diagnostics)} density="detail" />;
+  return (
+    <div className="inspector-stack">
+      <div className="inspector-note">
+        <strong>{snapshot.title}</strong>
+        <span>Verdict: {snapshot.verdict}</span>
+        <span>Cache: {snapshot.freshness}</span>
+        {snapshot.updatedAt ? <span>Updated: {snapshot.updatedAt}</span> : null}
+      </div>
+      {sectionItems("Flags", snapshot.flags)}
+      {sectionItems("Continuity", snapshot.continuityFindings)}
+      {sectionItems("Characters", snapshot.characterFindings)}
+      {sectionItems("Plot", snapshot.plotFindings)}
+    </div>
+  );
+}
+
 function TabPreview({
   tab,
   readiness,
   diagnostics,
   continuityQueued,
+  analysisSnapshot,
   memorySnapshot,
 }: {
   tab: WriteInspectorMode;
   readiness: ContextReadiness;
   diagnostics: ArtifactInspectorDiagnostics;
   continuityQueued: boolean;
+  analysisSnapshot: AnalysisSnapshot | null;
   memorySnapshot: MemorySnapshot | null;
 }) {
   if (tab === "progress") return <WorkflowProgressBlockView block={buildWorkflowBlock(diagnostics, continuityQueued)} density="detail" />;
   if (tab === "context") return <ContextDigestBlockView block={buildContextDigestBlock(readiness, diagnostics, continuityQueued)} />;
-  if (tab === "artifacts") return <ArtifactPreviewBlockView block={buildArtifactPreviewBlock(diagnostics)} density="detail" />;
+  if (tab === "artifacts") return <AnalysisPreview diagnostics={diagnostics} snapshot={analysisSnapshot} />;
   if (tab === "memory") return <MemoryPreview diagnostics={diagnostics} snapshot={memorySnapshot} />;
   return null;
 }
 
-export default function ArtifactInspectorRail({ readiness, continuityQueued, diagnostics, mode, memorySnapshot, onModeChange }: ArtifactInspectorRailProps) {
+export default function ArtifactInspectorRail({ readiness, continuityQueued, diagnostics, mode, analysisSnapshot, memorySnapshot, onModeChange }: ArtifactInspectorRailProps) {
   const [inspectorWidth, setInspectorWidth] = useState(308);
   const progress = progressPercent(diagnostics, continuityQueued);
   const warnings = warningCount(readiness, diagnostics, continuityQueued);
@@ -256,7 +277,7 @@ export default function ArtifactInspectorRail({ readiness, continuityQueued, dia
           </button>
         ))}
       </div>
-      <TabPreview tab={mode} readiness={readiness} diagnostics={diagnostics} continuityQueued={continuityQueued} memorySnapshot={memorySnapshot} />
+      <TabPreview tab={mode} readiness={readiness} diagnostics={diagnostics} continuityQueued={continuityQueued} analysisSnapshot={analysisSnapshot} memorySnapshot={memorySnapshot} />
     </aside>
   );
 }

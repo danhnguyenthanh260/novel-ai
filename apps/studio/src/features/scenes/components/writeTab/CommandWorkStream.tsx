@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import ChatComposer from "@/features/scenes/components/writeTab/chatOrchestration/ChatComposer";
 import ChatTimeline from "@/features/scenes/components/writeTab/chatOrchestration/ChatTimeline";
 import ConversationHistoryPanel from "@/features/scenes/components/writeTab/chatOrchestration/ConversationHistoryPanel";
+import { runAnalyzeCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/analyzeCommandHandler";
 import { runContextCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/contextCommandHandler";
 import { runMemoryCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/memoryCommandHandler";
 import { runStatusCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/statusCommandHandler";
@@ -13,7 +14,7 @@ import type { BrainstormFollowupAction } from "@/features/scenes/components/writ
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
 import { buildTimelineBlocks } from "@/features/scenes/components/writeTab/chatOrchestration/timelineBlockBuilder";
 import { useAssistantConversations } from "@/features/scenes/components/writeTab/chatOrchestration/useAssistantConversations";
-import type { AssistantReadinessContext, ChatScope, CommandId, MemorySnapshot, RecoveryChip, StudioChatIntent, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
+import type { AnalysisSnapshot, AssistantReadinessContext, ChatScope, CommandId, MemorySnapshot, RecoveryChip, StudioChatIntent, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 type CommandWorkStreamProps = {
   storySlug: string;
@@ -29,6 +30,7 @@ type CommandWorkStreamProps = {
   onOpenArtifactDrawer: () => void;
   onQueueContinuity: () => void;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
+  onAnalysisSnapshotChange: (snapshot: AnalysisSnapshot | null) => void;
   onMemorySnapshotChange: (snapshot: MemorySnapshot | null) => void;
   assistantContext: AssistantReadinessContext;
 };
@@ -50,6 +52,7 @@ function useCommandRunner(args: {
   onPendingBrainstormActionsChange: (actions: BrainstormFollowupAction[] | null) => void;
   onConversationBlock: (block: TimelineBlock) => void;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
+  onAnalysisSnapshotChange: (snapshot: AnalysisSnapshot | null) => void;
   onMemorySnapshotChange: (snapshot: MemorySnapshot | null) => void;
 }) {
   const router = useRouter();
@@ -195,25 +198,13 @@ function useCommandRunner(args: {
       }
 
       if (command === "/analyze chapter") {
-        args.onInspectorModeChange("context");
-        const stamp = Date.now();
-        args.onConversationBlock(buildWorkspaceWorkflowBlock({
-          id: `analysis-progress-${stamp}`,
-          workflowName: "Chapter Analysis",
-          stepLabel: "Analyzing chapter context",
-          chapterId: args.chapterId,
-          actionLabel: "Open full analysis workspace",
-          actionHref: workspaceHref(args.storySlug, "analysis"),
-        }));
-        args.onConversationBlock(buildWorkspaceArtifactBlock({
-          id: `analysis-artifact-${stamp}`,
-          artifactType: "analysis",
-          title: "Chapter analysis report",
-          description: "Analysis is attached to the Write timeline and expanded in the right inspector.",
-          actionLabel: "Open full analysis workspace",
-          actionHref: workspaceHref(args.storySlug, "analysis"),
-        }));
-        setCommandResult({ tone: "ready", title: "Analysis opened", detail: "I kept the command inside Write and opened the context inspector." });
+        args.onInspectorModeChange("artifacts");
+        setCommandResult({ tone: "running", title: "Loading analysis artifact", detail: "Reading cached continuity, character, and plot findings." });
+        void runAnalyzeCommand({ storySlug: args.storySlug, chapterId: args.chapterId, chatScope: args.chatScope, readinessContext: commandContext }).then(({ block, result, snapshot }) => {
+          args.onConversationBlock(block);
+          args.onAnalysisSnapshotChange(snapshot);
+          setCommandResult(result);
+        });
         return;
       }
 
@@ -384,6 +375,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     onPendingBrainstormActionsChange: setPendingBrainstormActions,
     onConversationBlock: (block) => void appendBlock(block),
     onInspectorModeChange: props.onInspectorModeChange,
+    onAnalysisSnapshotChange: props.onAnalysisSnapshotChange,
     onMemorySnapshotChange: props.onMemorySnapshotChange,
   });
   const blocks = buildTimelineBlocks({

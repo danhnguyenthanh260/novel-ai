@@ -176,6 +176,19 @@ export type MemorySnapshot = {
   conflicts: string[];
 };
 
+export type AnalysisSnapshot = {
+  title: string;
+  scope: ChatScope;
+  chapterId: string | null;
+  verdict: "ready" | "needs-review" | "blocked" | "stale";
+  freshness: "fresh" | "stale" | "missing";
+  updatedAt: string | null;
+  flags: string[];
+  continuityFindings: string[];
+  characterFindings: string[];
+  plotFindings: string[];
+};
+
 export type TimelineArtifactCard = {
   type: ArtifactType;
   status: ArtifactStatus;

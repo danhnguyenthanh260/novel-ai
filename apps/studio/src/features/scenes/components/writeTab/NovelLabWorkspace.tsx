@@ -6,6 +6,7 @@ import AutoWriteWizard from "@/features/scenes/components/writeTab/AutoWriteWiza
 import ArtifactSurface from "@/features/scenes/components/writeTab/ArtifactSurface";
 import CommandWorkStream from "@/features/scenes/components/writeTab/CommandWorkStream";
 import type {
+  AnalysisSnapshot,
   AssistantAvailability,
   ChatScope,
   ChapterSceneItem,
@@ -264,6 +265,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [inspectorMode, setInspectorMode] = useState<WriteInspectorMode>("progress");
   const [artifactDrawerOpen, setArtifactDrawerOpen] = useState(false);
+  const [analysisSnapshot, setAnalysisSnapshot] = useState<AnalysisSnapshot | null>(null);
   const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshot | null>(null);
   const draftSource = useMemo(() => buildDraftSource(props), [props]);
   const chapterTitle = selectedChapterTitle(props.selectedChapterId);
@@ -316,6 +318,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           onOpenArtifactDrawer={() => setArtifactDrawerOpen(true)}
           onQueueContinuity={() => setContinuityQueued(true)}
           onInspectorModeChange={openInspectorMode}
+          onAnalysisSnapshotChange={setAnalysisSnapshot}
           onMemorySnapshotChange={setMemorySnapshot}
           assistantContext={{
             storyTitle: storyLabelFromSlug(props.storySlug),
@@ -338,6 +341,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           readiness={readiness}
           isVisible={isArtifactVisible}
           inspectorMode={inspectorMode}
+          analysisSnapshot={analysisSnapshot}
           memorySnapshot={memorySnapshot}
           onInspectorModeChange={setInspectorMode}
           drawerOpen={artifactDrawerOpen}
