@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "lint:line-budgets": "node scripts/check_line_budgets.mjs",
+    "e2e:chat-first": "playwright test --config=playwright.config.ts",
     "typecheck": "tsc --noEmit",
     "doctor:pipeline": "node scripts/doctor_pipeline.mjs",
     "doctor:llm": "node scripts/doctor_llm.mjs",
@@ -39,11 +40,13 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.16.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@playwright/test": "^1.51.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",

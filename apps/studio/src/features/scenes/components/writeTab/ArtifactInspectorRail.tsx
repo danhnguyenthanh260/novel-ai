@@ -8,7 +8,7 @@ import {
   continuityWorkflowProgressEvent,
   workflowProgressBlockFromEvent,
 } from "@/features/scenes/components/writeTab/chatOrchestration/workflowProgressEvents";
-import type { ContextReadiness, ContextReadinessLabel, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
+import type { AnalysisSnapshot, ContextReadiness, ContextReadinessLabel, MemorySnapshot, PipelineSnapshot, ReviewSnapshot, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 const inspectorTabs: Array<{ mode: WriteInspectorMode; label: string }> = [
   { mode: "progress", label: "Progress" },
@@ -22,6 +22,10 @@ type ArtifactInspectorRailProps = {
   continuityQueued: boolean;
   diagnostics: ArtifactInspectorDiagnostics;
   mode: WriteInspectorMode;
+  analysisSnapshot: AnalysisSnapshot | null;
+  memorySnapshot: MemorySnapshot | null;
+  pipelineSnapshot: PipelineSnapshot | null;
+  reviewSnapshot: ReviewSnapshot | null;
   onModeChange: (mode: WriteInspectorMode) => void;
 };
 
@@ -151,17 +155,87 @@ function buildArtifactPreviewBlock(diagnostics: ArtifactInspectorDiagnostics): E
   };
 }
 
-function MemoryPreview({ diagnostics }: { diagnostics: ArtifactInspectorDiagnostics }) {
+function sectionItems(label: string, items: string[]) {
+  return (
+    <div className="inspector-note">
+      <strong>{label}</strong>
+      {(items.length ? items : ["None loaded"]).map((item) => (
+        <span key={item}>{item}</span>
+      ))}
+    </div>
+  );
+}
+
+function MemoryPreview({ diagnostics, snapshot }: { diagnostics: ArtifactInspectorDiagnostics; snapshot: MemorySnapshot | null }) {
+  if (!snapshot) {
+    return (
+      <div className="inspector-stack">
+        <div className="inspector-note">Run /memory or click a memory card to load characters, arcs, tags, and style notes here.</div>
+        <div className="inspector-note">{diagnostics.gateDetail}</div>
+      </div>
+    );
+  }
   const memoryItems = [
-    "Memory diagnostics unavailable in this inspector.",
-    "Use the story Memory workspace for retrieval, conflicts, and extraction review.",
-    diagnostics.gateDetail,
+    `Scope: ${snapshot.scope}`,
+    snapshot.chapterId ? `Chapter: ${snapshot.chapterId}` : "Story-level memory",
+    ...snapshot.missing.map((item) => `Missing: ${item}`),
+    ...snapshot.conflicts.map((item) => `Conflict: ${item}`),
   ];
   return (
     <div className="inspector-stack">
-      {memoryItems.map((item) => (
-        <div key={item} className="inspector-note">{item}</div>
-      ))}
+      <div className="inspector-note">
+        <strong>{snapshot.title}</strong>
+        {memoryItems.map((item) => (
+          <span key={item}>{item}</span>
+        ))}
+      </div>
+      {sectionItems("Characters", snapshot.characters)}
+      {sectionItems("Arcs", snapshot.arcs)}
+      {sectionItems("Tags", snapshot.tags)}
+      {sectionItems("Style notes", snapshot.styleNotes)}
+    </div>
+  );
+}
+
+function AnalysisPreview({ diagnostics, snapshot }: { diagnostics: ArtifactInspectorDiagnostics; snapshot: AnalysisSnapshot | null }) {
+  if (!snapshot) return <ArtifactPreviewBlockView block={buildArtifactPreviewBlock(diagnostics)} density="detail" />;
+  return (
+    <div className="inspector-stack">
+      <div className="inspector-note">
+        <strong>{snapshot.title}</strong>
+        <span>Verdict: {snapshot.verdict}</span>
+        <span>Cache: {snapshot.freshness}</span>
+        {snapshot.updatedAt ? <span>Updated: {snapshot.updatedAt}</span> : null}
+      </div>
+      {sectionItems("Flags", snapshot.flags)}
+      {sectionItems("Continuity", snapshot.continuityFindings)}
+      {sectionItems("Characters", snapshot.characterFindings)}
+      {sectionItems("Plot", snapshot.plotFindings)}
+    </div>
+  );
+}
+
+function ReviewPreview({ snapshot }: { snapshot: ReviewSnapshot }) {
+  return (
+    <div className="inspector-stack">
+      <div className="inspector-note">
+        <strong>{snapshot.title}</strong>
+        <span>State: {snapshot.status}</span>
+        {snapshot.score !== null ? <span>Score: {snapshot.score.toFixed(1)}</span> : <span>Score: pending</span>}
+      </div>
+      {sectionItems("Feedback", snapshot.feedback)}
+      {sectionItems("Available actions", snapshot.actions.length ? snapshot.actions.map((action) => action.replaceAll("_", " ")) : ["No inline actions available"])}
+    </div>
+  );
+}
+
+function PipelinePreview({ diagnostics, continuityQueued, snapshot }: { diagnostics: ArtifactInspectorDiagnostics; continuityQueued: boolean; snapshot: PipelineSnapshot | null }) {
+  if (!snapshot) return <WorkflowProgressBlockView block={buildWorkflowBlock(diagnostics, continuityQueued)} density="detail" />;
+  return (
+    <div className="inspector-stack">
+      <WorkflowProgressBlockView block={snapshot.block} density="detail" />
+      {sectionItems("Timing", snapshot.timing)}
+      {sectionItems("Logs", snapshot.logs)}
     </div>
   );
 }
@@ -171,20 +245,29 @@ function TabPreview({
   readiness,
   diagnostics,
   continuityQueued,
+  analysisSnapshot,
+  memorySnapshot,
+  pipelineSnapshot,
+  reviewSnapshot,
 }: {
   tab: WriteInspectorMode;
   readiness: ContextReadiness;
   diagnostics: ArtifactInspectorDiagnostics;
   continuityQueued: boolean;
+  analysisSnapshot: AnalysisSnapshot | null;
+  memorySnapshot: MemorySnapshot | null;
+  pipelineSnapshot: PipelineSnapshot | null;
+  reviewSnapshot: ReviewSnapshot | null;
 }) {
-  if (tab === "progress") return <WorkflowProgressBlockView block={buildWorkflowBlock(diagnostics, continuityQueued)} density="detail" />;
+  if (tab === "progress") return <PipelinePreview diagnostics={diagnostics} continuityQueued={continuityQueued} snapshot={pipelineSnapshot} />;
   if (tab === "context") return <ContextDigestBlockView block={buildContextDigestBlock(readiness, diagnostics, continuityQueued)} />;
-  if (tab === "artifacts") return <ArtifactPreviewBlockView block={buildArtifactPreviewBlock(diagnostics)} density="detail" />;
-  if (tab === "memory") return <MemoryPreview diagnostics={diagnostics} />;
+  if (tab === "artifacts" && reviewSnapshot) return <ReviewPreview snapshot={reviewSnapshot} />;
+  if (tab === "artifacts") return <AnalysisPreview diagnostics={diagnostics} snapshot={analysisSnapshot} />;
+  if (tab === "memory") return <MemoryPreview diagnostics={diagnostics} snapshot={memorySnapshot} />;
   return null;
 }
 
-export default function ArtifactInspectorRail({ readiness, continuityQueued, diagnostics, mode, onModeChange }: ArtifactInspectorRailProps) {
+export default function ArtifactInspectorRail({ readiness, continuityQueued, diagnostics, mode, analysisSnapshot, memorySnapshot, pipelineSnapshot, reviewSnapshot, onModeChange }: ArtifactInspectorRailProps) {
   const [inspectorWidth, setInspectorWidth] = useState(308);
   const progress = progressPercent(diagnostics, continuityQueued);
   const warnings = warningCount(readiness, diagnostics, continuityQueued);
@@ -214,12 +297,19 @@ export default function ArtifactInspectorRail({ readiness, continuityQueued, dia
       </div>
       <div className="inspector-tabs" role="tablist">
         {inspectorTabs.map((tab) => (
-          <button key={tab.mode} type="button" className={tab.mode === mode ? "shell-link shell-link--active px-2 py-1 text-xs" : "shell-link px-2 py-1 text-xs"} onClick={() => onModeChange(tab.mode)}>
+          <button
+            key={tab.mode}
+            type="button"
+            role="tab"
+            aria-selected={tab.mode === mode}
+            className={tab.mode === mode ? "shell-link shell-link--active px-2 py-1 text-xs" : "shell-link px-2 py-1 text-xs"}
+            onClick={() => onModeChange(tab.mode)}
+          >
             {tab.label}
           </button>
         ))}
       </div>
-      <TabPreview tab={mode} readiness={readiness} diagnostics={diagnostics} continuityQueued={continuityQueued} />
+      <TabPreview tab={mode} readiness={readiness} diagnostics={diagnostics} continuityQueued={continuityQueued} analysisSnapshot={analysisSnapshot} memorySnapshot={memorySnapshot} pipelineSnapshot={pipelineSnapshot} reviewSnapshot={reviewSnapshot} />
     </aside>
   );
 }

@@ -1,14 +1,19 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import WriteTabView from "@/features/scenes/components/writeTab/WriteTabView";
 import { useWriteTabState } from "@/features/scenes/components/writeTab/hooks/useWriteTabState";
+import type { ChatScope } from "@/features/scenes/components/writeTab/types";
 
 export default function WriteTabClient({ storySlug }: { storySlug: string }) {
+  const params = useSearchParams();
   const state = useWriteTabState(storySlug);
+  const chatScope: ChatScope = params.get("scope") === "story" ? "story" : "chapter";
 
   return (
     <WriteTabView
       storySlug={storySlug}
+      chatScope={chatScope}
       scenes={state.scenes}
       chapterIds={state.chapterIds}
       sceneId={state.sceneId}
