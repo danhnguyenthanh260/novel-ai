@@ -1,0 +1,112 @@
+name: "Task"
+description: "A focused implementation unit that closes a gap within a parent feature"
+title: "[Task][Area] "
+labels:
+  - area:BE
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Title format:** `[Task][Area] Short imperative title`
+        Replace `area:BE` with the correct area label(s). Keep labels minimal and accurate.
+
+  - type: textarea
+    id: purpose
+    attributes:
+      label: "Purpose"
+      description: "One sentence: what gap within the parent feature does this task close?"
+      placeholder: "..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: "Scope"
+      description: "Exactly what will be done."
+      placeholder: |
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: "Out of scope"
+      description: "What this task must NOT touch."
+      placeholder: |
+        - ...
+
+  - type: textarea
+    id: file-manifest
+    attributes:
+      label: "File manifest"
+      placeholder: |
+        CREATE
+          src/...
+
+        MODIFY
+          src/...   - reason
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: "Acceptance criteria"
+      description: "Binary checklist."
+      placeholder: |
+        - [ ] ...
+        - [ ] tsc --noEmit passes
+        - [ ] No regression on ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: quality-gates
+    attributes:
+      label: "Quality gates"
+      placeholder: |
+        - [ ] tsc --noEmit passes
+        - [ ] Unit tests pass
+        - [ ] E2E: ...
+
+  - type: input
+    id: estimate
+    attributes:
+      label: "Estimate (hours)"
+      placeholder: "e.g. 2 h"
+
+  - type: textarea
+    id: implementation-notes
+    attributes:
+      label: "Implementation notes"
+      description: "Running log of discoveries, decisions, and deviations. Update during coding."
+      placeholder: "..."
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: "Dependencies"
+      placeholder: |
+        Parent feature: #N
+        Blocked by: #N
+
+  - type: textarea
+    id: situation
+    attributes:
+      label: "Situation (human mode)"
+      description: "Why this task exists and what stays incomplete if skipped."
+      placeholder: "..."
+
+  - type: textarea
+    id: approach
+    attributes:
+      label: "Approach (human mode)"
+      description: "How the task will be executed and why."
+      placeholder: "..."
+
+  - type: textarea
+    id: reviewer-focus
+    attributes:
+      label: "What a reviewer should focus on"
+      description: "One or two likely problem areas."
+      placeholder: "..."
