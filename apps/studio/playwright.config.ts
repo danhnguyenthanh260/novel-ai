@@ -1,22 +1,27 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const port = Number(process.env.PLAYWRIGHT_PORT ?? 3101);
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`;
+const healthURL = `${baseURL}/stories/subcurrent/write`;
+
 export default defineConfig({
-  testDir: "./tests/e2e",
-  timeout: 60_000,
-  expect: { timeout: 10_000 },
-  fullyParallel: false,
-  forbidOnly: !!process.env["CI"],
-  retries: process.env["CI"] ? 1 : 0,
-  workers: 1,
-  reporter: process.env["CI"] ? "github" : "list",
-
+  testDir: "./e2e/tests",
+  timeout: 40_000,
+  expect: { timeout: 8_000 },
+  retries: 2,
+  reporter: [["list"]],
   use: {
-    baseURL: process.env["E2E_BASE_URL"] ?? "http://localhost:3000",
-    trace: "on-first-retry",
+    baseURL,
+    headless: true,
+    trace: "retain-on-failure",
     screenshot: "only-on-failure",
-    video: "on-first-retry",
   },
-
+  webServer: {
+    command: `npm run dev -- --hostname 127.0.0.1 --port ${port}`,
+    url: healthURL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
   projects: [
     {
       name: "chromium",

@@ -28,12 +28,14 @@ const commandDefinitions: CommandDefinition[] = [
   { id: "/analyze chapter", description: "Analyze source or context", group: "primary", visible: true },
   { id: "/research", description: "Research story or worldbuilding context", group: "primary", visible: true },
   { id: "/inspect", description: "Show full context digest", group: "primary", visible: true },
+  { id: "/status", description: "Show workspace status", group: "primary", visible: true },
   { id: "/context", description: "Inspect context readiness", group: "primary", visible: true },
   { id: "/pipeline", description: "Show pipeline progress", group: "primary", visible: true },
   { id: "/check continuity", description: "Review canon and timeline handoff", group: "primary", visible: true },
   { id: "/extract memory", description: "Open story memory extraction", group: "more", visible: true },
   { id: "/memory", description: "Show memory and continuity notes", group: "more", visible: true },
   { id: "/review chapter", description: "Open review panel", group: "more", visible: true },
+  { id: "/ingest", description: "Preview source ingest splits", group: "more", visible: true },
   { id: "/split", description: "Prepare chapter split request", group: "more", visible: true },
   {
     id: "/rewrite selection",
@@ -94,22 +96,41 @@ export function chipTarget(chip: RecoveryChip): string | null {
   return null;
 }
 
+const storyRequiredReasons: Partial<Record<CommandId, string>> = {
+  "/write chapter": "No story is selected.",
+  "/ingest": "Choose a story before ingesting source material.",
+};
+
+const chapterRequiredReasons: Partial<Record<CommandId, string>> = {
+  "/write chapter": "Choose or create a chapter before writing.",
+  "/check continuity": "Choose or create a chapter before checking continuity.",
+  "/plan": "Choose or create a chapter before running this command.",
+  "/split": "Choose or create a chapter before running this command.",
+};
+
+function blockedReasonForCommand(
+  command: CommandId,
+  context: AssistantReadinessContext,
+  chapterId: string,
+  readiness: ReturnType<typeof buildAssistantReadiness>
+): string | undefined {
+  const storyReason = storyRequiredReasons[command];
+  const chapterReason = chapterRequiredReasons[command];
+  if (storyReason && !context.storySelected) return storyReason;
+  if (chapterReason && !chapterId) return chapterReason;
+  if (command !== "/write chapter") return undefined;
+  if (!context.availability.has_active_characters) return "I don't have enough character data for this chapter's plan.";
+  if (context.readiness === "blocked") return readiness.blockedWriteReason ?? "The chapter context is blocked.";
+  return undefined;
+}
+
 export function buildCommands(context: AssistantReadinessContext, chapterId: string): ChatCommandOption[] {
   const readiness = buildAssistantReadiness(context);
 
   return commandDefinitions
     .filter((command) => command.visible)
     .map((command) => {
-      let blockedReason: string | undefined;
-      if (command.id === "/write chapter" && !readiness.canWrite) {
-        blockedReason = readiness.blockedWriteReason ?? "The chapter context is blocked.";
-      }
-      if (command.id === "/check continuity" && !chapterId) {
-        blockedReason = "Choose or create a chapter before checking continuity.";
-      }
-      if ((command.id === "/plan" || command.id === "/split") && !chapterId) {
-        blockedReason = "Choose or create a chapter before running this command.";
-      }
+      const blockedReason = blockedReasonForCommand(command.id, context, chapterId, readiness);
 
       return {
         id: command.id,
@@ -129,7 +150,7 @@ export function buildContextMiniBar(context: AssistantReadinessContext, status: 
   };
 }
 
-export function workspaceHref(storySlug: string, workspace: "analysis" | "reviews" | "memory" | "pipelines"): string {
+export function workspaceHref(storySlug: string, workspace: "analysis" | "reviews" | "memory" | "pipelines" | "ingest"): string {
   return `/stories/${encodeURIComponent(storySlug)}/${workspace}`;
 }
 
@@ -225,6 +246,26 @@ export function buildWorkspaceArtifactBlock(args: {
     preview_lines: [args.description],
     actions: [],
     action_links: [{ label: args.actionLabel, href: args.actionHref }],
+  };
+}
+
+export function buildSourceArtifactBlock(text: string, stamp = Date.now()): TimelineBlock {
+  return {
+    id: `source-artifact-${stamp}`,
+    type: "artifact_preview",
+    source: "assistant",
+    artifact_id: `source-${stamp}`,
+    artifact_type: "source",
+    title: "Pasted source text",
+    status: "draft",
+    description: "Long pasted text was captured as a source artifact instead of a chat message.",
+    word_count: text.trim().split(/\s+/).filter(Boolean).length,
+    beat_count: null,
+    preview_lines: [
+      `${text.length.toLocaleString()} characters captured`,
+      "Use ingest or source review before promoting this material.",
+    ],
+    actions: ["open_source_artifact"],
   };
 }
 

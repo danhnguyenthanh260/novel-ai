@@ -1,5 +1,5 @@
 import React from "react";
-import type { TimelineBlock } from "@/features/scenes/components/writeTab/types";
+import type { ChatScope, TimelineBlock } from "@/features/scenes/components/writeTab/types";
 import {
   defaultConversationState,
   isTimelineBlock,
@@ -35,8 +35,17 @@ async function jsonOrError(res: Response): Promise<Record<string, unknown>> {
   return json as Record<string, unknown>;
 }
 
+function conversationWorkspace(scope: ChatScope): "write_assistant" | "story" {
+  return scope === "story" ? "story" : "write_assistant";
+}
+
+function scopedChapterId(scope: ChatScope, chapterId: string): string {
+  return scope === "story" ? "" : chapterId;
+}
+
+// Conversation orchestration keeps list/load/create/append state colocated so restored chat state stays coherent.
 // eslint-disable-next-line max-lines-per-function
-export function useAssistantConversations(args: { storySlug: string; chapterId: string }) {
+export function useAssistantConversations(args: { storySlug: string; chapterId: string; chatScope: ChatScope }) {
   const [scope, setScope] = React.useState<AssistantConversationScope>("current_chapter");
   const [items, setItems] = React.useState<AssistantConversationListItem[]>([]);
   const [activeConversationId, setActiveConversationId] = React.useState<string | null>(null);
@@ -58,10 +67,11 @@ export function useAssistantConversations(args: { storySlug: string; chapterId: 
   }, [items]);
 
   const conversationsUrl = React.useCallback(() => {
-    const qs = new URLSearchParams({ scope });
-    if (args.chapterId) qs.set("chapter_id", args.chapterId);
+    const chapterId = scopedChapterId(args.chatScope, args.chapterId);
+    const qs = new URLSearchParams({ scope, workspace: conversationWorkspace(args.chatScope) });
+    if (chapterId) qs.set("chapter_id", chapterId);
     return `/api/stories/${encodeURIComponent(args.storySlug)}/assistant/conversations?${qs.toString()}`;
-  }, [args.chapterId, args.storySlug, scope]);
+  }, [args.chapterId, args.chatScope, args.storySlug, scope]);
 
   const loadConversation = React.useCallback(async (conversationId: string) => {
     setLoading(true);
@@ -136,7 +146,8 @@ export function useAssistantConversations(args: { storySlug: string; chapterId: 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          chapter_id: args.chapterId || null,
+          workspace: conversationWorkspace(args.chatScope),
+          chapter_id: scopedChapterId(args.chatScope, args.chapterId) || null,
           state_json: defaultConversationState,
         }),
       });
@@ -154,7 +165,7 @@ export function useAssistantConversations(args: { storySlug: string; chapterId: 
     } finally {
       creatingRef.current = null;
     }
-  }, [args.chapterId, args.storySlug]);
+  }, [args.chapterId, args.chatScope, args.storySlug]);
 
   const startNewConversation = React.useCallback(async () => {
     setConversationBlocks([]);

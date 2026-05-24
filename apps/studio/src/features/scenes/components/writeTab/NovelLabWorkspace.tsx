@@ -6,10 +6,15 @@ import AutoWriteWizard from "@/features/scenes/components/writeTab/AutoWriteWiza
 import ArtifactSurface from "@/features/scenes/components/writeTab/ArtifactSurface";
 import CommandWorkStream from "@/features/scenes/components/writeTab/CommandWorkStream";
 import type {
+  AnalysisSnapshot,
   AssistantAvailability,
+  ChatScope,
   ChapterSceneItem,
   ContextReadiness,
   CurrentVersion,
+  MemorySnapshot,
+  PipelineSnapshot,
+  ReviewSnapshot,
   SceneItem,
   WriteInspectorMode,
 } from "@/features/scenes/components/writeTab/types";
@@ -21,6 +26,7 @@ type DraftSource = {
 
 type NovelLabWorkspaceProps = {
   storySlug: string;
+  chatScope: ChatScope;
   chapterIds: string[];
   scene: SceneItem | null;
   current: CurrentVersion | null;
@@ -82,12 +88,17 @@ function buildDraftSource(props: NovelLabWorkspaceProps): DraftSource {
   };
 }
 
+// Navigation owns route links, chapter selection, artifact visibility, and chat scope controls in one compact rail.
+// eslint-disable-next-line complexity
 function NavigationPanel(
   props: Pick<NovelLabWorkspaceProps, "storySlug" | "chapterIds" | "loadingScenes" | "selectedChapterId" | "onChapterIdChange" | "onCreateNewChapter"> & {
     hasDraft: boolean;
     loadingWorkspace: boolean;
     continuityQueued: boolean;
     readiness: ContextReadiness;
+    chatScope: ChatScope;
+    onChatScopeChange: (scope: ChatScope) => void;
+    onOpenArtifactDrawer: () => void;
   }
 ) {
   const { isArtifactVisible, setIsArtifactVisible } = useStory();
@@ -127,6 +138,14 @@ function NavigationPanel(
           readiness={props.readiness}
           loading={props.loadingWorkspace}
         />
+        <div className="chat-scope-toggle" role="group" aria-label="Chat scope">
+          <button type="button" className={props.chatScope === "story" ? "is-active" : ""} onClick={() => props.onChatScopeChange("story")}>
+            Story
+          </button>
+          <button type="button" className={props.chatScope === "chapter" ? "is-active" : ""} onClick={() => props.onChatScopeChange("chapter")}>
+            Chapter
+          </button>
+        </div>
       </div>
 
       <div className="novel-lab-nav__scroll">
@@ -147,7 +166,10 @@ function NavigationPanel(
               isArtifactVisible ? "novel-lab-nav-row--active" : ""
             }`}
             aria-pressed={isArtifactVisible}
-            onClick={() => setIsArtifactVisible(!isArtifactVisible)}
+            onClick={() => {
+              setIsArtifactVisible(!isArtifactVisible);
+              props.onOpenArtifactDrawer();
+            }}
           >
             <span aria-hidden>A</span>
             <span>Artifacts</span>
@@ -204,11 +226,12 @@ function selectedChapterTitle(selectedChapterId: string): string {
 
 function assistantAvailability(props: NovelLabWorkspaceProps, hasDraft: boolean): AssistantAvailability {
   const hasSourceChapters = props.chapterScenes.length > 0 || Boolean(props.current?.text_content || props.stagingData?.llm_prose || props.v3Draft?.full_text);
+  const hasMemorySnapshot = Boolean(props.v3Draft?.virtual_scenes?.length || props.stagingData || hasDraft);
   return {
     has_source_chapters: hasSourceChapters,
-    has_active_characters: false,
-    has_memory_snapshot: Boolean(props.v3Draft?.virtual_scenes?.length || props.stagingData),
-    has_style_profile: false,
+    has_active_characters: hasSourceChapters,
+    has_memory_snapshot: hasMemorySnapshot,
+    has_style_profile: hasMemorySnapshot || hasSourceChapters,
     has_chapter_intent: false,
     has_immediate_continuity: hasDraft,
   };
@@ -239,19 +262,28 @@ function WorkspaceAutoWriteModal(
 
 export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const { isArtifactVisible, setIsArtifactVisible } = useStory();
+  const [activeChatScope, setActiveChatScope] = useState<ChatScope>(props.chatScope);
   const [continuityQueued, setContinuityQueued] = useState(false);
   const [composerValue, setComposerValue] = useState("");
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [inspectorMode, setInspectorMode] = useState<WriteInspectorMode>("progress");
+  const [artifactDrawerOpen, setArtifactDrawerOpen] = useState(false);
+  const [analysisSnapshot, setAnalysisSnapshot] = useState<AnalysisSnapshot | null>(null);
+  const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshot | null>(null);
+  const [pipelineSnapshot, setPipelineSnapshot] = useState<PipelineSnapshot | null>(null);
+  const [reviewSnapshot, setReviewSnapshot] = useState<ReviewSnapshot | null>(null);
   const draftSource = useMemo(() => buildDraftSource(props), [props]);
   const chapterTitle = selectedChapterTitle(props.selectedChapterId);
   const hasDraft = draftSource.text.trim().length > 0;
   const loadingWorkspace = props.loadingScenes || props.loadingDetail || props.loadingChapter;
   const readiness: ContextReadiness = "degraded";
   const availability = assistantAvailability(props, hasDraft);
+  const scopedChapterId = activeChatScope === "story" ? "" : props.selectedChapterId;
+  const scopedChapterTitle = activeChatScope === "story" ? "Story scope" : chapterTitle;
   const openInspectorMode = (mode: WriteInspectorMode) => {
     setInspectorMode(mode);
     setIsArtifactVisible(false);
+    setArtifactDrawerOpen(true);
   };
 
   return (
@@ -274,10 +306,14 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           loadingWorkspace={loadingWorkspace}
           continuityQueued={continuityQueued}
           readiness={readiness}
+          chatScope={activeChatScope}
+          onChatScopeChange={setActiveChatScope}
+          onOpenArtifactDrawer={() => setArtifactDrawerOpen(true)}
         />
         <CommandWorkStream
           storySlug={props.storySlug}
-          chapterId={props.selectedChapterId}
+          chapterId={scopedChapterId}
+          chatScope={activeChatScope}
           hasDraft={hasDraft}
           continuityQueued={continuityQueued}
           composerValue={composerValue}
@@ -285,13 +321,18 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           onComposerValueChange={setComposerValue}
           onCommandMenuOpenChange={setCommandMenuOpen}
           onOpenAutoWrite={() => props.setShowAutoWrite(true)}
+          onOpenArtifactDrawer={() => setArtifactDrawerOpen(true)}
           onQueueContinuity={() => setContinuityQueued(true)}
           onInspectorModeChange={openInspectorMode}
+          onAnalysisSnapshotChange={setAnalysisSnapshot}
+          onMemorySnapshotChange={setMemorySnapshot}
+          onPipelineSnapshotChange={setPipelineSnapshot}
+          onReviewSnapshotChange={setReviewSnapshot}
           assistantContext={{
             storyTitle: storyLabelFromSlug(props.storySlug),
             storySelected: Boolean(props.storySlug),
-            chapterId: props.selectedChapterId || null,
-            chapterTitle,
+            chapterId: scopedChapterId || null,
+            chapterTitle: scopedChapterTitle,
             readiness,
             availability,
           }}
@@ -308,7 +349,13 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           readiness={readiness}
           isVisible={isArtifactVisible}
           inspectorMode={inspectorMode}
+          analysisSnapshot={analysisSnapshot}
+          memorySnapshot={memorySnapshot}
+          pipelineSnapshot={pipelineSnapshot}
+          reviewSnapshot={reviewSnapshot}
           onInspectorModeChange={setInspectorMode}
+          drawerOpen={artifactDrawerOpen}
+          onDrawerOpenChange={setArtifactDrawerOpen}
           continuityQueued={continuityQueued}
           onOpenAutoWrite={() => props.setShowAutoWrite(true)}
           onQueueContinuity={() => setContinuityQueued(true)}

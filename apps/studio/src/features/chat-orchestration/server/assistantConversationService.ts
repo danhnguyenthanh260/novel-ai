@@ -4,6 +4,7 @@ import { pool } from "@/server/db/pool";
 import { resolveStoryId, resolveStoryIdForWrite } from "@/features/scenes/server/workflow/routeUtils";
 
 const WORKSPACE = "write_assistant";
+const WORKSPACES = new Set(["write_assistant", "story"]);
 const MAX_TITLE_LENGTH = 72;
 const MESSAGE_ROLES = new Set(["user", "assistant", "system", "tool", "workflow"]);
 const STATUS_VALUES = new Set(["active", "archived"]);
@@ -89,6 +90,11 @@ function parseScope(value: string | null): ConversationScope {
   return value === "all_story" ? "all_story" : "current_chapter";
 }
 
+function parseWorkspace(value: unknown): string {
+  const workspace = textValue(value).toLowerCase();
+  return WORKSPACES.has(workspace) ? workspace : WORKSPACE;
+}
+
 async function assertConversation(poolOrClient: Pool | PoolClient, storyId: number, conversationId: string): Promise<boolean> {
   if (!validUuid(conversationId)) return false;
   const res = await poolOrClient.query(
@@ -96,9 +102,9 @@ async function assertConversation(poolOrClient: Pool | PoolClient, storyId: numb
      FROM public.assistant_conversation
      WHERE id = $1::uuid
        AND story_id = $2
-       AND workspace = $3
+       AND workspace = ANY($3::text[])
      LIMIT 1`,
-    [conversationId, storyId, WORKSPACE]
+    [conversationId, storyId, Array.from(WORKSPACES)]
   );
   return (res.rowCount ?? 0) > 0;
 }
@@ -122,7 +128,8 @@ export async function listAssistantConversationsResponse(req: NextRequest, story
     const storyId = await resolveStoryId(pool, storySlug);
     const chapterId = textValue(req.nextUrl.searchParams.get("chapter_id")) || null;
     const scope = parseScope(req.nextUrl.searchParams.get("scope"));
-    const params: Array<string | number | null> = [storyId, WORKSPACE];
+    const workspace = parseWorkspace(req.nextUrl.searchParams.get("workspace"));
+    const params: Array<string | number | null> = [storyId, workspace];
     const where = ["c.story_id = $1", "c.workspace = $2", "c.status = 'active'"];
     if (scope === "current_chapter") {
       params.push(chapterId);
@@ -166,6 +173,7 @@ export async function createAssistantConversationResponse(req: NextRequest, stor
     const storyId = await resolveStoryIdForWrite(pool, storySlug);
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const chapterId = textValue(body.chapter_id) || null;
+    const workspace = parseWorkspace(body.workspace);
     const title = titleFromContent(textValue(body.title));
     const stateJson = jsonObject(body.state_json);
     const res = await pool.query<ConversationRow>(
@@ -185,7 +193,7 @@ export async function createAssistantConversationResponse(req: NextRequest, stor
          created_at::text,
          updated_at::text,
          NULL::text AS last_message_preview`,
-      [storyId, chapterId, WORKSPACE, title, JSON.stringify(stateJson)]
+      [storyId, chapterId, workspace, title, JSON.stringify(stateJson)]
     );
     return NextResponse.json({ ok: true, item: mapConversation(res.rows[0]) }, { status: 201 });
   } catch (error: unknown) {
@@ -214,9 +222,9 @@ export async function getAssistantConversationResponse(storySlug: string, conver
        FROM public.assistant_conversation c
        WHERE c.id = $1::uuid
          AND c.story_id = $2
-         AND c.workspace = $3
+         AND c.workspace = ANY($3::text[])
        LIMIT 1`,
-      [conversationId, storyId, WORKSPACE]
+      [conversationId, storyId, Array.from(WORKSPACES)]
     );
     if (res.rowCount === 0) return NextResponse.json({ ok: false, error: "CONVERSATION_NOT_FOUND" }, { status: 404 });
     return NextResponse.json({ ok: true, item: mapConversation(res.rows[0]) });
@@ -245,7 +253,7 @@ export async function patchAssistantConversationResponse(req: NextRequest, story
          updated_at = now()
        WHERE id = $1::uuid
          AND story_id = $2
-         AND workspace = $3
+         AND workspace = ANY($3::text[])
        RETURNING
          id::text,
          story_id,
@@ -258,7 +266,7 @@ export async function patchAssistantConversationResponse(req: NextRequest, story
          created_at::text,
          updated_at::text,
          NULL::text AS last_message_preview`,
-      [conversationId, storyId, WORKSPACE, title ?? null, status ?? null, stateJson === null ? null : JSON.stringify(stateJson)]
+      [conversationId, storyId, Array.from(WORKSPACES), title ?? null, status ?? null, stateJson === null ? null : JSON.stringify(stateJson)]
     );
     if (res.rowCount === 0) return NextResponse.json({ ok: false, error: "CONVERSATION_NOT_FOUND" }, { status: 404 });
     return NextResponse.json({ ok: true, item: mapConversation(res.rows[0]) });

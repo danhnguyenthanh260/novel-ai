@@ -1,15 +1,18 @@
 "use client";
 
 import React from "react";
+import ArtifactCard from "@/features/scenes/components/writeTab/artifacts/ArtifactCard";
 import { choiceSelectionFromBlock } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
 import ReadinessBriefing from "@/features/scenes/components/writeTab/chatOrchestration/ReadinessBriefing";
-import type { ChoiceGroupChoice, RecoveryChip, TimelineBlock, WorkflowStepStatus } from "@/features/scenes/components/writeTab/types";
+import type { ArtifactCardAction, ArtifactStatus, ArtifactType, ChoiceGroupChoice, RecoveryChip, TimelineBlock, WorkflowStepStatus } from "@/features/scenes/components/writeTab/types";
 import type { StructuredChoiceSelection } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
 
 type TimelineBlocksProps = {
   blocks: TimelineBlock[];
   onChip: (chip: RecoveryChip) => void;
   onChoice: (selection: StructuredChoiceSelection) => void;
+  onOpenArtifact?: (block: Extract<TimelineBlock, { type: "artifact_preview" }>) => void;
+  onArtifactAction?: (block: Extract<TimelineBlock, { type: "artifact_preview" }>, actionId: string) => void;
 };
 
 function workflowMarker(status: WorkflowStepStatus): string {
@@ -156,10 +159,18 @@ export function WorkflowProgressBlockView({
 export function ArtifactPreviewBlockView({
   block,
   density = "compact",
+  onOpen,
+  onAction,
 }: {
   block: Extract<TimelineBlock, { type: "artifact_preview" }>;
   density?: "compact" | "detail";
+  onOpen?: () => void;
+  onAction?: (actionId: string) => void;
 }) {
+  const actions: ArtifactCardAction[] = [
+    ...block.actions.map((action) => ({ id: action, label: action.replaceAll("_", " ") })),
+    ...(block.action_links ?? []).map((link) => ({ id: link.href, label: link.label, href: link.href })),
+  ];
   const meta =
     block.artifact_type === "draft"
       ? `AI draft · Not approved${block.word_count ? ` · ${block.word_count.toLocaleString()} words` : ""}`
@@ -167,32 +178,48 @@ export function ArtifactPreviewBlockView({
         ? `${block.beat_count} beats · ${block.status.replace("_", " ")}`
         : block.status.replace("_", " ");
   const description = block.description ?? block.preview_lines[0] ?? "Open the artifact surface for full content.";
+  const previewLines = density === "detail" || block.artifact_type === "source" ? block.preview_lines.slice(0, density === "detail" ? 3 : 4) : [];
 
   return (
     <article className="timeline-card timeline-card--artifact">
-      <div className="timeline-card__kicker">{block.artifact_type.toUpperCase()}</div>
-      <h2>{block.title}</h2>
+      <ArtifactCard
+        type={timelineArtifactType(block.artifact_type)}
+        status={timelineArtifactStatus(block.status)}
+        title={block.title}
+        wordCount={block.word_count}
+        actions={actions}
+        onOpen={onOpen}
+        onAction={onAction}
+      />
       <div className="timeline-card__meta">{meta}</div>
       <p className="timeline-card__description">{description}</p>
-      {density === "detail" ? (
+      {previewLines.length ? (
         <div className="timeline-preview-lines">
-          {block.preview_lines.slice(0, 3).map((line) => (
+          {previewLines.map((line) => (
             <p key={line}>{line}</p>
           ))}
         </div>
       ) : null}
-      <div className="timeline-card__actions">
-        {block.actions.map((action) => (
-          <button key={action} type="button">
-            {action.replaceAll("_", " ")}
-          </button>
-        ))}
-        {block.action_links?.map((link) => (
-          <a key={link.href} href={link.href}>{link.label}</a>
-        ))}
-      </div>
     </article>
   );
+}
+
+function timelineArtifactType(type: Extract<TimelineBlock, { type: "artifact_preview" }>["artifact_type"]): ArtifactType {
+  if (type === "analysis") return "analysis";
+  if (type === "review") return "review";
+  if (type === "memory") return "memory";
+  if (type === "source" || type === "research") return "source";
+  if (type === "progress") return "progress";
+  return "generated";
+}
+
+function timelineArtifactStatus(status: Extract<TimelineBlock, { type: "artifact_preview" }>["status"]): ArtifactStatus {
+  if (status === "needs_approval") return "pending";
+  if (status === "approved") return "approved";
+  if (status === "rejected") return "rejected";
+  if (status === "applied") return "applied";
+  if (status === "failed" || status === "superseded") return "stale";
+  return "draft";
 }
 
 function ApprovalGate({ block }: { block: Extract<TimelineBlock, { type: "approval_gate" }> }) {
@@ -261,7 +288,7 @@ export function ContextDigestBlockView({ block }: { block: Extract<TimelineBlock
   );
 }
 
-export default function TimelineBlocks({ blocks, onChip, onChoice }: TimelineBlocksProps) {
+export default function TimelineBlocks({ blocks, onChip, onChoice, onOpenArtifact, onArtifactAction }: TimelineBlocksProps) {
   return (
     <>
       {blocks.map((block) => {
@@ -270,7 +297,7 @@ export default function TimelineBlocks({ blocks, onChip, onChoice }: TimelineBlo
         if (block.type === "inline_choice_chips") return <ChoiceChipsBlock key={block.id} block={block} onChip={onChip} />;
         if (block.type === "choice_group") return <ChoiceGroup key={block.id} block={block} onChoice={(choiceBlock, choice) => onChoice(choiceSelectionFromBlock(choiceBlock, choice))} />;
         if (block.type === "workflow_progress") return <WorkflowProgressBlockView key={block.id} block={block} />;
-        if (block.type === "artifact_preview") return <ArtifactPreviewBlockView key={block.id} block={block} />;
+        if (block.type === "artifact_preview") return <ArtifactPreviewBlockView key={block.id} block={block} onOpen={onOpenArtifact ? () => onOpenArtifact(block) : undefined} onAction={onArtifactAction ? (actionId) => onArtifactAction(block, actionId) : undefined} />;
         if (block.type === "approval_gate") return <ApprovalGate key={block.id} block={block} />;
         if (block.type === "failure_recovery") return <FailureRecovery key={block.id} block={block} />;
         return <ContextDigestBlockView key={block.id} block={block} />;

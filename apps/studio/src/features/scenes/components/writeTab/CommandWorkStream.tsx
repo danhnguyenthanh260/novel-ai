@@ -3,44 +3,32 @@ import { useRouter } from "next/navigation";
 import ChatComposer from "@/features/scenes/components/writeTab/chatOrchestration/ChatComposer";
 import ChatTimeline from "@/features/scenes/components/writeTab/chatOrchestration/ChatTimeline";
 import ConversationHistoryPanel from "@/features/scenes/components/writeTab/chatOrchestration/ConversationHistoryPanel";
+import { runArtifactAction } from "@/features/scenes/components/writeTab/chatOrchestration/artifactActions";
+import { runAnalyzeCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/analyzeCommandHandler";
+import { runContextCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/contextCommandHandler";
+import { runIngestCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/ingestCommandHandler";
+import { runMemoryCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/memoryCommandHandler";
+import { runPipelineCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/pipelineCommandHandler";
+import { runReviewCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/reviewCommandHandler";
+import { runStatusCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/statusCommandHandler";
 import {
   buildBrainstormAngleChoiceGroup,
   buildBrainstormContinuationNextChoiceGroup,
   buildBrainstormFollowupChoiceGroup,
   type StructuredChoiceSelection,
 } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
-import {
-  approvalGateBlock,
-  buildCommands,
-  buildContextDigestBlock,
-  buildContextMiniBar,
-  buildWorkspaceArtifactBlock,
-  buildWorkspaceWorkflowBlock,
-  chipTarget,
-  commandDefinition,
-  commandLabel,
-  commandTail,
-  contextWithCommandIntent,
-  type CommandResult,
-  workspaceHref,
-} from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
+import { approvalGateBlock, buildCommands, buildContextDigestBlock, buildContextMiniBar, buildSourceArtifactBlock, buildWorkspaceArtifactBlock, buildWorkspaceWorkflowBlock, chipTarget, commandDefinition, commandLabel, commandTail, contextWithCommandIntent, type CommandResult, workspaceHref } from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
 import { routeStudioIntent } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import type { BrainstormChoiceStage, BrainstormFollowupAction } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
 import { buildTimelineBlocks } from "@/features/scenes/components/writeTab/chatOrchestration/timelineBlockBuilder";
 import { useAssistantConversations } from "@/features/scenes/components/writeTab/chatOrchestration/useAssistantConversations";
-import type {
-  AssistantReadinessContext,
-  CommandId,
-  RecoveryChip,
-  StudioChatIntent,
-  TimelineBlock,
-  WriteInspectorMode,
-} from "@/features/scenes/components/writeTab/types";
+import type { AnalysisSnapshot, AssistantReadinessContext, ChatScope, CommandId, MemorySnapshot, PipelineSnapshot, RecoveryChip, ReviewSnapshot, StudioChatIntent, TimelineBlock, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 type CommandWorkStreamProps = {
   storySlug: string;
   chapterId: string;
+  chatScope: ChatScope;
   hasDraft: boolean;
   continuityQueued: boolean;
   composerValue: string;
@@ -48,8 +36,13 @@ type CommandWorkStreamProps = {
   onComposerValueChange: (value: string) => void;
   onCommandMenuOpenChange: (value: boolean) => void;
   onOpenAutoWrite: () => void;
+  onOpenArtifactDrawer: () => void;
   onQueueContinuity: () => void;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
+  onAnalysisSnapshotChange: (snapshot: AnalysisSnapshot | null) => void;
+  onMemorySnapshotChange: (snapshot: MemorySnapshot | null) => void;
+  onPipelineSnapshotChange: (snapshot: PipelineSnapshot | null) => void;
+  onReviewSnapshotChange: (snapshot: ReviewSnapshot | null) => void;
   assistantContext: AssistantReadinessContext;
 };
 
@@ -58,6 +51,7 @@ type CommandWorkStreamProps = {
 function useCommandRunner(args: {
   storySlug: string;
   chapterId: string;
+  chatScope: ChatScope;
   onOpenAutoWrite: () => void;
   onQueueContinuity: () => void;
   readinessContext: AssistantReadinessContext;
@@ -71,6 +65,10 @@ function useCommandRunner(args: {
   onActiveBrainstormChoiceStageChange: (stage: BrainstormChoiceStage | null) => void;
   onConversationBlock: (block: TimelineBlock) => void;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
+  onAnalysisSnapshotChange: (snapshot: AnalysisSnapshot | null) => void;
+  onMemorySnapshotChange: (snapshot: MemorySnapshot | null) => void;
+  onPipelineSnapshotChange: (snapshot: PipelineSnapshot | null) => void;
+  onReviewSnapshotChange: (snapshot: ReviewSnapshot | null) => void;
 }) {
   const router = useRouter();
   const [commandResult, setCommandResult] = React.useState<CommandResult | null>(null);
@@ -92,27 +90,49 @@ function useCommandRunner(args: {
       }
 
       const commandContext = contextWithCommandIntent(args.readinessContext, command, goal);
-      if (command === "/inspect" || command === "/status" || command === "/context") {
+      if (command === "/status" || command === "/context") {
+        const commandRunner = command === "/status" ? runStatusCommand : runContextCommand;
+        args.onInspectorModeChange("context");
+        setCommandResult(command === "/status"
+          ? { tone: "running", title: "Checking workspace status", detail: "Reading current workflow state." }
+          : { tone: "running", title: "Loading context snapshot", detail: "Reading story memory, arcs, tags, and style notes." });
+        void commandRunner({
+          storySlug: args.storySlug,
+          chapterId: args.chapterId,
+          chatScope: args.chatScope,
+          readinessContext: commandContext,
+        }).then(({ block, result }) => {
+          args.onConversationBlock(block);
+          setCommandResult(result);
+        });
+        return;
+      }
+
+      if (command === "/inspect") {
         args.onInspectorModeChange("context");
         setIntentBlock(buildContextDigestBlock(commandContext, [{ label: "Open full memory workspace", href: workspaceHref(args.storySlug, "memory") }]));
         setCommandResult({ tone: "ready", title: "Context digest ready", detail: "I found the current story and chapter context state." });
         return;
       }
-
       if (command === "/pipeline") {
         args.onInspectorModeChange("progress");
-        args.onConversationBlock(buildWorkspaceWorkflowBlock({
-          id: `pipeline-${Date.now()}`,
-          workflowName: "Pipeline Progress",
-          stepLabel: "Inspecting active workflow state",
-          chapterId: args.chapterId,
-          actionLabel: "Open full pipelines workspace",
-          actionHref: workspaceHref(args.storySlug, "pipelines"),
-        }));
-        setCommandResult({ tone: "ready", title: "Pipeline progress opened", detail: "I kept the workflow state in the Write workspace inspector." });
+        setCommandResult({ tone: "running", title: "Loading pipeline progress", detail: "Reading current and recent pipeline run state." });
+        void runPipelineCommand({ storySlug: args.storySlug, chapterId: args.chapterId, chatScope: args.chatScope, readinessContext: commandContext }).then(({ block, result, snapshot }) => {
+          args.onConversationBlock(block);
+          args.onPipelineSnapshotChange(snapshot);
+          setCommandResult(result);
+        });
         return;
       }
-
+      if (command === "/ingest") {
+        args.onInspectorModeChange("artifacts");
+        setCommandResult({ tone: "running", title: "Preparing ingest preview", detail: "Reading the source input and proposing split boundaries." });
+        void runIngestCommand({ storySlug: args.storySlug, chapterId: args.chapterId, chatScope: args.chatScope, readinessContext: commandContext }, goal).then(({ block, result }) => {
+          args.onConversationBlock(block);
+          setCommandResult(result);
+        });
+        return;
+      }
       if (command === "/approve draft") {
         setIntentBlock(approvalGateBlock(args.chapterId));
         setCommandResult({ tone: "blocked", title: "Approval required", detail: "I surfaced the approval gate, but I cannot approve or promote the draft for you." });
@@ -197,55 +217,37 @@ function useCommandRunner(args: {
       }
 
       if (command === "/analyze chapter") {
-        args.onInspectorModeChange("context");
-        const stamp = Date.now();
-        args.onConversationBlock(buildWorkspaceWorkflowBlock({
-          id: `analysis-progress-${stamp}`,
-          workflowName: "Chapter Analysis",
-          stepLabel: "Analyzing chapter context",
-          chapterId: args.chapterId,
-          actionLabel: "Open full analysis workspace",
-          actionHref: workspaceHref(args.storySlug, "analysis"),
-        }));
-        args.onConversationBlock(buildWorkspaceArtifactBlock({
-          id: `analysis-artifact-${stamp}`,
-          artifactType: "analysis",
-          title: "Chapter analysis report",
-          description: "Analysis is attached to the Write timeline and expanded in the right inspector.",
-          actionLabel: "Open full analysis workspace",
-          actionHref: workspaceHref(args.storySlug, "analysis"),
-        }));
-        setCommandResult({ tone: "ready", title: "Analysis opened", detail: "I kept the command inside Write and opened the context inspector." });
+        args.onInspectorModeChange("artifacts");
+        args.onReviewSnapshotChange(null);
+        setCommandResult({ tone: "running", title: "Loading analysis artifact", detail: "Reading cached continuity, character, and plot findings." });
+        void runAnalyzeCommand({ storySlug: args.storySlug, chapterId: args.chapterId, chatScope: args.chatScope, readinessContext: commandContext }).then(({ block, result, snapshot }) => {
+          args.onConversationBlock(block);
+          args.onAnalysisSnapshotChange(snapshot);
+          setCommandResult(result);
+        });
         return;
       }
 
       if (command === "/extract memory" || command === "/memory") {
         args.onInspectorModeChange("memory");
-        setIntentBlock(buildContextDigestBlock(commandContext, [{ label: "Open full memory workspace", href: workspaceHref(args.storySlug, "memory") }]));
-        setCommandResult({ tone: "ready", title: "Memory notes opened", detail: "I kept memory and continuity notes in the Write workspace inspector." });
+        setCommandResult({ tone: "running", title: "Loading memory snapshot", detail: "Reading characters, arcs, tags, and style notes." });
+        void runMemoryCommand({ storySlug: args.storySlug, chapterId: args.chapterId, chatScope: args.chatScope, readinessContext: commandContext }).then(({ blocks, result, snapshot }) => {
+          blocks.forEach(args.onConversationBlock);
+          args.onMemorySnapshotChange(snapshot);
+          setCommandResult(result);
+        });
         return;
       }
 
       if (command === "/review chapter") {
         args.onInspectorModeChange("artifacts");
-        const stamp = Date.now();
-        args.onConversationBlock(buildWorkspaceWorkflowBlock({
-          id: `review-progress-${stamp}`,
-          workflowName: "Chapter Review",
-          stepLabel: "Preparing review artifact",
-          chapterId: args.chapterId,
-          actionLabel: "Open full reviews workspace",
-          actionHref: workspaceHref(args.storySlug, "reviews"),
-        }));
-        args.onConversationBlock(buildWorkspaceArtifactBlock({
-          id: `review-artifact-${stamp}`,
-          artifactType: "review",
-          title: "Chapter review result",
-          description: "Review output is visible in Write and expands through the artifact inspector.",
-          actionLabel: "Open full reviews workspace",
-          actionHref: workspaceHref(args.storySlug, "reviews"),
-        }));
-        setCommandResult({ tone: "ready", title: "Review opened", detail: "I kept review output inside Write and opened the artifact inspector." });
+        args.onAnalysisSnapshotChange(null);
+        setCommandResult({ tone: "running", title: "Loading review artifacts", detail: "Reading pending review requests and latest feedback." });
+        void runReviewCommand({ storySlug: args.storySlug, chapterId: args.chapterId, chatScope: args.chatScope, readinessContext: commandContext }).then(({ block, result, snapshot }) => {
+          args.onConversationBlock(block);
+          args.onReviewSnapshotChange(snapshot);
+          setCommandResult(result);
+        });
         return;
       }
 
@@ -333,12 +335,13 @@ function useCommandRunner(args: {
 // eslint-disable-next-line max-lines-per-function
 export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const router = useRouter();
+  const artifactActionLocks = React.useRef(new Set<string>());
   const [chatMode, setChatMode] = React.useState<"chat" | "brainstorm">("chat");
   const [recentBrainstormSeed, setRecentBrainstormSeed] = React.useState<string | null>(null);
   const [pendingBrainstormActions, setPendingBrainstormActions] = React.useState<BrainstormFollowupAction[] | null>(null);
   const [activeBrainstormChoiceStage, setActiveBrainstormChoiceStage] = React.useState<BrainstormChoiceStage | null>(null);
   const [pendingAssistant, setPendingAssistant] = React.useState(false);
-  const assistantConversations = useAssistantConversations({ storySlug: props.storySlug, chapterId: props.chapterId });
+  const assistantConversations = useAssistantConversations({ storySlug: props.storySlug, chapterId: props.chapterId, chatScope: props.chatScope });
   const {
     activeConversationId,
     appendBlock,
@@ -391,6 +394,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const { commandResult, intentBlock, runCommand, submitMessage } = useCommandRunner({
     storySlug: props.storySlug,
     chapterId: props.chapterId,
+    chatScope: props.chatScope,
     onOpenAutoWrite: props.onOpenAutoWrite,
     onQueueContinuity: props.onQueueContinuity,
     readinessContext: props.assistantContext,
@@ -404,6 +408,10 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     onActiveBrainstormChoiceStageChange: setActiveBrainstormChoiceStage,
     onConversationBlock: (block) => void appendBlock(block),
     onInspectorModeChange: props.onInspectorModeChange,
+    onAnalysisSnapshotChange: props.onAnalysisSnapshotChange,
+    onMemorySnapshotChange: props.onMemorySnapshotChange,
+    onPipelineSnapshotChange: props.onPipelineSnapshotChange,
+    onReviewSnapshotChange: props.onReviewSnapshotChange,
   });
   const blocks = buildTimelineBlocks({
     briefing,
@@ -476,7 +484,28 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
         }, 220);
       });
   };
-
+  const handleOpenArtifact = (block: Extract<TimelineBlock, { type: "artifact_preview" }>) => {
+    if (block.artifact_type === "memory") props.onInspectorModeChange("memory");
+    else if (block.artifact_type === "progress") props.onInspectorModeChange("progress");
+    else props.onInspectorModeChange("artifacts");
+    props.onOpenArtifactDrawer();
+  };
+  const handleArtifactAction = (block: Extract<TimelineBlock, { type: "artifact_preview" }>, actionId: string) => {
+    runArtifactAction({
+      block,
+      actionId,
+      locks: artifactActionLocks.current,
+      commandArgs: { storySlug: props.storySlug, chapterId: props.chapterId, chatScope: props.chatScope, readinessContext: props.assistantContext },
+      appendBlock,
+      onOpenAutoWrite: props.onOpenAutoWrite,
+      onReviewSnapshotChange: props.onReviewSnapshotChange,
+    });
+  };
+  const handleCreateSourceArtifact = (text: string) => {
+    props.onInspectorModeChange("artifacts");
+    props.onOpenArtifactDrawer();
+    void appendBlock(buildSourceArtifactBlock(text));
+  };
   return (
     <section className="work-stream" aria-label="Studio chat work stream">
       <ConversationHistoryPanel
@@ -489,7 +518,14 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
         onNewChat={() => void startNewConversation()}
         onSelectConversation={(id) => void loadConversation(id)}
       />
-      <ChatTimeline context={buildContextMiniBar(props.assistantContext, briefing.status)} blocks={blocks} onChip={handleChip} onChoice={handleChoice} />
+      <ChatTimeline
+        context={buildContextMiniBar(props.assistantContext, briefing.status)}
+        blocks={blocks}
+        onChip={handleChip}
+        onChoice={handleChoice}
+        onOpenArtifact={handleOpenArtifact}
+        onArtifactAction={handleArtifactAction}
+      />
       <ChatComposer
         value={props.composerValue}
         menuOpen={props.commandMenuOpen}
@@ -500,6 +536,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
           props.onComposerValueChange(commandTail(command, goal));
           runCommand(command, goal);
         }}
+        onCreateSourceArtifact={handleCreateSourceArtifact}
         onSubmitMessage={(message) => {
           const userBlock: TimelineBlock = { id: `user-${Date.now()}`, type: "text_message", source: "user", label: "You", text: message };
           setPendingAssistant(true);

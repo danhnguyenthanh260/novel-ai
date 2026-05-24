@@ -1,8 +1,8 @@
-import StoryLandingClient from "@/features/story/components/StoryLandingClient";
+import { redirect } from "next/navigation";
 
 export const runtime = "nodejs";
 
 export default async function StoryLandingPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  return <StoryLandingClient slug={slug} />;
+  redirect(`/stories/${encodeURIComponent(slug)}/write?scope=story`);
 }

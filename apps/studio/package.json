@@ -16,6 +16,7 @@
     "doctor:e2e-preflight": "node scripts/doctor_e2e_preflight.mjs",
     "doctor:e2e-preflight:verbose": "node scripts/doctor_e2e_preflight.mjs --verbose --fix-hints",
     "lint:line-budgets": "node scripts/check_line_budgets.mjs",
+    "e2e:chat-first": "playwright test --config=playwright.config.ts",
     "typecheck": "tsc --noEmit",
     "doctor:pipeline": "node scripts/doctor_pipeline.mjs",
     "doctor:llm": "node scripts/doctor_llm.mjs",
@@ -47,7 +48,7 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
+    "@playwright/test": "^1.51.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.16.0",

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import ArtifactInspectorRail, { type ArtifactInspectorDiagnostics } from "@/features/scenes/components/writeTab/ArtifactInspectorRail";
-import type { ContextReadiness, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
+import type { AnalysisSnapshot, ContextReadiness, MemorySnapshot, PipelineSnapshot, ReviewSnapshot, WriteInspectorMode } from "@/features/scenes/components/writeTab/types";
 
 type ArtifactMode = "read" | "edit" | "analysis" | "review" | "approve";
 
@@ -21,7 +21,13 @@ type ArtifactSurfaceProps = {
   onSaveDraft: (text: string) => Promise<void>;
   isVisible: boolean;
   inspectorMode: WriteInspectorMode;
+  analysisSnapshot: AnalysisSnapshot | null;
+  memorySnapshot: MemorySnapshot | null;
+  pipelineSnapshot: PipelineSnapshot | null;
+  reviewSnapshot: ReviewSnapshot | null;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
+  drawerOpen: boolean;
+  onDrawerOpenChange: (open: boolean) => void;
 };
 
 type ApprovalGate = {
@@ -69,6 +75,28 @@ function wordCount(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function searchMatchCount(text: string, query: string): number {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return 0;
+  return text.toLowerCase().split(needle).length - 1;
+}
+
+function highlightSearch(text: string, query: string) {
+  const needle = query.trim();
+  if (!needle) return text;
+  const lowerText = text.toLowerCase();
+  const lowerNeedle = needle.toLowerCase();
+  const index = lowerText.indexOf(lowerNeedle);
+  if (index < 0) return text;
+  return (
+    <>
+      {text.slice(0, index)}
+      <mark>{text.slice(index, index + needle.length)}</mark>
+      {text.slice(index + needle.length)}
+    </>
+  );
+}
+
 function buildInspectorDiagnostics(args: {
   activeMode: ArtifactMode;
   chapterId: string;
@@ -101,14 +129,26 @@ function ArtifactHeader({
   continuityQueued,
   activeMode,
   gate,
+  collapsed,
+  searchQuery,
+  searchMatches,
   onQueueContinuity,
+  onCollapsedChange,
+  onSearchQueryChange,
+  onCloseDrawer,
 }: {
   chapterTitle: string;
   hasDraft: boolean;
   continuityQueued: boolean;
   activeMode: ArtifactMode;
   gate: ApprovalGate;
+  collapsed: boolean;
+  searchQuery: string;
+  searchMatches: number;
   onQueueContinuity: () => void;
+  onCollapsedChange: (collapsed: boolean) => void;
+  onSearchQueryChange: (query: string) => void;
+  onCloseDrawer: () => void;
 }) {
   const canRunReadiness = hasDraft && !continuityQueued;
 
@@ -129,6 +169,22 @@ function ArtifactHeader({
         </div>
       </div>
       <div className="artifact-actions">
+        <label className="artifact-search">
+          <span>Find</span>
+          <input
+            value={searchQuery}
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+            placeholder="Search artifact"
+            aria-label="Search artifact text"
+          />
+          <small>{searchQuery.trim() ? `${searchMatches} matches` : "No query"}</small>
+        </label>
+        <button type="button" className="shell-link px-3 py-2 text-xs" onClick={() => onCollapsedChange(!collapsed)}>
+          {collapsed ? "Expand" : "Collapse"}
+        </button>
+        <button type="button" className="artifact-drawer-close shell-link px-3 py-2 text-xs" onClick={onCloseDrawer}>
+          Close
+        </button>
         <button type="button" className="primary-action px-3 py-2 text-xs" disabled={!canRunReadiness} onClick={onQueueContinuity} title={hasDraft ? gate.detail : "Create a draft before checking readiness."}>
           {continuityQueued ? "Continuity running" : "Run continuity check"}
         </button>
@@ -179,13 +235,13 @@ function EmptyArtifact({ hasChapter, onOpenAutoWrite }: { hasChapter: boolean; o
   );
 }
 
-function ReadArtifact({ paragraphs }: { paragraphs: string[] }) {
+function ReadArtifact({ paragraphs, searchQuery }: { paragraphs: string[]; searchQuery: string }) {
   return (
     <div className="document-artifact p-4">
       <div className="grid gap-4">
         {paragraphs.slice(0, 8).map((paragraph, index) => (
           <p key={`${paragraph.slice(0, 16)}-${index}`} className="text-sm leading-7 text-[var(--text-primary)]">
-            {paragraph}
+            {highlightSearch(paragraph, searchQuery)}
           </p>
         ))}
       </div>
@@ -193,7 +249,7 @@ function ReadArtifact({ paragraphs }: { paragraphs: string[] }) {
   );
 }
 
-function DocumentArtifact({ initialText, onSaveDraft }: { initialText: string; onSaveDraft: (text: string) => Promise<void> }) {
+function DocumentArtifact({ initialText, searchQuery, onSaveDraft }: { initialText: string; searchQuery: string; onSaveDraft: (text: string) => Promise<void> }) {
   const [draftText, setDraftText] = useState(initialText);
   const paragraphs = useMemo(() => draftText.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean), [draftText]);
 
@@ -204,7 +260,7 @@ function DocumentArtifact({ initialText, onSaveDraft }: { initialText: string; o
         {paragraphs.slice(0, 6).map((paragraph, index) => (
           <div key={`${paragraph.slice(0, 16)}-${index}`} className={`document-block ${index === 1 ? "document-block--selected" : ""}`}>
             <span className="document-handle">::</span>
-            <p>{paragraph}</p>
+            <p>{highlightSearch(paragraph, searchQuery)}</p>
             {index === 2 ? <span className="document-comment">comment</span> : null}
             {index === 1 ? <span className="mini-toolbar">Rewrite · Expand · Analyze</span> : null}
           </div>
@@ -303,6 +359,7 @@ function ArtifactModePanel({
   gate,
   onQueueContinuity,
   onSaveDraft,
+  searchQuery,
 }: {
   mode: ArtifactMode;
   draftText: string;
@@ -313,10 +370,11 @@ function ArtifactModePanel({
   gate: ApprovalGate;
   onQueueContinuity: () => void;
   onSaveDraft: (text: string) => Promise<void>;
+  searchQuery: string;
 }) {
   const paragraphs = useMemo(() => draftText.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean), [draftText]);
 
-  if (mode === "read") return <ReadArtifact paragraphs={paragraphs} />;
+  if (mode === "read") return <ReadArtifact paragraphs={paragraphs} searchQuery={searchQuery} />;
   if (mode === "analysis") return <AnalysisArtifact readiness={readiness} continuityQueued={continuityQueued} onQueueContinuity={onQueueContinuity} />;
   if (mode === "review") return <ReviewArtifact storySlug={storySlug} chapterId={chapterId} />;
   if (mode === "approve") {
@@ -329,12 +387,15 @@ function ArtifactModePanel({
       />
     );
   }
-  return <DocumentArtifact initialText={draftText} onSaveDraft={onSaveDraft} />;
+  return <DocumentArtifact initialText={draftText} searchQuery={searchQuery} onSaveDraft={onSaveDraft} />;
 }
 
 export default function ArtifactSurface(props: ArtifactSurfaceProps) {
   const [activeMode, setActiveMode] = useState<ArtifactMode>("edit");
+  const [collapsed, setCollapsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const hasDraft = props.draftText.trim().length > 0;
+  const matches = useMemo(() => searchMatchCount(props.draftText, searchQuery), [props.draftText, searchQuery]);
   const gate = approvalGate({
     hasChapter: props.hasChapter,
     hasDraft,
@@ -354,7 +415,7 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
   });
 
   return (
-    <section className="artifact-workspace" aria-label="Active artifact workspace">
+    <section className={`artifact-workspace ${props.drawerOpen ? "artifact-workspace--drawer-open" : ""}`} aria-label="Active artifact workspace" data-drawer-open={props.drawerOpen}>
       {props.isVisible ? (
         <div className="artifact-main">
           <ArtifactHeader
@@ -363,10 +424,25 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
             continuityQueued={props.continuityQueued}
             activeMode={activeMode}
             gate={gate}
+            collapsed={collapsed}
+            searchQuery={searchQuery}
+            searchMatches={matches}
             onQueueContinuity={props.onQueueContinuity}
+            onCollapsedChange={setCollapsed}
+            onSearchQueryChange={setSearchQuery}
+            onCloseDrawer={() => props.onDrawerOpenChange(false)}
           />
-          {hasDraft ? <ArtifactTabs activeMode={activeMode} onActiveModeChange={setActiveMode} /> : null}
-          {hasDraft ? (
+          {collapsed ? (
+            <div className="artifact-collapsed">
+              <strong>{props.chapterTitle}</strong>
+              <span>{hasDraft ? `${wordCount(props.draftText).toLocaleString()} words` : "No draft artifact"}</span>
+              <button type="button" className="shell-link px-3 py-2 text-xs" onClick={() => setCollapsed(false)}>
+                Expand
+              </button>
+            </div>
+          ) : null}
+          {!collapsed && hasDraft ? <ArtifactTabs activeMode={activeMode} onActiveModeChange={setActiveMode} /> : null}
+          {!collapsed && hasDraft ? (
             <ArtifactModePanel
               key={props.draftKey}
               mode={activeMode}
@@ -378,10 +454,11 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
               gate={gate}
               onQueueContinuity={props.onQueueContinuity}
               onSaveDraft={props.onSaveDraft}
+              searchQuery={searchQuery}
             />
-          ) : (
+          ) : !collapsed ? (
             <EmptyArtifact hasChapter={props.hasChapter} onOpenAutoWrite={props.onOpenAutoWrite} />
-          )}
+          ) : null}
         </div>
       ) : (
         <ArtifactInspectorRail
@@ -389,6 +466,10 @@ export default function ArtifactSurface(props: ArtifactSurfaceProps) {
           continuityQueued={props.continuityQueued}
           diagnostics={inspectorDiagnostics}
           mode={props.inspectorMode}
+          analysisSnapshot={props.analysisSnapshot}
+          memorySnapshot={props.memorySnapshot}
+          pipelineSnapshot={props.pipelineSnapshot}
+          reviewSnapshot={props.reviewSnapshot}
           onModeChange={props.onInspectorModeChange}
         />
       )}

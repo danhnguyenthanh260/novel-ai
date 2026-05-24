@@ -1,8 +1,9 @@
-import type { ChapterSceneItem, CurrentVersion, DockTab, SceneItem } from "@/features/scenes/components/writeTab/types";
+import type { ChapterSceneItem, ChatScope, CurrentVersion, DockTab, SceneItem } from "@/features/scenes/components/writeTab/types";
 import NovelLabWorkspace from "@/features/scenes/components/writeTab/NovelLabWorkspace";
 
 type WriteTabViewProps = {
   storySlug: string;
+  chatScope: ChatScope;
   scenes: SceneItem[];
   chapterIds: string[];
   sceneId: string;
@@ -40,6 +41,7 @@ export default function WriteTabView(props: WriteTabViewProps) {
   return (
     <NovelLabWorkspace
       storySlug={props.storySlug}
+      chatScope={props.chatScope}
       chapterIds={props.chapterIds}
       scene={props.scene}
       current={props.current}
