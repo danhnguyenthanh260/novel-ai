@@ -56,6 +56,7 @@ export function useAssistantConversations(args: { storySlug: string; chapterId: 
   const creatingRef = React.useRef<Promise<string> | null>(null);
   const activeIdRef = React.useRef<string | null>(null);
   const itemsRef = React.useRef<AssistantConversationListItem[]>([]);
+  const appendQueueRef = React.useRef<Promise<void>>(Promise.resolve());
 
   React.useEffect(() => {
     activeIdRef.current = activeConversationId;
@@ -175,17 +176,22 @@ export function useAssistantConversations(args: { storySlug: string; chapterId: 
   const ensureConversation = React.useCallback(async () => activeIdRef.current ?? createConversation(), [createConversation]);
 
   const appendBlock = React.useCallback(async (block: TimelineBlock) => {
-    const conversationId = await ensureConversation();
-    setConversationBlocks((current) => [...current, block]);
-    const payload = persistedBlockPayload(block);
-    const res = await fetch(`/api/stories/${encodeURIComponent(args.storySlug)}/assistant/conversations/${conversationId}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    appendQueueRef.current = appendQueueRef.current.catch(() => undefined).then(async () => {
+      const conversationId = await ensureConversation();
+      setConversationBlocks((current) => current.some((existing) => existing.id === block.id) ? current : [...current, block]);
+      const payload = persistedBlockPayload(block);
+      const res = await fetch(`/api/stories/${encodeURIComponent(args.storySlug)}/assistant/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      await jsonOrError(res);
+      setError(null);
+    }).catch((e: unknown) => {
+      setError(e instanceof Error ? e.message : "APPEND_MESSAGE_FAILED");
     });
-    await jsonOrError(res);
-    await reloadConversations();
-  }, [args.storySlug, ensureConversation, reloadConversations]);
+    return appendQueueRef.current;
+  }, [args.storySlug, ensureConversation]);
 
   const persistConversationState = React.useCallback(async (state: AssistantConversationState) => {
     setConversationState(state);

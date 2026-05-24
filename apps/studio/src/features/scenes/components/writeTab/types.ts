@@ -103,6 +103,7 @@ export type StudioChatIntent =
   | "BRAINSTORM_SCENE_GOAL"
   | "BRAINSTORM_CHARACTER_CONTRADICTION"
   | "BRAINSTORM_CHAPTER_OPENING"
+  | "BRAINSTORM_BREAK_EVENT"
   | "QUOTED_PREVIOUS_RESPONSE_QUESTION"
   | "AMBIGUOUS";
 
@@ -135,7 +136,7 @@ export type ChoiceGroupBlock = {
   submitBehavior: "immediate" | "requires_confirm";
   metadata?: {
     intent?: StudioChatIntent;
-    groupKind?: "brainstorm_angle" | "brainstorm_followup" | "context_recovery";
+    groupKind?: "brainstorm_angle" | "brainstorm_followup" | "brainstorm_continuation_next" | "context_recovery";
     seed?: string | null;
     [key: string]: unknown;
   };

@@ -52,3 +52,33 @@ _staging*
 
 # Agent Skills
 .agents/
+!.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/chat-first-workspace/
+!.agents/skills/chat-first-workspace/SKILL.md
+!.agents/skills/story-context-grooming/
+!.agents/skills/story-context-grooming/SKILL.md
+!.agents/skills/chapter-generation-workflow/
+!.agents/skills/chapter-generation-workflow/SKILL.md
+!.agents/skills/agent-progress-panel/
+!.agents/skills/agent-progress-panel/SKILL.md
+!.agents/skills/artifact-context-contract/
+!.agents/skills/artifact-context-contract/SKILL.md
+!.agents/skills/codex-style-layout-review/
+!.agents/skills/codex-style-layout-review/SKILL.md
+!.agents/skills/long-text-ingestion/
+!.agents/skills/long-text-ingestion/SKILL.md
+!.agents/skills/playwright-e2e-verification/
+!.agents/skills/playwright-e2e-verification/SKILL.md
+!.agents/skills/implementation-plan-review/
+!.agents/skills/implementation-plan-review/SKILL.md
+!.agents/skills/pr-review-strict/
+!.agents/skills/pr-review-strict/SKILL.md
+!.agents/skills/investigation-workflow/
+!.agents/skills/investigation-workflow/SKILL.md
+!.agents/skills/implementation-planning/
+!.agents/skills/implementation-planning/SKILL.md
+!.agents/skills/github-issue-pr-workflow/
+!.agents/skills/github-issue-pr-workflow/SKILL.md

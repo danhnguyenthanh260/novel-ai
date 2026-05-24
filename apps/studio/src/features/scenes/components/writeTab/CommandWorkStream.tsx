@@ -11,10 +11,15 @@ import { runMemoryCommand } from "@/features/scenes/components/writeTab/chatOrch
 import { runPipelineCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/pipelineCommandHandler";
 import { runReviewCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/reviewCommandHandler";
 import { runStatusCommand } from "@/features/scenes/components/writeTab/chatOrchestration/commands/statusCommandHandler";
-import { buildBrainstormAngleChoiceGroup, buildBrainstormFollowupChoiceGroup, type StructuredChoiceSelection } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
+import {
+  buildBrainstormAngleChoiceGroup,
+  buildBrainstormContinuationNextChoiceGroup,
+  buildBrainstormFollowupChoiceGroup,
+  type StructuredChoiceSelection,
+} from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
 import { approvalGateBlock, buildCommands, buildContextDigestBlock, buildContextMiniBar, buildSourceArtifactBlock, buildWorkspaceArtifactBlock, buildWorkspaceWorkflowBlock, chipTarget, commandDefinition, commandLabel, commandTail, contextWithCommandIntent, type CommandResult, workspaceHref } from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
 import { routeStudioIntent } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
-import type { BrainstormFollowupAction } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
+import type { BrainstormChoiceStage, BrainstormFollowupAction } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
 import { buildTimelineBlocks } from "@/features/scenes/components/writeTab/chatOrchestration/timelineBlockBuilder";
 import { useAssistantConversations } from "@/features/scenes/components/writeTab/chatOrchestration/useAssistantConversations";
@@ -56,6 +61,8 @@ function useCommandRunner(args: {
   onBrainstormSeedChange: (seed: string | null) => void;
   pendingBrainstormActions: BrainstormFollowupAction[] | null;
   onPendingBrainstormActionsChange: (actions: BrainstormFollowupAction[] | null) => void;
+  activeBrainstormChoiceStage: BrainstormChoiceStage | null;
+  onActiveBrainstormChoiceStageChange: (stage: BrainstormChoiceStage | null) => void;
   onConversationBlock: (block: TimelineBlock) => void;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
   onAnalysisSnapshotChange: (snapshot: AnalysisSnapshot | null) => void;
@@ -257,6 +264,7 @@ function useCommandRunner(args: {
       mode: args.mode,
       recentBrainstormSeed: args.recentBrainstormSeed,
       pendingBrainstormActions: args.pendingBrainstormActions,
+      activeBrainstormChoiceStage: args.activeBrainstormChoiceStage,
       structuredIntent,
     });
     setIntentBlock(null);
@@ -265,6 +273,9 @@ function useCommandRunner(args: {
     }
     if (route.brainstormFollowupActions !== undefined) {
       args.onPendingBrainstormActionsChange(route.brainstormFollowupActions);
+    }
+    if (route.brainstormChoiceStage !== undefined) {
+      args.onActiveBrainstormChoiceStageChange(route.brainstormChoiceStage);
     }
     if (route.intent === "SWITCH_STORY") {
       router.push("/shelf");
@@ -299,8 +310,8 @@ function useCommandRunner(args: {
       if (route.intent === "BRAINSTORM_EXPAND_CHOICE") {
         args.onConversationBlock(buildBrainstormFollowupChoiceGroup(route.brainstormSeed, `choice-followup-${stamp}`));
       }
-      if (route.intent === "BRAINSTORM_SCENE_GOAL" || route.intent === "BRAINSTORM_CHARACTER_CONTRADICTION" || route.intent === "BRAINSTORM_CHAPTER_OPENING") {
-        args.onConversationBlock(buildBrainstormFollowupChoiceGroup(route.brainstormSeed, `choice-followup-${stamp}`));
+      if (route.intent === "BRAINSTORM_SCENE_GOAL" || route.intent === "BRAINSTORM_CHARACTER_CONTRADICTION" || route.intent === "BRAINSTORM_CHAPTER_OPENING" || route.intent === "BRAINSTORM_BREAK_EVENT") {
+        args.onConversationBlock(buildBrainstormContinuationNextChoiceGroup(route.brainstormSeed, `choice-continuation-${stamp}`, route.selectedBrainstormAction ?? undefined));
       }
       return;
     }
@@ -328,6 +339,7 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   const [chatMode, setChatMode] = React.useState<"chat" | "brainstorm">("chat");
   const [recentBrainstormSeed, setRecentBrainstormSeed] = React.useState<string | null>(null);
   const [pendingBrainstormActions, setPendingBrainstormActions] = React.useState<BrainstormFollowupAction[] | null>(null);
+  const [activeBrainstormChoiceStage, setActiveBrainstormChoiceStage] = React.useState<BrainstormChoiceStage | null>(null);
   const [pendingAssistant, setPendingAssistant] = React.useState(false);
   const assistantConversations = useAssistantConversations({ storySlug: props.storySlug, chapterId: props.chapterId, chatScope: props.chatScope });
   const {
@@ -347,21 +359,37 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
   } = assistantConversations;
   const briefing = buildAssistantReadiness(props.assistantContext);
   const commands = buildCommands(props.assistantContext, props.chapterId);
+  const restoredConversationIdRef = React.useRef<string | null>(null);
+  const choiceSelectionsRef = React.useRef(conversationState.choiceSelections);
 
   React.useEffect(() => {
+    choiceSelectionsRef.current = conversationState.choiceSelections;
+  }, [conversationState.choiceSelections]);
+
+  React.useEffect(() => {
+    if (restoredConversationIdRef.current === activeConversationId) return;
+    restoredConversationIdRef.current = activeConversationId;
     setChatMode(conversationState.chatMode);
     setRecentBrainstormSeed(conversationState.recentBrainstormSeed);
     setPendingBrainstormActions(conversationState.pendingBrainstormActions);
-  }, [activeConversationId, conversationState]);
+    setActiveBrainstormChoiceStage(conversationState.activeBrainstormChoiceStage);
+  }, [
+    conversationState.activeBrainstormChoiceStage,
+    activeConversationId,
+    conversationState.chatMode,
+    conversationState.pendingBrainstormActions,
+    conversationState.recentBrainstormSeed,
+  ]);
 
   React.useEffect(() => {
     void persistConversationState({
       chatMode,
       recentBrainstormSeed,
       pendingBrainstormActions,
-      choiceSelections: conversationState.choiceSelections,
+      activeBrainstormChoiceStage,
+      choiceSelections: choiceSelectionsRef.current,
     });
-  }, [chatMode, conversationState.choiceSelections, pendingBrainstormActions, persistConversationState, recentBrainstormSeed]);
+  }, [activeBrainstormChoiceStage, chatMode, pendingBrainstormActions, persistConversationState, recentBrainstormSeed]);
 
   const { commandResult, intentBlock, runCommand, submitMessage } = useCommandRunner({
     storySlug: props.storySlug,
@@ -376,6 +404,8 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
     onBrainstormSeedChange: setRecentBrainstormSeed,
     pendingBrainstormActions,
     onPendingBrainstormActionsChange: setPendingBrainstormActions,
+    activeBrainstormChoiceStage,
+    onActiveBrainstormChoiceStageChange: setActiveBrainstormChoiceStage,
     onConversationBlock: (block) => void appendBlock(block),
     onInspectorModeChange: props.onInspectorModeChange,
     onAnalysisSnapshotChange: props.onAnalysisSnapshotChange,

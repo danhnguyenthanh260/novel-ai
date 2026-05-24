@@ -109,6 +109,20 @@ async function assertConversation(poolOrClient: Pool | PoolClient, storyId: numb
   return (res.rowCount ?? 0) > 0;
 }
 
+async function lockConversationForAppend(client: PoolClient, storyId: number, conversationId: string): Promise<boolean> {
+  if (!validUuid(conversationId)) return false;
+  const res = await client.query(
+    `SELECT id
+     FROM public.assistant_conversation
+     WHERE id = $1::uuid
+       AND story_id = $2
+       AND workspace = $3
+     FOR UPDATE`,
+    [conversationId, storyId, WORKSPACE]
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
 export async function listAssistantConversationsResponse(req: NextRequest, storySlug: string): Promise<NextResponse> {
   try {
     const storyId = await resolveStoryId(pool, storySlug);
@@ -301,7 +315,7 @@ export async function appendAssistantMessageResponse(req: NextRequest, storySlug
     const metadataJson = jsonObject(body.metadata_json);
 
     await client.query("BEGIN");
-    const exists = await assertConversation(client, storyId, conversationId);
+    const exists = await lockConversationForAppend(client, storyId, conversationId);
     if (!exists) {
       await client.query("ROLLBACK");
       return NextResponse.json({ ok: false, error: "CONVERSATION_NOT_FOUND" }, { status: 404 });

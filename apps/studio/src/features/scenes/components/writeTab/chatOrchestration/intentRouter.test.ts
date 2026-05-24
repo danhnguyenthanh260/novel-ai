@@ -85,6 +85,7 @@ export function runIntentRouterSelfTest(): void {
     recentBrainstormSeed: "a girl",
   });
   assert(selectedAngle.brainstormFollowupActions?.includes("character_contradiction") === true, "angle expansion offers brainstorm follow-up actions");
+  assert(selectedAngle.brainstormChoiceStage === "brainstorm_followup", "angle expansion activates follow-up choice stage");
 
   const characterContradiction = routeStudioIntent({
     message: "Let's go with a character contradiction. She is known as the most reliable, fiercely loyal problem-solver.",
@@ -97,6 +98,32 @@ export function runIntentRouterSelfTest(): void {
   assert(characterContradiction.command === null, "brainstorm continuation does not start a workflow command");
   assert(characterContradiction.assistantText?.includes("Character contradiction") === true, "character contradiction reply labels the continuation");
   assert(characterContradiction.assistantText?.includes("Core tension") === true, "character contradiction reply expands tension");
+  assert(characterContradiction.brainstormChoiceStage === "brainstorm_continuation_next", "character contradiction activates continuation-next choice stage");
+
+  const sceneGoalAfterContradiction = routeStudioIntent({
+    message: "1",
+    readiness: "degraded",
+    mode: "brainstorm",
+    recentBrainstormSeed: "a girl",
+    pendingBrainstormActions: ["scene_goal", "chapter_opening", "break_event"],
+    activeBrainstormChoiceStage: "brainstorm_continuation_next",
+  });
+  assert(sceneGoalAfterContradiction.intent === "BRAINSTORM_SCENE_GOAL", "numeric choice follows active continuation-next stage");
+  assert(sceneGoalAfterContradiction.command === null, "continuation numeric choice does not start a workflow command");
+  assert(sceneGoalAfterContradiction.assistantText?.includes("\n1\n") === false, "numeric continuation choice is not echoed as scene prose");
+  assert(sceneGoalAfterContradiction.assistantText?.includes("Force the protagonist") === true, "numeric continuation choice uses default scene goal prose");
+  assert(sceneGoalAfterContradiction.brainstormFollowupActions?.[0] === "character_contradiction", "next actions exclude scene goal after selecting scene goal");
+
+  const continueInBrainstorm = routeStudioIntent({
+    message: "continue",
+    readiness: "blocked",
+    mode: "brainstorm",
+    recentBrainstormSeed: "a girl",
+    pendingBrainstormActions: ["scene_goal", "chapter_opening", "break_event"],
+    activeBrainstormChoiceStage: "brainstorm_continuation_next",
+  });
+  assert(continueInBrainstorm.command === null, "continue inside brainstorm does not start Chapter Write");
+  assert(continueInBrainstorm.assistantText?.includes("Choose the next brainstorm move") === true, "continue inside brainstorm prompts for brainstorm next action");
 
   const explicitWrite = routeStudioIntent({
     message: "write the chapter",

@@ -131,6 +131,26 @@ Do not run whole-project lint unless requested. If verification cannot run, stat
 
 When behavior or contracts change, update the relevant docs in the same turn.
 
+## Repository Codex Skills
+
+Repo-specific Codex skills live under `.agents/skills/`. Use them after reading this file and before editing the related surface:
+
+- `chat-first-workspace`: Write Assistant chat, composer, slash commands, durable conversations, context switching, and missing-context chat behavior.
+- `story-context-grooming`: `WritingContext`, memory/context extraction, source traceability, context gaps, and source-doc based context preparation.
+- `chapter-generation-workflow`: chapter planning, AutoWrite, `CHAPTER_WRITE_V3`, status polling, retries, staging, and generation acceptance checks.
+- `agent-progress-panel`: progress/thinking display, `workflow_progress`, right inspector progress mode, streaming state, cancellation, and retry state.
+- `artifact-context-contract`: `artifact_preview`, document artifact panels, context digests, approval gates, and right-panel document behavior.
+- `codex-style-layout-review`: Codex-like triple-pane Write layout, viewport locking, independent scroll regions, right panel behavior, and responsive fallback.
+- `long-text-ingestion`: pasted/uploaded long text, `PASTE_TEXT`, `MEGA_FILE`, `ZIP_UPLOAD`, source docs, and split-draft traceability.
+- `playwright-e2e-verification`: browser/E2E verification for chat-first writing, layout containment, artifact panel behavior, and missing-context onboarding.
+- `implementation-plan-review`: pre-coding reviews of plans, issue bodies, file manifests, acceptance criteria, and quality gates.
+- `pr-review-strict`: strict PR or diff review for correctness, UX/data contract regressions, responsiveness, accessibility, tests, and scope creep.
+- `investigation-workflow`: evidence-first investigation before code changes for production failures, UI regressions, data issues, auth/storage/DB uncertainty, or unclear root cause.
+- `implementation-planning`: execution-ready plans with scope, non-goals, file manifest, acceptance criteria, quality gates, rollback notes, and Agent/Human mode structure.
+- `github-issue-pr-workflow`: GitHub issue, branch, PR, and review-note workflow using repo branch naming and `staging`-first PR targets.
+
+Do not use these skills as a substitute for repo investigation. Each skill lists the exact docs and files to inspect for its surface.
+
 ## Repo Hygiene Rules For Docs And Scripts
 
 Use these folders by intent:

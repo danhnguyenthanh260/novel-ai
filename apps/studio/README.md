@@ -51,6 +51,7 @@ Refactor direction for large modules:
 
 ### Write workspace chat block contracts
 
+- Manual QA for the Write Assistant chat surface is tracked in [write-assistant-chat-qa-barem.md](../../docs/operations/implementation/write-assistant-chat-qa-barem.md).
 - The Write workspace is viewport locked: the app shell reserves the fixed top bar, the Write grid fills the remaining visible height, and only internal panels scroll. The browser page itself must not become the scrolling surface for `/stories/[slug]/write`.
 - The center chat owns conversation history and the persistent bottom composer. User/assistant prose renders as compact chat bubbles with text-only copy actions; system state renders as compact timeline blocks.
 - Write Assistant conversations are durable server-backed sessions scoped by story, workspace, and optional chapter. The chat surface can show current-chapter history or all story chats, and New Chat creates a new session without deleting prior sessions.

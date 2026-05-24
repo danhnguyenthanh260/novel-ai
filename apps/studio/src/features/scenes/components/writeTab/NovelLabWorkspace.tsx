@@ -184,6 +184,7 @@ function NavigationPanel(
               <button
                 key={chapterId}
                 type="button"
+                data-testid={`chapter-item-${chapterId}`}
                 className={`novel-lab-chapter-row ${chapterId === props.selectedChapterId ? "novel-lab-chapter-row--selected" : ""}`}
                 onClick={() => props.onChapterIdChange(chapterId)}
               >
@@ -194,7 +195,7 @@ function NavigationPanel(
           ) : (
             <div className="quiet-empty-state p-3 text-xs">No chapters yet.</div>
           )}
-          <button type="button" className="shell-link w-full px-3 py-2 text-xs" onClick={() => void props.onCreateNewChapter()}>
+          <button data-testid="new-chapter-btn" type="button" className="shell-link w-full px-3 py-2 text-xs" onClick={() => void props.onCreateNewChapter()}>
             New chapter
           </button>
         </div>
@@ -288,6 +289,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   return (
     <>
       <main
+        data-testid="write-workspace"
         className="novel-lab-workspace"
         style={{
           gridTemplateColumns: workspaceColumns(isArtifactVisible),

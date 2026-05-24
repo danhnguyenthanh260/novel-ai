@@ -350,6 +350,7 @@ export default function ChatComposer({ value, menuOpen, commands, onValueChange,
             /
           </button>
           <textarea
+            data-testid="chat-composer-input"
             value={value}
             onChange={(event) => {
               onValueChange(event.target.value);
@@ -364,7 +365,7 @@ export default function ChatComposer({ value, menuOpen, commands, onValueChange,
             placeholder="Message or / for commands"
             aria-label="Studio chat composer"
           />
-          <button type="submit" className="primary-action px-3 py-2 text-xs" title={state === "slash_command_menu" ? "Run preflight" : "Send message"}>
+          <button data-testid="chat-send-btn" type="submit" className="primary-action px-3 py-2 text-xs" title={state === "slash_command_menu" ? "Run preflight" : "Send message"}>
             {state === "slash_command_menu" ? "Run" : "Send"}
           </button>
         </form>
