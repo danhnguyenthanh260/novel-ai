@@ -449,9 +449,9 @@ async function checkPlaywright() {
   else fail("playwright-config", "playwright.config.ts missing", "Create apps/studio/playwright.config.ts");
 
   // Test directory
-  const testDir = path.resolve(process.cwd(), "tests/e2e");
-  if (existsSync(testDir)) pass("playwright-testdir", "tests/e2e/ found");
-  else fail("playwright-testdir", "tests/e2e/ missing");
+  const testDir = path.resolve(process.cwd(), "e2e/tests");
+  if (existsSync(testDir)) pass("playwright-testdir", "e2e/tests/ found");
+  else fail("playwright-testdir", "e2e/tests/ missing");
 
   // Test discovery
   const listResult = await tryShellCommand("npx", ["playwright", "test", "--list", "--reporter=list"]);
@@ -465,7 +465,7 @@ async function checkPlaywright() {
         for (const l of lines) console.log(`     ${l.trim()}`);
       }
     } else {
-      warn("playwright-discovery", "No tests found in tests/e2e/");
+      warn("playwright-discovery", "No tests found in e2e/tests/");
     }
   } else {
     fail("playwright-discovery", `npx playwright test --list failed: ${listResult.output.slice(0, 200)}`);

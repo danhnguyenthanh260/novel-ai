@@ -20,21 +20,21 @@ import {
   archiveTestStory,
   writeWorkspaceUrl,
   type StoryFixture,
-} from "./helpers/story-fixtures";
+} from "../helpers/story-fixtures";
 import {
   installAutowriteMocks,
   sendChatMessage,
   MOCK_CHAPTERS,
   PROTAGONIST,
-} from "./helpers/ai-generation";
+} from "../helpers/ai-generation";
 import {
   evaluateChapterContent,
   buildRubricReport,
   assertRubricVerdict,
   assertUXRubric,
   printRubricReport,
-} from "./helpers/rubric";
-import { S } from "./helpers/selectors";
+} from "../helpers/rubric";
+import { S } from "../helpers/selectors";
 
 const REAL_LLM = process.env.E2E_REAL_LLM === "1";
 const GENERATION_TIMEOUT_MS = REAL_LLM ? 180_000 : 20_000;
@@ -119,7 +119,7 @@ test.describe("Story Five-Chapter Flow", () => {
       await expect(page.locator(S.storySlugInput)).toHaveValue(uiStory.slug.slice(0, 3), { timeout: 3000 }).catch(() => undefined);
 
       // Override slug to our controlled value
-      await page.locator(S.storySlugInput).triple_click ? undefined : undefined;
+      await page.locator(S.storySlugInput).click({ clickCount: 3 });
       await page.locator(S.storySlugInput).fill(uiStory.slug);
 
       // Submit

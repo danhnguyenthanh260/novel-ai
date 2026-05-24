@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = Number(process.env.PLAYWRIGHT_PORT ?? 3101);
+const port = Number(process.env.PLAYWRIGHT_PORT ?? process.env.E2E_STUDIO_PORT ?? 3000);
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`;
 const healthURL = `${baseURL}/stories/subcurrent/write`;
 
