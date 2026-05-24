@@ -21,6 +21,7 @@ function statusClass(status: ChatContextMiniBarPayload["status"]): string {
 export default function ChatTimeline({ context, blocks, onChip, onChoice }: ChatTimelineProps) {
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const [nearBottom, setNearBottom] = React.useState(true);
+  const nearBottomRef = React.useRef(true);
 
   React.useEffect(() => {
     if (!nearBottom) return;
@@ -32,24 +33,28 @@ export default function ChatTimeline({ context, blocks, onChip, onChoice }: Chat
   const updateNearBottom = () => {
     const scroll = scrollRef.current;
     if (!scroll) return;
-    setNearBottom(scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 96);
+    const nextNearBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 96;
+    if (nearBottomRef.current === nextNearBottom) return;
+    nearBottomRef.current = nextNearBottom;
+    setNearBottom(nextNearBottom);
   };
 
   return (
     <>
-      <div className="chat-context-mini-bar" aria-label="Current chat context">
+      <div data-testid="chat-context-bar" className="chat-context-mini-bar" aria-label="Current chat context">
         <button type="button">{context.storyTitle}</button>
         <span>/</span>
         <button type="button">{context.chapterLabel}</button>
         <span className={statusClass(context.status)}>{context.status.toUpperCase()}</span>
       </div>
-      <div ref={scrollRef} className="work-stream__scroll" onScroll={updateNearBottom}>
+      <div ref={scrollRef} data-testid="chat-timeline" className="work-stream__scroll" onScroll={updateNearBottom}>
         <div className="timeline-stack">
           <TimelineBlocks blocks={blocks} onChip={onChip} onChoice={onChoice} />
         </div>
         {!nearBottom ? (
           <button type="button" className="jump-to-bottom" onClick={() => {
             scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+            nearBottomRef.current = true;
             setNearBottom(true);
           }}>
             New messages

@@ -105,6 +105,7 @@ export default function RootStoryBootstrap() {
           <label className="grid gap-1">
             <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">Title</span>
             <input
+              data-testid="story-title-input"
               className="shell-control px-3 py-2"
               placeholder="The Subcurrent"
               value={title}
@@ -116,6 +117,7 @@ export default function RootStoryBootstrap() {
           <label className="grid gap-1">
             <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">Slug</span>
             <input
+              data-testid="story-slug-input"
               className="shell-control px-3 py-2 font-mono text-xs"
               placeholder="the_subcurrent"
               value={effectiveSlug}
@@ -129,13 +131,13 @@ export default function RootStoryBootstrap() {
           </label>
 
           {error && (
-            <div className="border border-red-500/40 bg-red-950/20 px-3 py-2 text-sm text-red-200" role="alert">
+            <div data-testid="story-create-error" className="border border-red-500/40 bg-red-950/20 px-3 py-2 text-sm text-red-200" role="alert">
               {error}
             </div>
           )}
 
           <div className="flex flex-wrap gap-2">
-            <button type="submit" className="primary-action" disabled={submitting}>
+            <button data-testid="story-create-submit" type="submit" className="primary-action" disabled={submitting}>
               {submitting ? "Creating..." : "Create Story"}
             </button>
             <button

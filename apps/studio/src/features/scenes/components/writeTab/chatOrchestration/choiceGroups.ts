@@ -93,11 +93,50 @@ export function buildBrainstormFollowupChoiceGroup(seed: string | null | undefin
   };
 }
 
+function continuationChoiceMap(): Record<string, ChoiceGroupChoice> {
+  return {
+    scene_goal: { id: "scene_goal", label: "Scene goal", value: "scene goal", description: "Turn the contradiction into a clear scene objective." },
+    character_contradiction: { id: "character_contradiction", label: "Character contradiction", value: "character contradiction", description: "Refine the external behavior and internal contradiction." },
+    chapter_opening: { id: "chapter_opening", label: "Chapter opening", value: "chapter opening", description: "Shape the contradiction into the first scene setup." },
+    break_event: { id: "break_event", label: "Event that breaks her logic", value: "event that breaks her logic", description: "Add the pressure event that makes the contradiction fail." },
+  };
+}
+
+function continuationNextChoices(selectedAction?: ChoiceGroupChoice["id"]): ChoiceGroupChoice[] {
+  const choices = continuationChoiceMap();
+  const order = selectedAction === "scene_goal"
+    ? ["character_contradiction", "chapter_opening", "break_event"]
+    : selectedAction === "chapter_opening"
+      ? ["scene_goal", "character_contradiction", "break_event"]
+      : selectedAction === "break_event"
+        ? ["scene_goal", "character_contradiction", "chapter_opening"]
+        : ["scene_goal", "chapter_opening", "break_event"];
+  return order.map((id) => choices[id]);
+}
+
+export function buildBrainstormContinuationNextChoiceGroup(seed: string | null | undefined, id = `choice-brainstorm-continuation-${Date.now()}`, selectedAction?: ChoiceGroupChoice["id"]): ChoiceGroupBlock {
+  return {
+    id,
+    type: "choice_group",
+    source: "assistant",
+    prompt: "Choose the next brainstorm move.",
+    selectionMode: "single",
+    choices: continuationNextChoices(selectedAction),
+    submitBehavior: "immediate",
+    metadata: {
+      intent: "BRAINSTORM_SCENE_GOAL",
+      groupKind: "brainstorm_continuation_next",
+      seed: seed ?? null,
+    },
+  };
+}
+
 export function choiceSelectionFromBlock(block: ChoiceGroupBlock, choice: ChoiceGroupChoice): StructuredChoiceSelection {
   const intent = choice.id === "scene_goal" ? "BRAINSTORM_SCENE_GOAL"
     : choice.id === "character_contradiction" ? "BRAINSTORM_CHARACTER_CONTRADICTION"
       : choice.id === "chapter_opening" ? "BRAINSTORM_CHAPTER_OPENING"
-        : block.metadata?.intent;
+        : choice.id === "break_event" ? "BRAINSTORM_BREAK_EVENT"
+          : block.metadata?.intent;
   return {
     choiceGroupId: block.id,
     choiceId: choice.id,

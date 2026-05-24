@@ -1,5 +1,6 @@
 import {
   buildBrainstormAngleChoiceGroup,
+  buildBrainstormContinuationNextChoiceGroup,
   buildBrainstormFollowupChoiceGroup,
   choiceSelectionFromBlock,
 } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
@@ -23,6 +24,16 @@ export function runChoiceGroupsSelfTest(): void {
   const character = followup.choices.find((choice) => choice.id === "character_contradiction");
   assert(Boolean(character), "follow-up choices include character contradiction");
   assert(Boolean(character && choiceSelectionFromBlock(followup, character).intent === "BRAINSTORM_CHARACTER_CONTRADICTION"), "follow-up click maps to structured brainstorm continuation");
+
+  const continuation = buildBrainstormContinuationNextChoiceGroup("a girl", "continuation-test");
+  assert(continuation.metadata?.groupKind === "brainstorm_continuation_next", "continuation choices carry stage metadata");
+  assert(continuation.choices[0].id === "scene_goal", "continuation option one is scene goal");
+  const breakEvent = continuation.choices.find((choice) => choice.id === "break_event");
+  assert(Boolean(breakEvent && choiceSelectionFromBlock(continuation, breakEvent).intent === "BRAINSTORM_BREAK_EVENT"), "break event click maps to structured brainstorm continuation");
+
+  const afterSceneGoal = buildBrainstormContinuationNextChoiceGroup("a girl", "continuation-after-scene-goal", "scene_goal");
+  assert(afterSceneGoal.choices.every((choice) => choice.id !== "scene_goal"), "continuation choices exclude the action just selected");
+  assert(afterSceneGoal.choices[0].id === "character_contradiction", "after scene goal, option one is character contradiction");
 }
 
 runChoiceGroupsSelfTest();

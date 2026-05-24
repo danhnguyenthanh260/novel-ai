@@ -1,10 +1,11 @@
 import type { TimelineBlock } from "@/features/scenes/components/writeTab/types";
-import type { BrainstormFollowupAction } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
+import type { BrainstormChoiceStage, BrainstormFollowupAction } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 
 export type AssistantConversationState = {
   chatMode: "chat" | "brainstorm";
   recentBrainstormSeed: string | null;
   pendingBrainstormActions: BrainstormFollowupAction[] | null;
+  activeBrainstormChoiceStage: BrainstormChoiceStage | null;
   choiceSelections: Record<string, string[]>;
 };
 
@@ -12,11 +13,19 @@ export const defaultConversationState: AssistantConversationState = {
   chatMode: "chat",
   recentBrainstormSeed: null,
   pendingBrainstormActions: null,
+  activeBrainstormChoiceStage: null,
   choiceSelections: {},
 };
 
 export function isTimelineBlock(value: unknown): value is TimelineBlock {
   return Boolean(value && typeof value === "object" && "type" in value && "id" in value);
+}
+
+function normalizeBrainstormChoiceStage(value: unknown): BrainstormChoiceStage | null {
+  if (value === "brainstorm_angle" || value === "brainstorm_followup" || value === "brainstorm_continuation_next") {
+    return value;
+  }
+  return null;
 }
 
 export function normalizeConversationState(value: unknown): AssistantConversationState {
@@ -25,6 +34,7 @@ export function normalizeConversationState(value: unknown): AssistantConversatio
     chatMode: obj.chatMode === "brainstorm" ? "brainstorm" : "chat",
     recentBrainstormSeed: typeof obj.recentBrainstormSeed === "string" ? obj.recentBrainstormSeed : null,
     pendingBrainstormActions: Array.isArray(obj.pendingBrainstormActions) ? obj.pendingBrainstormActions : null,
+    activeBrainstormChoiceStage: normalizeBrainstormChoiceStage(obj.activeBrainstormChoiceStage),
     choiceSelections: obj.choiceSelections && typeof obj.choiceSelections === "object" && !Array.isArray(obj.choiceSelections)
       ? obj.choiceSelections as Record<string, string[]>
       : {},
