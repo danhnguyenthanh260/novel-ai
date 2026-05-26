@@ -44,9 +44,22 @@ LLM_TIMEOUTS: Dict[str, int] = {
     "writing_continuity_extract": _as_int("LLM_TIMEOUT_WRITING_CONTINUITY_EXTRACT", _as_int("LLM_TIMEOUT_WRITING", 120)),
     "writing_continuity_integrity": _as_int("LLM_TIMEOUT_WRITING_CONTINUITY_INTEGRITY", _as_int("LLM_TIMEOUT_WRITING", 120)),
     # Narrative agents
-    "narrative_stylist": _as_int("LLM_TIMEOUT_NARRATIVE_STYLIST", _as_int("LLM_TIMEOUT_NARRATIVE", 120)),
-    "narrative_critic": _as_int("LLM_TIMEOUT_NARRATIVE_CRITIC", _as_int("LLM_TIMEOUT_NARRATIVE", 120)),
-    "narrative_refine": _as_int("LLM_TIMEOUT_NARRATIVE_REFINE", _as_int("LLM_TIMEOUT_NARRATIVE", 120)),
+    "narrative_stylist": _as_int(
+        "LLM_TIMEOUT_NARRATIVE_STYLIST",
+        _as_int("LLM_TIMEOUT_CHAPTER_STYLIST_SECONDS", _as_int("LLM_TIMEOUT_NARRATIVE", 120)),
+    ),
+    "narrative_critic": _as_int(
+        "LLM_TIMEOUT_NARRATIVE_CRITIC",
+        _as_int("LLM_TIMEOUT_CHAPTER_CRITIC_SECONDS", _as_int("LLM_TIMEOUT_NARRATIVE", 120)),
+    ),
+    "narrative_refine": _as_int(
+        "LLM_TIMEOUT_NARRATIVE_REFINE",
+        _as_int("LLM_TIMEOUT_CHAPTER_REFINE_SECONDS", _as_int("LLM_TIMEOUT_NARRATIVE", 120)),
+    ),
+    "chapter_write_v3": _as_int(
+        "LLM_TIMEOUT_CHAPTER_WRITE_V3_SECONDS",
+        _as_int("LLM_TIMEOUT_NARRATIVE", 300),
+    ),
     # Validation + memory
     "chapter_validate": _as_int("LLM_TIMEOUT_CHAPTER_VALIDATE", 60),
     "memory_pack": _as_int("LLM_TIMEOUT_MEMORY_PACK", 90),

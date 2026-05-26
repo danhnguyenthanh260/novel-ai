@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
 import { MOCK_CHAPTERS, PROTAGONIST, SETTING } from "./ai-generation";
 
 export type RubricScore = "pass" | "warning" | "fail";
@@ -18,6 +18,12 @@ export type RubricReport = {
   criticalFailures: string[];
   warnings: string[];
 };
+
+export const CRITICAL_ITEMS = ["A01", "A02", "C01", "E01"] as const;
+
+function isCriticalFailure(item: RubricItem): boolean {
+  return item.score === "fail" && CRITICAL_ITEMS.includes(item.id as typeof CRITICAL_ITEMS[number]);
+}
 
 // --------------------------------------------------------------------------
 // Content-level rubric (runs against mock chapter text in-memory)
@@ -202,7 +208,7 @@ export function evaluateChapterContent(chapters: typeof MOCK_CHAPTERS): RubricIt
 }
 
 export function buildRubricReport(items: RubricItem[]): RubricReport {
-  const criticalFailures = items.filter((i) => i.critical && i.score === "fail").map((i) => i.id);
+  const criticalFailures = items.filter(isCriticalFailure).map((i) => i.id);
   const warnings = items.filter((i) => i.score === "warning").map((i) => i.id);
   const failures = items.filter((i) => i.score === "fail").map((i) => i.id);
 

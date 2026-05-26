@@ -766,6 +766,15 @@ export async function postChapterAutoWriteResponse(req: NextRequest, storySlug: 
   } catch (error: unknown) {
     const msg = getScenesApiErrorMessage(error, "AUTO_WRITE_FAILED");
     const status = msg.includes("BLOCKED_BY_CANON_CONFLICT") || msg.includes("BLOCKED_BY_CONFLICT_REVIEW") ? 409 : 500;
+    console.error(
+      "[writing.auto_write.failed]",
+      JSON.stringify({
+        chapter_id: chapterId,
+        latency_ms: Date.now() - startedAt,
+        error: msg,
+        stack: error instanceof Error ? error.stack : null,
+      })
+    );
     return NextResponse.json({
       ok: false,
       error: msg,

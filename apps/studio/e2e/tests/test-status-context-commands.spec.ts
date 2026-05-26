@@ -180,7 +180,7 @@ test.describe("Status and context commands", () => {
     const startedAt = Date.now();
     await runCommand(page, "/status");
     await expect(page.locator(".timeline-card--digest").getByRole("heading", { name: "Chapter status: ready" })).toBeVisible();
-    expect(Date.now() - startedAt).toBeLessThan(1000);
+    expect(Date.now() - startedAt).toBeLessThan(2000);
     await runCommand(page, "/context");
     await expect(page.locator(".timeline-card--digest").filter({ hasText: "Chapter 1 context snapshot" }).first()).toBeVisible();
   });

@@ -7,7 +7,7 @@
  * Set E2E_REAL_LLM=1 to require a live OpenAI-compatible LLM call.
  *
  * Usage:
- *   node scripts/doctor_e2e_preflight.mjs [--verbose] [--fix-hints]
+ *   node scripts/doctor_e2e_preflight.mjs [--verbose] [--fix-hints] [--allow-tier-drop]
  *
  * Exit codes:
  *   0  READY or READY_WITH_WARNINGS
@@ -25,6 +25,7 @@ const execFileAsync = promisify(execFile);
 const args = new Set(process.argv.slice(2));
 const verbose = args.has("--verbose");
 const fixHints = args.has("--fix-hints");
+const allowTierDrop = args.has("--allow-tier-drop");
 
 // ---------------------------------------------------------------------------
 // Env loading
@@ -67,6 +68,12 @@ const LLM_API_BASE = process.env.LLM_API_BASE || "";
 const LLM_API_KEY = process.env.LLM_API_KEY || "";
 const LLM_MODEL = process.env.LLM_MODEL || "";
 const E2E_REAL_LLM = process.env.E2E_REAL_LLM === "1";
+const RUNTIME_DIR = path.resolve(process.cwd(), "../../.runtime/e2e");
+const ROOT_RUNTIME_DIR = path.resolve(process.cwd(), "../../.runtime");
+const LLAMA_TIER_FILE = path.join(RUNTIME_DIR, "llama-tier.txt");
+const MEMORY_WORKER_PID_FILE = path.join(ROOT_RUNTIME_DIR, "memory_worker.pid");
+const LLAMA_SERVER_BIN = process.env.LLAMA_SERVER_BIN || path.join(process.env.HOME || "", "llama.cpp/build/bin/llama-server");
+const LLAMA_MODEL_PATH = process.env.LLAMA_MODEL_PATH || path.join(process.env.HOME || "", "models/qwen2.5-7b/model.gguf");
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -138,15 +145,41 @@ function isUrl(value) {
   return /^https?:\/\//i.test(value);
 }
 
+function readActiveTier() {
+  if (!existsSync(LLAMA_TIER_FILE)) return 0;
+  const raw = readFileSync(LLAMA_TIER_FILE, "utf8").trim();
+  const tier = Number(raw);
+  return Number.isInteger(tier) && tier >= 0 && tier <= 3 ? tier : 0;
+}
+
+function tierTimeoutMs(tier) {
+  return [600_000, 900_000, 1_200_000, 1_800_000][tier] ?? 600_000;
+}
+
+function pidIsAlive(pid) {
+  if (!Number.isFinite(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Individual checks
 // ---------------------------------------------------------------------------
 
 async function checkDocker() {
   console.log("\n[docker]");
-  const result = await tryShellCommand("docker", ["version", "--format", "Server: {{.Server.Version}}"]);
+  let dockerCommand = "docker";
+  let result = await tryShellCommand(dockerCommand, ["version", "--format", "Server: {{.Server.Version}}"]);
+  if (!result.ok) {
+    dockerCommand = "docker.exe";
+    result = await tryShellCommand(dockerCommand, ["version", "--format", "Server: {{.Server.Version}}"]);
+  }
   if (result.ok && result.output.includes("Server:")) {
-    pass("docker-server", result.output.replace(/\s+/g, " ").trim());
+    pass("docker-server", `${dockerCommand}: ${result.output.replace(/\s+/g, " ").trim()}`);
   } else {
     warn(
       "docker-server",
@@ -155,7 +188,7 @@ async function checkDocker() {
     );
   }
 
-  const psResult = await tryShellCommand("docker", [
+  const psResult = await tryShellCommand(dockerCommand, [
     "compose", "-f", path.resolve(process.cwd(), "../../infra/docker-compose.yml"), "ps", "--format", "table {{.Name}}\t{{.State}}\t{{.Ports}}"
   ]);
   if (psResult.ok) {
@@ -318,6 +351,20 @@ async function checkHistorian() {
   }
 }
 
+function checkMemoryWorker() {
+  console.log("\n[memory-worker]");
+  if (!existsSync(MEMORY_WORKER_PID_FILE)) {
+    fail("memory-worker", "PID file not found", "Run: npm run e2e:start");
+    return;
+  }
+  const pid = Number(readFileSync(MEMORY_WORKER_PID_FILE, "utf8").trim());
+  if (pidIsAlive(pid)) {
+    pass("memory-worker", `running pid=${pid}`);
+  } else {
+    fail("memory-worker", `stale PID ${pid || "<invalid>"}`, "Run: npm run e2e:start");
+  }
+}
+
 async function checkStudio() {
   console.log("\n[studio-dev-server]");
   const storiesUrl = `${E2E_BASE_URL}/api/stories`;
@@ -345,6 +392,30 @@ async function checkStudio() {
 
 async function checkLlm() {
   console.log("\n[llm-config]");
+  const activeTier = readActiveTier();
+  pass("llm-tier", `tier=${activeTier} generation_timeout_ms=${tierTimeoutMs(activeTier)} allow_tier_drop=${allowTierDrop}`);
+
+  if (E2E_REAL_LLM) {
+    if (!existsSync(LLAMA_SERVER_BIN)) {
+      fail(
+        "llama-server-bin",
+        `Missing executable at ${LLAMA_SERVER_BIN}`,
+        "Build llama.cpp first: cd ~/llama.cpp && cmake -B build -DGGML_CUDA=ON && cmake --build build --config Release -j"
+      );
+    } else {
+      pass("llama-server-bin", LLAMA_SERVER_BIN);
+    }
+    if (!existsSync(LLAMA_MODEL_PATH)) {
+      fail(
+        "llama-model",
+        `Missing model at ${LLAMA_MODEL_PATH}`,
+        "Download model: huggingface-cli download Qwen/Qwen2.5-7B-Instruct-GGUF qwen2.5-7b-instruct-q4_k_m.gguf --local-dir ~/models/qwen2.5-7b/"
+      );
+    } else {
+      pass("llama-model", LLAMA_MODEL_PATH);
+    }
+  }
+
   if (!LLM_API_BASE) {
     if (E2E_REAL_LLM) {
       fail(
@@ -425,7 +496,9 @@ async function checkLlm() {
       fail(
         "llm-live-call",
         `status=${res.status} latency=${latency}ms body=${text.slice(0, 180)}`,
-        "Start the local llama.cpp server or check LLM_API_BASE, LLM_API_KEY, and LLM_MODEL"
+        allowTierDrop
+          ? "start_e2e_stack.sh may drop tier and retry; otherwise inspect .runtime/e2e/llama-server.log"
+          : "Start the local llama.cpp server or check LLM_API_BASE, LLM_API_KEY, and LLM_MODEL"
       );
       return;
     }
@@ -548,12 +621,14 @@ async function main() {
   console.log(`  Neo4j:      ${NEO4J_ENABLED ? NEO4J_HTTP_URL : "disabled"}`);
   console.log(`  Historian:  ${HISTORIAN_URL || "not set"}`);
   console.log(`  Real LLM:   ${E2E_REAL_LLM ? "required" : "not required"}`);
+  console.log(`  Llama tier: ${readActiveTier()} (${tierTimeoutMs(readActiveTier())}ms generation timeout)`);
 
   await checkDocker();
   await checkPostgres();
   await checkQdrant();
   await checkNeo4j();
   await checkHistorian();
+  checkMemoryWorker();
   await checkStudio();
   await checkLlm();
   await checkPlaywright();

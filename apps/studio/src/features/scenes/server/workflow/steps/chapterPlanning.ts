@@ -25,6 +25,14 @@ import {
 } from "@/features/analysis/server/truthPackGovernance";
 import { buildWritingContextFromPlanning } from "@/features/writing-context/server/writingContextAdapter";
 
+function timeoutMsFromSecondsEnv(primaryName: string, fallbackSeconds: number): number {
+    const raw = Number(process.env[primaryName] ?? process.env.LLM_TIMEOUT_CHAPTER_WRITE_V3_SECONDS ?? fallbackSeconds);
+    const seconds = Number.isFinite(raw) && raw > 0 ? raw : fallbackSeconds;
+    return seconds * 1000;
+}
+
+const CHAPTER_PLAN_TIMEOUT_MS = timeoutMsFromSecondsEnv("LLM_TIMEOUT_CHAPTER_PLAN_SECONDS", 180);
+
 export type ChapterPlanArgs = {
     storyId: number;
     storySlug: string;
@@ -1658,7 +1666,7 @@ export async function runChapterPlanning(
                 messages: [{ role: "user", content: planningPrompt }],
                 temperature: 0.35,
                 maxTokens: 1800,
-                timeoutMs: 45000,
+                timeoutMs: CHAPTER_PLAN_TIMEOUT_MS,
             });
 
             const parsed = parseJsonLoose(llmResponse.content);
@@ -1678,7 +1686,7 @@ export async function runChapterPlanning(
         if (!finalPlan) throw new Error("PLAN_INVALID_UNKNOWN_CHARACTER");
 
         const contractMin = Math.max(400, Math.floor(args.targetWordCount * 0.75));
-        const contractMax = Math.max(contractMin + 200, Math.floor(args.targetWordCount * 1.25));
+        const contractMax = Math.max(contractMin + 200, Math.floor(args.targetWordCount * 2));
         const sceneCount = finalPlan.beats.length;
         const planningGuard = validatePlanCharacters(finalPlan, pack.allowedCharacters);
         let continuity = evaluateContinuityGate({

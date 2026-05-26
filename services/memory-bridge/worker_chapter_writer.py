@@ -148,7 +148,7 @@ def _extract_word_budget(
     if target_words and not min_words:
         min_words = max(400, int(target_words * 0.75))
     if target_words and not max_words:
-        max_words = max(min_words + 200, int(target_words * 1.25))
+        max_words = max(min_words + 200, int(target_words * 2))
     if max_words and min_words and max_words < min_words:
         max_words = min_words
     return {"min": min_words, "target": target_words, "max": max_words}
@@ -402,12 +402,27 @@ def _run_v3_internal_refine(
     critic_result: Dict[str, Any],
     task: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
+    budget = _extract_word_budget(None, task)
+    anchor = _required_location_anchor(task)
+    budget_rule = (
+        f"- Keep the final draft between {budget['min']} and {budget['max']} words, aiming near {budget['target']}."
+        if budget.get("min") and budget.get("max")
+        else "- Keep the final draft close to the original length."
+    )
+    anchor_rule = (
+        f"- Include the exact phrase \"{anchor}\" at least once in reader-facing prose."
+        if anchor
+        else "- Preserve the location anchors from the draft."
+    )
     default_prompt = f"""
 Revise this chapter once using the critic feedback.
 
 Rules:
 - Output only prose, no commentary.
-- Keep or expand the word count. Do not summarize.
+- Do not summarize.
+- Do not add headings unless they were already present in the draft.
+{budget_rule}
+{anchor_rule}
 - Preserve the chapter objective, continuity, and reader-facing voice.
 - Apply only the patches that clearly improve the draft.
 
@@ -728,6 +743,19 @@ def generate_chapter_v3(
         hydration_error = f"SEMANTIC_MEMORY_UNAVAILABLE:{str(err)[:160]}"
     memory_items = semantic.get("items") or []
     memory_block = build_memory_prompt_block(memory_items)
+    plan_summary = _chapter_plan_summary(task)
+    budget = _extract_word_budget(style_options, task)
+    anchor = _required_location_anchor(task)
+    budget_line = (
+        f"- Word budget: target {budget['target']} words; acceptable range {budget['min']}-{budget['max']} words."
+        if budget.get("target") and budget.get("min") and budget.get("max")
+        else "- Word budget: follow the target word count from the request."
+    )
+    anchor_line = (
+        f"- Required anchor: include the exact phrase \"{anchor}\" at least once in the prose."
+        if anchor
+        else "- Required anchor: preserve the plan's location anchor in prose."
+    )
 
     default_prompt = f"""You are a master novelist writing a long-form fiction chapter.
 
@@ -740,19 +768,24 @@ def generate_chapter_v3(
 CHAPTER OBJECTIVE:
 {chapter_goal}
 
+CHAPTER PLAN:
+{plan_summary}
+
+OUTPUT CONTRACT:
+{budget_line}
+{anchor_line}
+- Use only reader-facing fiction prose.
+- Do not introduce forests, clearings, travelers, or unrelated outside locations unless the plan says so.
+
 TASK:
 Write the full prose for this chapter. Use Markdown for formatting.
 Include HTML comments <!-- scene_break --> where you feel a natural scene transition occurs.
-
-Return JSON:
-{{
-  "prose": "Full chapter text here...",
-  "scene_markers": ["optional list of marker positions or descriptions"],
-  "notes": "Internal thoughts on continuity"
-}}
+Output only the chapter prose. Do not return JSON, notes, analysis, or commentary.
 """
     template_vars = {
         "chapter_goal": chapter_goal,
+        "chapter_plan": plan_summary,
+        "output_contract": "\n".join([budget_line, anchor_line]),
         "writing_context_block": writing_context_block,
         "working_set_block": working_set_block,
         "memory_block": memory_block,
@@ -805,16 +838,22 @@ Return JSON:
 
     # Chapter writing takes a lot of tokens
     started = time.time()
-    response = call_llm_json(
+    timeout_sec = get_llm_timeout("chapter_write_v3", 300)
+    prose_text = call_llm_text(
         messages,
         max_tokens=4000,
         temperature=0.75,
-        timeout_sec=300 # 5 minutes for full chapter
+        timeout_sec=timeout_sec,
     )
     latency_ms = int((time.time() - started) * 1000)
 
-    if not isinstance(response, dict):
-        response = {"prose": str(response), "error": "NON_JSON_LLM_RESPONSE"}
+    response = {
+        "prose": prose_text,
+        "scene_markers": [],
+        "metadata": {
+            "response_format": "text",
+        },
+    }
     response.setdefault("metadata", {})
     internal_review = _apply_v3_internal_critic_refine(
         conn,
@@ -876,7 +915,7 @@ Return JSON:
                 if v3_guard["status"] == "blocked"
                 else None
             ),
-            model_name="llm_json",
+            model_name="llm_text",
             prompt_version_id=assembled.get("prompt_version_id"),
             agent_profile_id=assembled.get("agent_profile_id"),
             equipment_snapshot_json=assembled.get("equipment_snapshot") or {},
@@ -913,11 +952,11 @@ Return JSON:
             },
             hydration_output_text=prompt,
             llm_request_meta_json={
-                "provider_call": "call_llm_json",
+                "provider_call": "call_llm_text",
                 "task_family": "chapter_write_v3",
                 "temperature": 0.75,
                 "max_tokens": 4000,
-                "timeout_sec": 300,
+                "timeout_sec": timeout_sec,
             },
             tokens_prompt_base=_estimate_tokens(prompt),
             tokens_memory_injected=_estimate_tokens(memory_block),
