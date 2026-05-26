@@ -17,19 +17,19 @@ Use this skill when the task involves:
 - 5-chapter story quality rubric validation.
 - Screenshots, traces, or route-level browser checks.
 
-## Current Repo Reality (verified 2026-05-22)
+## Current Repo Reality (verified 2026-05-26)
 
 Playwright is installed and configured in `apps/studio`.
 
 | Item | State |
 |---|---|
-| Playwright version | `@playwright/test@1.60.0` |
+| Playwright version | `@playwright/test` `^1.51.1` in `apps/studio/package.json` |
 | Config | `apps/studio/playwright.config.ts` |
-| Test directory | `apps/studio/tests/e2e/` |
-| Test files | `story-five-chapter-flow.spec.ts` |
-| Total tests | 6 (TC1–TC6) |
+| Test directory | `apps/studio/e2e/tests/` |
+| Fixtures/helpers | `apps/studio/e2e/fixtures/`, `apps/studio/e2e/helpers/` |
+| Test files | `test-*.spec.ts`, `chat-first-chapter11.spec.ts`, `story-five-chapter-flow.spec.ts` |
 | Browsers installed | Chromium (run `npx playwright install chromium` on new machine) |
-| Base URL | `http://localhost:3000` (override with `E2E_BASE_URL`) |
+| Base URL | `http://127.0.0.1:3000` by default in config; override with `PLAYWRIGHT_BASE_URL` or `PLAYWRIGHT_PORT` |
 | Run command | `npm run test:e2e` |
 | Real local LLM run command | `npm run e2e:start-and-test` |
 | UI mode | `npm run test:e2e:ui` |
@@ -39,7 +39,7 @@ Playwright is installed and configured in `apps/studio`.
 
 ## Helper Files
 
-All helpers live in `apps/studio/tests/e2e/helpers/`:
+Helpers live in `apps/studio/e2e/helpers/`:
 
 | File | Purpose |
 |---|---|
@@ -95,10 +95,10 @@ npm run e2e:start-and-test
 E2E_REAL_LLM=1 npm run test:e2e:ui
 
 # Run a single spec
-npx playwright test story-five-chapter-flow --project=chromium
+npx playwright test e2e/tests/story-five-chapter-flow.spec.ts --project=chromium
 
-# Custom base URL (e.g., Docker port 3001)
-E2E_BASE_URL=http://localhost:3001 npm run test:e2e
+# Custom base URL
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 npm run test:e2e
 
 # Show last HTML report
 npm run test:e2e:report
@@ -123,13 +123,13 @@ npm run test:e2e:report
 
 When adding a new test file:
 
-1. Import helpers from `./helpers/selectors`, `./helpers/story-fixtures`, `./helpers/ai-generation`.
+1. Import helpers from `../helpers/selectors`, `../helpers/story-fixtures`, `../helpers/ai-generation` when adding specs under `e2e/tests`.
 2. Use `test.beforeAll` / `test.afterAll` with `createTestStory` / `archiveTestStory`.
 3. Gate generation mocks behind `process.env.E2E_REAL_LLM !== "1"` before navigation to write workspace.
 4. Use `S.*` selector constants — never write raw selectors in test bodies.
-5. Run `npm run typecheck` via `tsconfig.e2e.json` after changes:
+5. Run the narrow Playwright discovery gate after changes:
    ```bash
-   npx tsc --project tsconfig.e2e.json --noEmit
+   npm run test:e2e -- --list
    ```
 
 ## Forbidden Actions
@@ -142,10 +142,10 @@ When adding a new test file:
 
 ## Verification Requirements
 
-After TypeScript changes to test files:
+After E2E test file changes:
 ```bash
 cd apps/studio
-npx tsc --project tsconfig.e2e.json --noEmit
+npm run test:e2e -- --list
 ```
 
 After changes to production components (e.g., adding `data-testid`):
@@ -202,10 +202,10 @@ Priority rows to automate next (not yet covered):
 
 ## Evidence
 
-- Source: `apps/studio/playwright.config.ts` (created 2026-05-22).
-- Source: `apps/studio/tests/e2e/story-five-chapter-flow.spec.ts` (created 2026-05-22).
-- Source: `apps/studio/tests/e2e/helpers/*.ts` (created 2026-05-22).
-- Source: `apps/studio/package.json` — `@playwright/test@1.60.0` in devDependencies.
-- Source: `npx playwright test --list` output — 6 tests confirmed discoverable.
+- Source: `apps/studio/playwright.config.ts` (`testDir: "./e2e/tests"`).
+- Source: `apps/studio/e2e/tests/*.spec.ts`.
+- Source: `apps/studio/e2e/helpers/*.ts`.
+- Source: `apps/studio/package.json` - `@playwright/test` `^1.51.1` in devDependencies.
+- Source: `npm run test:e2e -- --list` output.
 - Source: `docs/operations/implementation/write-assistant-chat-qa-barem.md` — manual barem still the fallback for uncovered flows.
 - Confidence: high.

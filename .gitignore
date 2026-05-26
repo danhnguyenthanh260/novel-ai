@@ -82,3 +82,5 @@ _staging*
 !.agents/skills/implementation-planning/SKILL.md
 !.agents/skills/github-issue-pr-workflow/
 !.agents/skills/github-issue-pr-workflow/SKILL.md
+!.agents/skills/agent-harness-consistency-pass/
+!.agents/skills/agent-harness-consistency-pass/SKILL.md
