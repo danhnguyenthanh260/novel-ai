@@ -83,7 +83,8 @@ async function main() {
   loadEnvFile(".env.local");
   loadEnvFile(".env");
 
-  const runtimeProvider = loadRuntimeProvider();
+  const forceEnvProvider = process.env.E2E_REAL_LLM === "1" && Boolean(process.env.LLM_API_BASE);
+  const runtimeProvider = forceEnvProvider ? null : loadRuntimeProvider();
   const base = runtimeProvider?.base || String(process.env.LLM_API_BASE || "http://localhost:8080/v1").replace(/\/+$/, "");
   const apiKey = runtimeProvider?.apiKey || String(process.env.LLM_API_KEY || "local");
   const model = runtimeProvider?.model || String(process.env.LLM_MODEL || "local-model");

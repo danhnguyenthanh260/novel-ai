@@ -5,9 +5,11 @@
  * package for long-form fiction continuity.
  */
 
-import { pool } from "@/server/db/pool";
 import type { PoolClient } from "pg";
 import { createHash } from "crypto";
+
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
 export interface WorkingSet {
   story_id: number;
@@ -34,7 +36,7 @@ export interface WorkingSet {
       motivation: string;
       last_seen_chapter: string;
     }>;
-    world_flags: Record<string, any>; // e.g., { "is_raining": true, "castle_destroyed": false }
+    world_flags: Record<string, JsonValue>; // e.g., { "is_raining": true, "castle_destroyed": false }
     timeline_facts: string[];
   };
 
@@ -59,7 +61,7 @@ export async function buildWorkingSet(
 
   // 1. Fetch Anchor (Tier 1)
   const anchorRes = await client.query(`
-    SELECT description_md as pitch, s.tone_baseline, s.pacing_bias, s.perspective_mode
+    SELECT description_md as pitch, s.tone_baseline, s.pacing_bias::text AS pacing_bias
     FROM public.story_series ss
     LEFT JOIN public.story_style_profile s ON s.story_id = ss.id
     WHERE ss.id = $1
@@ -68,10 +70,11 @@ export async function buildWorkingSet(
 
   // 2. Fetch Active Cast (Tier 2) - Top 10 most recent active characters
   const castRes = await client.query(`
-    SELECT subject as name, object as status, chapter_id
-    FROM public.canon_fact
-    WHERE story_id = $1 AND tags && ARRAY['cast', 'character']
-    ORDER BY created_at DESC
+    SELECT f.subject as name, f.object as status, s.chapter_id
+    FROM public.canon_fact f
+    JOIN public.narrative_scene s ON s.id = f.scene_id
+    WHERE f.story_id = $1 AND f.tags && ARRAY['cast', 'character']
+    ORDER BY f.created_at DESC
     LIMIT 10
   `, [storyId]);
 
@@ -108,8 +111,8 @@ export async function buildWorkingSet(
   );
 
   const recentChanges = ledgerRes.rows.flatMap(r => [
-    ...(r.added_facts || []),
-    ...(r.modified_states || [])
+    ...(Array.isArray(r.added_facts) ? r.added_facts : []),
+    ...(Array.isArray(r.modified_states) ? r.modified_states : [])
   ]);
 
   // Enforce Token Budgets (Simplified)
@@ -131,7 +134,7 @@ export async function buildWorkingSet(
       style_dna: {
         tone: anchorRow?.tone_baseline || "Standard",
         pacing: anchorRow?.pacing_bias || "Medium",
-        perspective: anchorRow?.perspective_mode || "Third Person Limited"
+        perspective: "Third Person Limited"
       },
       world_rules: []
     },
@@ -172,7 +175,7 @@ function enforceBudget(lines: string[], budgetChars: number): string[] {
   return out;
 }
 
-function generateSnapshotHash(data: any): string {
+function generateSnapshotHash(data: unknown): string {
   const str = JSON.stringify(data);
   return createHash("sha256").update(str).digest("hex");
 }

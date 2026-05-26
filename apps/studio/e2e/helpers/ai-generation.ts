@@ -280,22 +280,31 @@ export type WritingStatusResponse = {
 };
 
 function buildAutowriteRunResponse(chapterId: string): AutowriteRunResponse {
+  const chapterNo = chapterNumberFromId(chapterId);
   return {
     ok: true,
-    job_id: 100 + parseInt(chapterId, 10),
+    job_id: 100 + chapterNo,
     chapter_id: chapterId,
     status: "started",
   };
 }
 
+function chapterNumberFromId(chapterId: string): number {
+  return Number.parseInt(chapterId.replace(/\D/g, "") || "1", 10) || 1;
+}
+
+function mockChapterKey(chapterId: string): string {
+  return String(chapterNumberFromId(chapterId));
+}
+
 function buildWritingStatusResponse(chapterId: string): WritingStatusResponse {
-  const chapter = MOCK_CHAPTERS[chapterId];
+  const chapter = MOCK_CHAPTERS[mockChapterKey(chapterId)];
   if (!chapter) {
     throw new Error(`No mock chapter defined for id="${chapterId}"`);
   }
   return {
     ok: true,
-    job_id: 100 + parseInt(chapterId, 10),
+    job_id: 100 + chapterNumberFromId(chapterId),
     status: "completed",
     staging_ready: true,
     prose: chapter.prose,
@@ -313,6 +322,28 @@ function buildWritingStatusResponse(chapterId: string): WritingStatusResponse {
 // Install network mocks for the autowrite pipeline on a Playwright page.
 // Must be called before navigating to the write workspace.
 export async function installAutowriteMocks(page: Page): Promise<void> {
+  await page.route("**/api/stories/*/chapters/*/auto-write", async (route) => {
+    const url = route.request().url();
+    const match = url.match(/chapters\/([^/]+)\/auto-write/);
+    const chapterId = match ? decodeURIComponent(match[1]) : "ch01";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(buildAutowriteRunResponse(chapterId)),
+    });
+  });
+
+  await page.route("**/api/stories/*/chapters/*/auto-write/status**", async (route) => {
+    const url = route.request().url();
+    const match = url.match(/chapters\/([^/]+)\/auto-write\/status/);
+    const chapterId = match ? decodeURIComponent(match[1]) : "ch01";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(buildWritingStatusResponse(chapterId)),
+    });
+  });
+
   // Mock POST /api/<slug>/autowrite/run
   await page.route("**/api/*/autowrite/run", async (route) => {
     const url = route.request().url();
@@ -343,7 +374,7 @@ export async function installAutowriteMocks(page: Page): Promise<void> {
     const url = route.request().url();
     const chapterMatch = url.match(/chapter_id[=/]([^&?/]+)/);
     const chapterId = chapterMatch ? chapterMatch[1] : "1";
-    const chapter = MOCK_CHAPTERS[chapterId] ?? MOCK_CHAPTERS["1"];
+    const chapter = MOCK_CHAPTERS[mockChapterKey(chapterId)] ?? MOCK_CHAPTERS["1"];
     await route.fulfill({
       status: 200,
       contentType: "application/json",

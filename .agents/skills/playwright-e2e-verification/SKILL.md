@@ -31,10 +31,11 @@ Playwright is installed and configured in `apps/studio`.
 | Browsers installed | Chromium (run `npx playwright install chromium` on new machine) |
 | Base URL | `http://localhost:3000` (override with `E2E_BASE_URL`) |
 | Run command | `npm run test:e2e` |
+| Real local LLM run command | `npm run e2e:start-and-test` |
 | UI mode | `npm run test:e2e:ui` |
 | Report | `npm run test:e2e:report` |
 
-**Infrastructure requirement**: Docker must be running and `npm run dev` must be started before executing tests. See the `e2e-infra-preflight` skill for full preflight steps.
+**Infrastructure requirement**: local quality E2E uses real local LLM mode. Run `npm run e2e:start` or `npm run e2e:start-and-test` so Docker services, llama.cpp, and Studio are started by the agent-managed startup script.
 
 ## Helper Files
 
@@ -44,7 +45,7 @@ All helpers live in `apps/studio/tests/e2e/helpers/`:
 |---|---|
 | `selectors.ts` | All `data-testid` and ARIA selector constants |
 | `story-fixtures.ts` | `createTestStory`, `archiveTestStory`, `writeWorkspaceUrl` — isolated test story management |
-| `ai-generation.ts` | `installAutowriteMocks(page)` — intercepts `/api/*/autowrite/run` and `/api/stories/*/chapters/*/writing-status`; defines 5 mock chapters with narrative continuity |
+| `ai-generation.ts` | `installAutowriteMocks(page)` — smoke-mode helper only; in `E2E_REAL_LLM=1`, generation requests must hit the local LLM |
 | `rubric.ts` | `evaluateChapterContent`, `buildRubricReport`, `assertUXRubric`, `assertRubricVerdict` — 22-item quality barem across 6 categories |
 
 ## data-testid Hooks Added (2026-05-22)
@@ -69,8 +70,8 @@ All helpers live in `apps/studio/tests/e2e/helpers/`:
 |---|---|---|
 | TC1 | Create story workspace | Form creates story; URL changes; workspace loads |
 | TC2 | Chat baseline | Composer privacy (C01-C04); brainstorm routing (B01-B04); command routing stays in Write (R01, R04); layout lock (L01, L04) |
-| TC3 | Generate Chapter 1 | WRITE intent opens AutoWrite; mocked autowrite/run returns; prose appears in DOM |
-| TC4 | Generate Chapters 2–5 | New chapter button works; chapter count grows; previous chapters not overwritten; composer stays enabled |
+| TC3 | Generate Chapter 1 | WRITE intent opens AutoWrite; real mode records actual LLM output as an attachment; smoke mode uses mocked prose |
+| TC4 | Generate Chapters 2–5 | New chapter button works; chapter count grows; previous chapters not overwritten; real mode records per-chapter output |
 | TC5 | Interaction clarity | No page scroll; slash menu doesn't shift layout; no raw error stack traces; timeline scrolls internally |
 | TC6 | Quality rubric | 22 rubric items across Structure/Continuity/Character/Plot/Tone/UX; no critical failures required |
 
@@ -81,14 +82,17 @@ All helpers live in `apps/studio/tests/e2e/helpers/`:
 cd apps/studio
 npx playwright install chromium
 
-# Start the dev server in a separate terminal
-npm run dev
+# Standard local real-LLM startup
+npm run e2e:start
 
-# Run all E2E tests
-npm run test:e2e
+# Run all E2E tests against the already-started real stack
+npm run test:e2e:real
+
+# Or start the real stack and run tests in one command
+npm run e2e:start-and-test
 
 # Run with Playwright UI (interactive, recommended for debugging)
-npm run test:e2e:ui
+E2E_REAL_LLM=1 npm run test:e2e:ui
 
 # Run a single spec
 npx playwright test story-five-chapter-flow --project=chromium
@@ -109,7 +113,9 @@ npm run test:e2e:report
   - Center timeline `overflowY` is `auto`, `scroll`, or `overlay`.
   - Composer (`chat-send-btn`) is visible after generation completes.
 - For chat-first flows, test first-open readiness, slash command menu open/close, structured brainstorm choices, and command result blocks.
-- For chapter generation: always use `installAutowriteMocks(page)` before navigation — never call real AI in CI.
+- For local chapter generation quality checks, run with `E2E_REAL_LLM=1` and do not install `installAutowriteMocks(page)`.
+- For CI/smoke checks, mocked mode may use `installAutowriteMocks(page)` to keep the suite deterministic.
+- Read `.runtime/e2e/llama-tier.txt` for tier-specific generation timeouts. Tier 0 uses 600s, Tier 1 900s, Tier 2 1200s, Tier 3 1800s per generation.
 - For data isolation: always use `createTestStory(request, baseURL)` with unique slug in `beforeAll`; archive in `afterAll`.
 - For rubric assertions: always attach the report as a test artifact; always call `assertRubricVerdict(report, "NEEDS_REVIEW")` at minimum.
 
@@ -119,7 +125,7 @@ When adding a new test file:
 
 1. Import helpers from `./helpers/selectors`, `./helpers/story-fixtures`, `./helpers/ai-generation`.
 2. Use `test.beforeAll` / `test.afterAll` with `createTestStory` / `archiveTestStory`.
-3. Call `installAutowriteMocks(page)` before any navigation to write workspace.
+3. Gate generation mocks behind `process.env.E2E_REAL_LLM !== "1"` before navigation to write workspace.
 4. Use `S.*` selector constants — never write raw selectors in test bodies.
 5. Run `npm run typecheck` via `tsconfig.e2e.json` after changes:
    ```bash
@@ -128,7 +134,7 @@ When adding a new test file:
 
 ## Forbidden Actions
 
-- Do not depend on real external LLM calls in any E2E test.
+- Do not depend on remote external LLM calls in E2E. Local real E2E must use the llama.cpp server on `http://localhost:8080/v1`.
 - Do not write brittle selectors tied to Tailwind utility class names or DOM depth.
 - Do not make tests approve drafts, promote memory, publish chapters, or reset DB without explicit user confirmation.
 - Do not add Playwright infrastructure (config, helpers, deps) for a task that only needs unit or integration tests.
@@ -163,6 +169,18 @@ Priority rows to automate next (not yet covered):
 4. **L02/L03**: Left rail and right inspector scroll internally, not the page.
 
 ## Common Failure Modes
+
+- **llama-server fails to start or crashes with OOM**: `scripts/ops/start_e2e_stack.sh` drops tiers and persists the selected tier in `.runtime/e2e/llama-tier.txt`.
+  - Tier 0: `LLAMA_NGL=28`, `LLAMA_CONTEXT=16384`, `LLAMA_BATCH=512`.
+  - Tier 1: `LLAMA_NGL=20`, `LLAMA_CONTEXT=8192`, `LLAMA_BATCH=256`.
+  - Tier 2: `LLAMA_NGL=12`, `LLAMA_CONTEXT=4096`, `LLAMA_BATCH=128`.
+  - Tier 3: `LLAMA_NGL=0`, `LLAMA_CONTEXT=4096`, `LLAMA_BATCH=64`, CPU-only.
+  - Use `npm run e2e:start -- --reset-tier` after a hardware upgrade to rediscover the ceiling.
+
+- **Docker is down before E2E**: `npm run e2e:start-and-test` attempts platform-aware Docker startup, then waits for Compose health.
+  - If Docker Desktop cannot be started from WSL, the run stops with a human-side setup message.
+
+- **Orphaned processes consume VRAM or port 3000**: owned PIDs are stored in `.runtime/e2e/*.pid`; startup kills only PIDs it owns and refuses to kill unknown processes.
 
 - **0 tests pass, all timeout**: Dev server not running or `E2E_BASE_URL` wrong.
   - Fix: Start `npm run dev` and verify `curl http://localhost:3000/api/stories`.

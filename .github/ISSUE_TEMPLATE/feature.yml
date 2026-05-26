@@ -1,0 +1,139 @@
+name: "Feature"
+description: "A deliverable unit of work with clear acceptance criteria and file manifest"
+title: "[Feature][Area] "
+labels:
+  - enhancement
+  - area:FE
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Title format:** `[Feature][Area] Short imperative title`
+        Remove area labels that don't apply. Add `ui`, `architecture`, `planning` etc. as needed.
+
+  - type: textarea
+    id: purpose
+    attributes:
+      label: "Purpose"
+      description: "What user or system problem does this feature solve?"
+      placeholder: "..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: "Scope"
+      description: "What is built or changed — API contracts, UI surfaces, schema fields, service boundaries."
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: "Out of scope"
+      description: "What this feature must NOT touch, even if adjacent."
+      placeholder: |
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: "Acceptance criteria"
+      description: "Binary checklist written before technical design."
+      placeholder: |
+        - [ ] ...
+        - [ ] No regression on ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: file-manifest
+    attributes:
+      label: "File manifest"
+      description: "Every file created, modified, or deleted — grouped by area."
+      placeholder: |
+        CREATE
+          src/...
+
+        MODIFY
+          src/...   - reason
+
+        DELETE
+          src/...   - reason
+
+  - type: textarea
+    id: boundary
+    attributes:
+      label: "Boundary definition"
+      description: "What this feature owns and explicitly does not own."
+      placeholder: |
+        Owns:
+          - ...
+
+        Does not own:
+          - ...
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: "Impact analysis"
+      description: "Direct impact, downstream impact, regression risks."
+      placeholder: |
+        Direct: ...
+        Downstream: ...
+        Regression risk: ...
+
+  - type: textarea
+    id: quality-gates
+    attributes:
+      label: "Quality gates"
+      description: "All checks that must pass before pushing."
+      placeholder: |
+        - [ ] tsc --noEmit passes
+        - [ ] E2E: ...
+
+  - type: input
+    id: estimate
+    attributes:
+      label: "Estimate (hours)"
+      placeholder: "e.g. 4–8 h"
+
+  - type: textarea
+    id: task-breakdown
+    attributes:
+      label: "Task breakdown"
+      description: "Linked task issues ordered by execution sequence."
+      placeholder: |
+        - [ ] #N Task: ...
+        - [ ] #N Task: ...
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: "Dependencies"
+      placeholder: |
+        Parent epic: #N
+        Blocked by: #N
+        Related: #N
+
+  - type: textarea
+    id: situation
+    attributes:
+      label: "Situation (human mode)"
+      description: "Why this feature exists and what stays incomplete if skipped."
+      placeholder: "..."
+
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: "Trade-off record (human mode)"
+      placeholder: |
+        | Decision | Option chosen | Option rejected | Reason |
+        |---|---|---|---|
+        | | | | |

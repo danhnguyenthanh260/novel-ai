@@ -1,0 +1,109 @@
+name: "Epic"
+description: "Track a multi-feature initiative from planning to done"
+title: "[Epic][Area] "
+labels:
+  - planning
+  - area:BE
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Title format:** `[Epic][Area] Short imperative title`
+        Delete placeholder text before submitting. Remove areas that don't apply from labels.
+
+  - type: textarea
+    id: purpose
+    attributes:
+      label: "Purpose"
+      description: "One sentence: what system problem or user gap does this epic close?"
+      placeholder: "Enable X so that Y is possible without Z workaround."
+    validations:
+      required: true
+
+  - type: textarea
+    id: end-state
+    attributes:
+      label: "Desired end state"
+      description: "Observable, verifiable outcomes — no implementation language."
+      placeholder: |
+        - Users can ...
+        - The system guarantees ...
+        - No regression on ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: "Scope"
+      description: "Systems, surfaces, and contracts included."
+      placeholder: |
+        - Service: ...
+        - API contracts: ...
+        - UI surfaces: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: "Out of scope"
+      description: "Explicit list of things that must NOT be done inside this epic."
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: "Acceptance criteria"
+      description: "Binary pass/fail checklist."
+      placeholder: |
+        - [ ] Condition A is true
+        - [ ] Condition B is true
+        - [ ] No regression on flow C
+    validations:
+      required: true
+
+  - type: textarea
+    id: child-features
+    attributes:
+      label: "Child features"
+      description: "Linked feature issues, ordered by execution sequence."
+      placeholder: |
+        - [ ] #N Feature: ...
+        - [ ] #N Feature: ...
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: "Dependencies"
+      description: "Blocking issues, external decisions, or shared contracts required before work begins."
+      placeholder: |
+        Blocked by: #N
+        Related: #N
+
+  - type: textarea
+    id: situation
+    attributes:
+      label: "Situation (human mode)"
+      description: "Why this epic exists now, what changed, and what stays broken if skipped."
+      placeholder: "..."
+
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: "Trade-off record (human mode)"
+      description: "Use table format: Decision | Option chosen | Option rejected | Reason"
+      placeholder: |
+        | Decision | Option chosen | Option rejected | Reason |
+        |---|---|---|---|
+        | | | | |
+
+  - type: input
+    id: estimate
+    attributes:
+      label: "Estimate (story points)"
+      placeholder: "e.g. 13"

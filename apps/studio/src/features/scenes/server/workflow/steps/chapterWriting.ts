@@ -1,16 +1,46 @@
 import type { Pool } from "pg";
-import { buildStoryContextPack } from "@/features/guard/server/storyContextBuilder";
-import { insertVersion, updateScene } from "../repoScene";
-import { SubtextEngine, PacingController, ThematicAnchor, Arbiter, ReadOnlySandbox } from "../../narrative/NarrativeEngine";
+import { SubtextEngine, PacingController, ThematicAnchor, ReadOnlySandbox } from "../../narrative/NarrativeEngine";
 import { callChatCompletionJson } from "@/app/api/muse/_shared";
 import { buildStylistPrompt, buildEditorialCriticPrompt } from "@/features/prompts/server/narrativePromptBuilder";
 import { ensureIngestWorkerRunning } from "@/features/ingest/server/workerControl";
 
+function timeoutMsFromSecondsEnv(primaryName: string, fallbackSeconds: number): number {
+    const raw = Number(process.env[primaryName] ?? process.env.LLM_TIMEOUT_CHAPTER_WRITE_V3_SECONDS ?? fallbackSeconds);
+    const seconds = Number.isFinite(raw) && raw > 0 ? raw : fallbackSeconds;
+    return seconds * 1000;
+}
+
+const CHAPTER_STYLIST_TIMEOUT_MS = timeoutMsFromSecondsEnv("LLM_TIMEOUT_CHAPTER_STYLIST_SECONDS", 180);
+const CHAPTER_CRITIC_TIMEOUT_MS = timeoutMsFromSecondsEnv("LLM_TIMEOUT_CHAPTER_CRITIC_SECONDS", 120);
+const CHAPTER_REFINE_TIMEOUT_MS = timeoutMsFromSecondsEnv("LLM_TIMEOUT_CHAPTER_REFINE_SECONDS", 180);
+
+type ChapterBeat = {
+    idx?: number | string;
+    label?: string;
+    description?: string;
+    characters?: string[];
+    location?: string;
+    estimated_words?: number;
+    emotional_state?: string;
+    conflict_level?: number;
+};
+
+type ChapterPlan = {
+    beats: ChapterBeat[];
+    [key: string]: unknown;
+};
+
+type CriticResult = {
+    summary?: string;
+    patches?: unknown;
+    [key: string]: unknown;
+};
+
 export type ChapterWritingArgs = {
     storyId: number;
     chapterId: string;
-    plan: any; // The approved Beat Map
-    llmParams?: any;
+    plan: ChapterPlan; // The approved Beat Map
+    llmParams?: Record<string, unknown>;
 };
 
 export type ChapterWritingResult = {
@@ -119,12 +149,12 @@ export class NarrativeOrchestrator {
     /**
      * Executes a single Stylist Turn.
      */
-    async processStylistStep(beat: any, context: any): Promise<string> {
+    async processStylistStep(beat: ChapterBeat, context: unknown): Promise<string> {
         const safeContext = ReadOnlySandbox.protect(context);
         const contextBlock = JSON.stringify(safeContext, null, 2);
 
         const emotionalState = beat.emotional_state || "Anxiety";
-        const behavioralInstr = SubtextEngine.translate(emotionalState, beat.characters[0] || "Someone");
+        const behavioralInstr = SubtextEngine.translate(emotionalState, beat.characters?.[0] || "Someone");
         const conflictScore = beat.conflict_level || 0.5;
         const pacingRules = PacingController.regulate(conflictScore);
         const thematicRules = ThematicAnchor.anchor("Noir");
@@ -142,7 +172,7 @@ export class NarrativeOrchestrator {
             messages: [{ role: "user", content: stylistPrompt }],
             temperature: 0.8,
             maxTokens: 1200,
-            timeoutMs: 45000,
+            timeoutMs: CHAPTER_STYLIST_TIMEOUT_MS,
         });
 
         return stylistResponse.content;
@@ -151,7 +181,7 @@ export class NarrativeOrchestrator {
     /**
      * Executes a single Critic Turn.
      */
-    async processCriticStep(beat: any, context: any, prose: string): Promise<any> {
+    async processCriticStep(beat: ChapterBeat, context: unknown, prose: string): Promise<CriticResult> {
         const safeContext = ReadOnlySandbox.protect(context);
         const contextBlock = JSON.stringify(safeContext, null, 2);
 
@@ -166,7 +196,7 @@ export class NarrativeOrchestrator {
             messages: [{ role: "user", content: criticPrompt }],
             temperature: 0.4,
             maxTokens: 800,
-            timeoutMs: 35000,
+            timeoutMs: CHAPTER_CRITIC_TIMEOUT_MS,
         });
 
         const rawContent = criticResponse.content;
@@ -175,13 +205,13 @@ export class NarrativeOrchestrator {
             : rawContent.startsWith("```")
                 ? rawContent.split("```")[1].split("```")[0].trim()
                 : rawContent.trim();
-        return JSON.parse(jsonContent);
+        return JSON.parse(jsonContent) as CriticResult;
     }
 
     /**
      * Executes a Refinement Turn based on Critic feedback.
      */
-    async processRefineStep(prose: string, criticResult: any): Promise<string> {
+    async processRefineStep(prose: string, criticResult: CriticResult): Promise<string> {
         const refinePrompt = `
 You are the STYLIST AGENT. Revise the following prose based on the EDITORIAL CRITIC's feedback.
 
@@ -200,7 +230,7 @@ Output ONLY the revised prose. CẤM thêm phân tích hay chào hỏi.
             messages: [{ role: "user", content: refinePrompt }],
             temperature: 0.6,
             maxTokens: 1200,
-            timeoutMs: 45000,
+            timeoutMs: CHAPTER_REFINE_TIMEOUT_MS,
         });
 
         return refinementResponse.content;

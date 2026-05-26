@@ -47,7 +47,10 @@ class TestChapterWriterContextStrictness(unittest.TestCase):
         os.environ.pop("WRITING_CONTEXT_REQUIRED", None)
 
     def test_absent_context_uses_explicit_compatibility_mode_by_default(self):
-        with patch("worker_chapter_writer.call_llm_json", return_value={"prose": "ok"}) as call:
+        with (
+            patch("worker_chapter_writer.call_llm_text", return_value="ok") as call,
+            patch("worker_chapter_writer.call_llm_json", return_value={"summary": "ok", "patches": []}),
+        ):
             result = generate_chapter_v3(None, 1, "ch02", working_set(), "continue")
 
         self.assertEqual(result["metadata"]["writing_context_mode"], "compatibility_absent")
@@ -97,7 +100,10 @@ class TestChapterWriterContextStrictness(unittest.TestCase):
             )
 
     def test_degraded_context_records_contract_mode(self):
-        with patch("worker_chapter_writer.call_llm_json", return_value={"prose": "ok"}):
+        with (
+            patch("worker_chapter_writer.call_llm_text", return_value="ok"),
+            patch("worker_chapter_writer.call_llm_json", return_value={"summary": "ok", "patches": []}),
+        ):
             result = generate_chapter_v3(
                 None,
                 1,
@@ -119,7 +125,10 @@ class TestChapterWriterContextStrictness(unittest.TestCase):
         self.assertIsNone(result["metadata"]["fallback_source"])
 
     def test_valid_context_records_contract_mode_without_working_set_prompt_blend(self):
-        with patch("worker_chapter_writer.call_llm_json", return_value={"prose": "ok"}) as call:
+        with (
+            patch("worker_chapter_writer.call_llm_text", return_value="ok") as call,
+            patch("worker_chapter_writer.call_llm_json", return_value={"summary": "ok", "patches": []}),
+        ):
             result = generate_chapter_v3(
                 None,
                 1,
