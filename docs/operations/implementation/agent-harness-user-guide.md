@@ -14,6 +14,47 @@ When using the Codex desktop app, open the workspace at the real repo path:
 
 Then use prompts that explicitly choose investigation-only or implementation-approved mode.
 
+## Fast Path For Future Sessions
+
+Use this when opening Codex in the desktop app and you do not want to remember the whole harness:
+
+```md
+Use the Novel AI Agent Harness v1.
+
+First verify this is the real repo:
+\\wsl.localhost\Ubuntu-24.04\home\danh\novel-ai
+
+Read:
+- AGENTS.md
+- docs/operations/specs/novel-ai-agent-harness.md
+- the relevant .agents/skills/*/SKILL.md for this task
+
+Task:
+[describe task]
+
+Mode:
+Investigation only first. Do not edit files until I approve the implementation plan.
+
+Return:
+- current implementation map
+- source-of-truth files
+- risks
+- exact files likely to change
+- verification plan
+- harness docs or skills that may need updates
+```
+
+When the investigation is acceptable, continue with:
+
+```md
+Approved. Implement the smallest safe change from the plan.
+
+Preserve the chat-first contract.
+Do not touch unrelated files.
+Run relevant checks.
+Report files changed, checks run, skipped checks and why, risks, and whether a harness doc or skill should be updated.
+```
+
 ## Daily Startup
 
 Terminal flow:
@@ -85,6 +126,44 @@ E2E verification plan first. Do not start long-running services until the requir
 
 Return:
 required services, exact commands, target specs, assertions, risks, and fallback manual checks.
+```
+
+## Session Review Prompt For Skill Improvements
+
+Use this when a Codex/Claude session went wrong, missed context, used stale commands, or produced a useful new pattern. This is proposal-only. The agent must not edit skills yet.
+
+```md
+Use the Novel AI Agent Harness v1.
+
+Task:
+Review these session notes and propose improvements to the repo agent skills.
+
+Mode:
+Proposal only. Do not edit files yet.
+
+Inputs:
+[paste session summary, PR review notes, failure logs, or links]
+
+Return:
+1. Failure patterns
+2. Evidence from the session
+3. Current skill gap
+4. Proposed skill change
+5. Risk of overfitting
+6. Validation task
+7. Exact files that would change if approved
+```
+
+After human approval, use:
+
+```md
+Approved skill proposal:
+[paste approved proposal]
+
+Update only the approved docs or .agents/skills files.
+Do not change product code.
+Run docs checks.
+Open a PR to staging.
 ```
 
 ## Review After Codex Finishes
