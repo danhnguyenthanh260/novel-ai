@@ -148,6 +148,7 @@ Repo-specific Codex skills live under `.agents/skills/`. Use them after reading 
 - `investigation-workflow`: evidence-first investigation before code changes for production failures, UI regressions, data issues, auth/storage/DB uncertainty, or unclear root cause.
 - `implementation-planning`: execution-ready plans with scope, non-goals, file manifest, acceptance criteria, quality gates, rollback notes, and Agent/Human mode structure.
 - `github-issue-pr-workflow`: GitHub issue, branch, PR, and review-note workflow using repo branch naming and `staging`-first PR targets.
+- `agent-harness-consistency-pass`: audit AGENTS, docs, runtime skills, E2E paths, scripts, and broken references before changing harness rules.
 
 Do not use these skills as a substitute for repo investigation. Each skill lists the exact docs and files to inspect for its surface.
 

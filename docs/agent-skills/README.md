@@ -34,6 +34,7 @@ repo-specific skills are:
 - `investigation-workflow`
 - `implementation-planning`
 - `github-issue-pr-workflow`
+- `agent-harness-consistency-pass`
 
 `AGENTS.md` lists them with one-line descriptions. The other directories
 under `.agents/skills/` (api-patterns, app-builder, frontend-design,
