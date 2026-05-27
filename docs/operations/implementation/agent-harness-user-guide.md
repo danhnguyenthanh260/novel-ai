@@ -26,6 +26,7 @@ First verify this is the real repo:
 
 Read:
 - AGENTS.md
+- .agents/workflows/prompt-universe.md if this prompt is vague, raw, or mixes multiple request types
 - docs/operations/specs/novel-ai-agent-harness.md
 - the relevant .agents/skills/*/SKILL.md for this task
 
@@ -42,6 +43,24 @@ Return:
 - exact files likely to change
 - verification plan
 - harness docs or skills that may need updates
+```
+
+## Prompt-Universe Router
+
+Use `.agents/workflows/prompt-universe.md` when you have a messy prompt, pasted context, or you are not sure which skill/mode applies.
+
+```md
+Use .agents/workflows/prompt-universe.md as the intake router.
+
+Interpret this raw request before editing anything:
+[paste request]
+
+Return:
+- recommended mode
+- relevant .agents/skills
+- source-of-truth files to inspect
+- likely risks
+- whether this needs human approval before implementation
 ```
 
 When the investigation is acceptable, continue with:

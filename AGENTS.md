@@ -131,6 +131,12 @@ Do not run whole-project lint unless requested. If verification cannot run, stat
 
 When behavior or contracts change, update the relevant docs in the same turn.
 
+Local Codex, Claude, or desktop memory is a cache, not a source of truth. Use it only to find likely context, then verify against the current checkout, GitHub issues/PRs, and repository docs before making claims or edits.
+
+## Prompt Router
+
+When a user prompt is vague, raw, multi-intent, or does not name the right skill, read `.agents/workflows/prompt-universe.md` before choosing a workflow. Use it as the intake router for mapping the request to investigation, implementation planning, GitHub issue/PR work, E2E verification, review, or harness maintenance.
+
 ## Repository Codex Skills
 
 Repo-specific Codex skills live under `.agents/skills/`. Use them after reading this file and before editing the related surface:
