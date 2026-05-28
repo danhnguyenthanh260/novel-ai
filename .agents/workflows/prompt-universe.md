@@ -1,22 +1,26 @@
 # Prompt Universe Router
 
 Status: Active workflow intake router
-Last updated: 2026-05-27
+Last updated: 2026-05-28
 
 ## Purpose
 
 Use this workflow when a user gives a raw, vague, multi-intent, or high-context prompt and the right repo skill is not obvious.
 
-This is a router for the existing `novel-ai` agent harness. It is not a new capability layer, and it must not create parallel trees such as `.ai/skills`, `.ai-harness`, or `docs/ai-layer`.
+This is the router for the existing `novel-ai` agent harness. It is not a new
+capability layer, and it must not create parallel trees such as `.ai/skills`,
+`.ai-harness`, `docs/agent-skills`, or `docs/ai-layer`.
 
 ## Source Of Truth
 
 - Current checkout, GitHub issues/PRs, and repo docs are source of truth.
 - Local Codex, Claude, or desktop memory is cache only. Verify memory-derived claims against live files or GitHub state before acting.
-- Agent instructions are in `AGENTS.md`.
+- Agent instructions start in `AGENTS.md`.
+- The single agent operating layer is `.agents/`.
 - Runtime skills live under `.agents/skills/`.
+- Harness specs, workflows, maintenance rules, reports, agent profiles, and agent-only scripts live under `.agents/`.
 - Product architecture and workflow behavior live in `apps/studio/README.md`.
-- Harness specs and user-facing operating docs live under `docs/operations/`.
+- Product architecture and system contracts live under `docs/`.
 
 ## Intake Protocol
 
@@ -33,7 +37,8 @@ This is a router for the existing `novel-ai` agent harness. It is not a new capa
    - harness/docs/skills maintenance
 5. Select the smallest relevant skill set from `.agents/skills/`.
 6. Identify source-of-truth files, likely files to change, risks, and verification before editing.
-7. Stop for a decision if the prompt requires an unapproved product, architecture, data model, workflow, or issue-planning decision.
+7. Decide whether the task is actionable, blocked, or needs user context.
+8. Stop for a decision if the prompt requires an unapproved product, architecture, data model, workflow, or issue-planning decision.
 
 ## Skill Routing
 
@@ -56,6 +61,19 @@ This is a router for the existing `novel-ai` agent harness. It is not a new capa
 
 Use multiple skills only when the prompt crosses surfaces. Prefer the minimal set that covers the actual task.
 
+## Actionability States
+
+After routing, classify the prompt as one of:
+
+| State | Meaning | Agent action |
+|---|---|---|
+| `actionable` | Scope, source files, and verification gates are clear enough. | Proceed with the smallest relevant skill set. |
+| `investigate-first` | Symptom is real but root cause or surface is unclear. | Use `investigation-workflow` and report evidence before changing code. |
+| `plan-first` | User asked for a plan, issue body, file manifest, or sequencing. | Use `implementation-planning`; do not code unless the user approves implementation. |
+| `decision-needed` | Work would encode a product, architecture, data, workflow, or issue-planning decision. | Stop and ask the user to decide, with evidence, recommendation, risk, and exact decision needed. |
+| `context-needed` | Required files, repro steps, environment, expected behavior, credentials, or target issue/PR are missing. | Ask for only the missing context needed to proceed. |
+| `blocked` | Required service, secret, branch state, dependency, or permission prevents progress. | Report the blocker, what was tried, and the next unblock action. |
+
 ## Stop Conditions
 
 Stop and ask for human review when:
@@ -66,6 +84,8 @@ Stop and ask for human review when:
 - Required services, secrets, databases, or local LLMs are unclear.
 - The task would create a duplicate docs taxonomy or parallel skill tree.
 - The implementation scope cannot be expressed as specific files and verification gates.
+
+Do not ask broad questions when a narrow one will unblock the task.
 
 ## Output Contract
 

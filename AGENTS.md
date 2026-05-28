@@ -125,6 +125,7 @@ Do not run whole-project lint unless requested. If verification cannot run, stat
 ## Source Of Truth
 
 - Agent instructions: `AGENTS.md`.
+- Agent harness, workflows, runtime skills, and agent-only metadata: `.agents/`.
 - Product architecture and flows: `apps/studio/README.md`.
 - Data model and contracts: `db/migrations/*.sql`.
 - Change boundary map: `docs/architecture/change-impact-map.md`.
@@ -136,6 +137,8 @@ Local Codex, Claude, or desktop memory is a cache, not a source of truth. Use it
 ## Prompt Router
 
 When a user prompt is vague, raw, multi-intent, or does not name the right skill, read `.agents/workflows/prompt-universe.md` before choosing a workflow. Use it as the intake router for mapping the request to investigation, implementation planning, GitHub issue/PR work, E2E verification, review, or harness maintenance.
+
+`.agents/` is the only active agent harness layer. Keep harness specs, prompt routing, runtime skills, maintenance rules, reports, agent profiles, and agent scripts under `.agents/`. `AGENTS.md` is only the root entrypoint required for agent discovery.
 
 ## Repository Codex Skills
 

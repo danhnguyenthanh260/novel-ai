@@ -54,6 +54,9 @@ _staging*
 .agents/
 !.agents/
 .agents/*
+!.agents/*.md
+!.agents/reports/
+!.agents/reports/*.md
 !.agents/skills/
 .agents/skills/*
 !.agents/skills/chat-first-workspace/

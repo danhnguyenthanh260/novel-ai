@@ -7,7 +7,7 @@ This map helps agents identify which source-of-truth files to inspect before cha
 
 | Change surface | Read first | Common files |
 |---|---|---|
-| Agent harness, skills, docs drift | `AGENTS.md`, `docs/operations/specs/novel-ai-agent-harness.md`, `.agents/skills/agent-harness-consistency-pass/SKILL.md` | `.agents/skills/*/SKILL.md`, `docs/agent-skills/*`, `docs/operations/implementation/agent-harness-*` |
+| Agent harness, skills, docs drift | `AGENTS.md`, `.agents/README.md`, `.agents/workflows/prompt-universe.md`, `.agents/skills/agent-harness-consistency-pass/SKILL.md` | `.agents/skills/*/SKILL.md`, `.agents/workflows/*`, `.agents/maintenance.md`, `.agents/reports/*` |
 | Write chat, composer, slash commands | `.agents/skills/chat-first-workspace/SKILL.md`, `docs/operations/specs/studio-chat-orchestration-layer.md` | `apps/studio/src/features/scenes/components/writeTab/CommandWorkStream.tsx`, `apps/studio/src/features/scenes/components/writeTab/chatOrchestration/*` |
 | Write layout and inspector | `.agents/skills/codex-style-layout-review/SKILL.md`, `apps/studio/README.md` | `NovelLabWorkspace.tsx`, `ArtifactSurface.tsx`, `ArtifactInspectorRail.tsx` |
 | Artifact contracts | `.agents/skills/artifact-context-contract/SKILL.md` | `apps/studio/src/features/scenes/components/writeTab/types.ts`, `TimelineBlocks.tsx`, `ArtifactSurface.tsx` |
