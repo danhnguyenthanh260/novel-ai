@@ -266,20 +266,18 @@ Memory layer async (worker):
 
 ## 5) Data model liên quan
 
-Migration cần đọc khi sửa logic:
+Active migrations live directly under `db/migrations/` and are applied in
+filename order. `db/migrations/000_baseline_20260502.sql` is the current schema
+baseline for fresh local databases; later root-level SQL files are post-baseline
+deltas.
 
-- `db/migrations/001_ui_pipeline.sql` (nền tảng cũ)
-- `db/migrations/003_multi_story_foundation.sql` (thêm `story_series`, `story_id`, `workunit_id`)
-- `db/migrations/004_multi_story_scene_version_story_id.sql` (thêm `story_id` cho version)
-- `db/migrations/005_memory_bridge_foundation.sql` (canon/ingest/review)
-- `db/migrations/006_review_apply_policy_fields.sql` (review decision fields)
-- `db/migrations/007_fix_scene_unique_scope.sql` (unique scope theo story)
-- `db/migrations/008_author_stage1_global_memory.sql` (worldbuilding + style profile)
-- `db/migrations/010_shelf_library_foundation.sql` (library metadata + tags/cautions/images)
-- `db/migrations/011_story_background_image.sql` (background image path)
-- `db/migrations/015_source_doc_ssot.sql` (ingest source doc SSOT, hash/idempotency base)
-- `db/migrations/016_memory_layer_v1.sql` (async memory packs: canon/timeline/style + enrich queue)
-- `db/migrations/023_author_style_profile.sql` (ingest-mined author style profile memory)
+Local Docker startup runs the active replay through the `db-migrate` service in
+`infra/docker-compose.yml` before `novel_studio` starts. For non-Docker local
+setup, apply only root-level `db/migrations/*.sql` in filename order.
+
+Historical pre-baseline SQL files under
+`db/migrations/archive/pre_baseline_20260502/` are reference-only provenance.
+Do not include them in fresh setup commands or active migration runners.
 
 Thực thể chính:
 
