@@ -19,6 +19,11 @@ Use this skill when the task touches:
 
 Protect the Codex-like Write workspace: fixed app shell, left navigation, center chat stream with persistent composer, and right artifact/inspector panel with no page-level overflow.
 
+Layout review is not only a CSS check. Treat every layout change as a writing
+journey review: can an author start with a tiny idea, paste or generate long
+prose, inspect the result, recover from blocked context, and keep writing
+without losing the composer or primary task?
+
 ## Required Investigation Steps
 
 1. Read `apps/studio/README.md` UI source-of-truth and visual rules.
@@ -33,6 +38,8 @@ Protect the Codex-like Write workspace: fixed app shell, left navigation, center
    - `.work-composer-wrap`
    - `.artifact-workspace`
 4. Inspect the changed layout components.
+5. For UI quality complaints or vague product prompts, first apply the
+   UI/Product Journey Lens in `.agents/workflows/prompt-universe.md`.
 
 ## Implementation Rules
 
@@ -47,6 +54,12 @@ Protect the Codex-like Write workspace: fixed app shell, left navigation, center
 - Use `min-width: 0` on grid/flex children that contain text, chat cards, or editors.
 - Mobile fallback should prioritize the center chat and hide or move secondary panes intentionally.
 - Use existing semantic classes and tokens before adding new color/layout systems.
+- Short-content states should not look empty, inflated, or marketing-like.
+- Long-content states must preserve reading, scrolling, and action ownership:
+  chat summaries in the center, full prose/artifacts in the right workspace,
+  and persistent next actions near the user task.
+- Empty, loading, degraded, blocked, error, success, and retry states must each
+  have a visible place in the layout without stealing the whole page.
 
 ## Forbidden Actions
 
@@ -63,6 +76,7 @@ For layout work, report:
 
 - Pane or shell contract changed.
 - Scroll ownership before/after.
+- User journey checked, including short and long content behavior.
 - Desktop and mobile behavior.
 - Any known visual risk.
 - Verification run.
@@ -82,6 +96,11 @@ For layout work, report:
 - Long conversation: timeline scrolls, composer fixed in pane.
 - Long artifact or progress: right panel scrolls, composer stable.
 - Narrow screens: nav and artifact can collapse/hide, but center chat remains usable.
+- Short story seed: composer and response should stay compact and direct.
+- Long pasted prose: chat should summarize/route; right panel or ingest/artifact
+  flow handles inspection instead of a giant center bubble.
+- Long generated chapter: artifact panel owns reading/editing; center chat owns
+  status and next action.
 
 ## Common Failure Modes
 
