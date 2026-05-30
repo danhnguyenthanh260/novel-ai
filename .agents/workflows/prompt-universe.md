@@ -12,6 +12,11 @@ rubrics. It decides what the user likely means, which context is missing, which
 repo/human decision is needed, and which skill should own the next step before
 any serious investigation, issue work, or implementation begins.
 
+When the user explicitly tags this file or says to use `prompt-universe`, treat
+the first response as a prompt interpretation pass for human review. Write that
+pass in the user's language. Keep it close, concrete, and clear; explain terms
+or ambiguous wording only where it prevents misunderstanding.
+
 This is the router for the existing `novel-ai` agent harness. It is not a new
 capability layer, and it must not create parallel trees such as `.ai/skills`,
 `.ai-harness`, `docs/agent-skills`, or `docs/ai-layer`.
@@ -46,6 +51,8 @@ capability layer, and it must not create parallel trees such as `.ai/skills`,
    - whether the user wants investigation, planning, implementation, review,
      GitHub work, or a decision memo
    - what assumptions would be dangerous to encode
+   - what the user likely expects from prior repo context, issues, PRs, or
+     recent decisions
 6. Select the smallest relevant skill set from `.agents/skills/`.
 7. Identify source-of-truth files, likely files to change, risks, and verification before editing.
 8. Decide whether the task is actionable, blocked, or needs user context.
@@ -93,6 +100,54 @@ frame:
 Do not start serious work until this frame is clear enough to choose skills and
 source-of-truth files.
 
+## Human Review Pass
+
+When the user asks for `prompt-universe`, return this review pass before doing
+serious work unless the request is already explicit and low-risk:
+
+- `Mình hiểu bạn muốn`: restate the intended outcome in the user's language.
+- `Context mình đang dùng`: repo branch, issue/PR, file, report, screenshot,
+  prior decision, or product surface that appears relevant.
+- `Điểm dễ hiểu nhầm`: ambiguous words, overloaded terms, missing target, or
+  assumptions that could send the agent down the wrong path.
+- `Intent đã phân giải`: investigation, planning, implementation, review,
+  GitHub workflow, E2E, harness maintenance, or decision memo.
+- `Skill route`: exact skill or smallest skill set to use next.
+- `Cần user quyết định không`: decision needed, context needed, blocked, or
+  actionable.
+- `Đề xuất thêm`: optional skill, harness, issue, or memory improvement if the
+  prompt reveals a repeated pattern.
+
+If the prompt is urgent or implementation-approved, keep the review pass short
+and proceed only after the route, risk, and decision surface are clear.
+
+## Semantic Clarification
+
+Explain meaning only when it reduces risk:
+
+- Clarify overloaded words such as "fix", "plan", "report", "skill", "UI",
+  "harness", "router", "memory", or "context" in the current repo situation.
+- Name the concrete object if possible: file, skill, issue, PR, workflow, user
+  journey, DB surface, or UI surface.
+- Ask one narrow question when missing context blocks progress.
+- Do not ask broad questions when a reasonable, low-risk route is available.
+
+## Repo Memory And Pattern Capture
+
+Use local memory as a clue, not a source of truth. Verify memory-derived claims
+against the current checkout, GitHub state, or repo docs before acting.
+
+Suggest a memory or skill update when:
+
+- the same misunderstanding appears more than once
+- the user corrects the agent's interpretation of a repo concept
+- a prompt-routing rule would prevent repeated drift
+- a workflow decision should be remembered for future runs
+
+Do not write memory unless the user explicitly asks for a memory update.
+Prefer updating `.agents/skills/` or `.agents/workflows/` when the pattern is a
+repo harness rule.
+
 ## Actionability States
 
 After routing, classify the prompt as one of:
@@ -124,6 +179,7 @@ Do not ask broad questions when a narrow one will unblock the task.
 
 For investigation-only tasks, return:
 
+- prompt interpretation if `prompt-universe` was explicitly requested
 - implementation map
 - source-of-truth files
 - risks

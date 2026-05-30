@@ -63,11 +63,15 @@ The router decides:
 - which runtime skill or smallest skill set applies
 - whether the work is investigation, planning, implementation, review, E2E, or
   GitHub workflow
+- how to restate the user's rough prompt for human review in the user's
+  language
 - which source-of-truth files must be read before editing
 - whether the prompt is blocked by missing services, stale branch state, missing
   secrets, dirty relevant files, unclear scope, or an unapproved decision
 - whether to ask the user for more context, a product decision, architecture
   decision, data decision, workflow decision, or GitHub planning decision
+- whether the prompt reveals a repeated pattern that should become a skill,
+  harness, issue, or explicit memory update proposal
 
 If the agent cannot express the work as concrete files and verification gates,
 it must stop and ask for the missing context instead of inventing scope.
