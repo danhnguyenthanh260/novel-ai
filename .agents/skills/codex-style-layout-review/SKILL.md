@@ -38,8 +38,9 @@ without losing the composer or primary task?
    - `.work-composer-wrap`
    - `.artifact-workspace`
 4. Inspect the changed layout components.
-5. For UI quality complaints or vague product prompts, first apply the
-   UI/Product Journey Lens in `.agents/workflows/prompt-universe.md`.
+5. For UI quality complaints or vague product prompts, first use
+   `user-journey-product-review`, then apply this layout skill to the relevant
+   panes and components.
 
 ## Implementation Rules
 

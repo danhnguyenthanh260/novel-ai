@@ -63,8 +63,6 @@ The router decides:
 - which runtime skill or smallest skill set applies
 - whether the work is investigation, planning, implementation, review, E2E, or
   GitHub workflow
-- whether the prompt needs UI/product journey simulation before planning or
-  coding
 - which source-of-truth files must be read before editing
 - whether the prompt is blocked by missing services, stale branch state, missing
   secrets, dirty relevant files, unclear scope, or an unapproved decision
@@ -91,6 +89,7 @@ Agents choose runtime skills by surface:
 | Chapter planning, AutoWrite, `CHAPTER_WRITE_V3`, generation status | `chapter-generation-workflow` |
 | Progress blocks, thinking display, inspector progress | `agent-progress-panel` |
 | Artifact previews, context digest, document panels | `artifact-context-contract` |
+| User journey, product critique, UX report, issue-ready UI/product ticket | `user-journey-product-review` |
 | Write layout, viewport locking, independent scroll, responsive fallback | `codex-style-layout-review` |
 | Pasted/uploaded long text, mega files, ZIP imports, source docs | `long-text-ingestion` |
 | Playwright, browser verification, E2E service requirements | `playwright-e2e-verification` |
@@ -104,8 +103,6 @@ Agents must stop for the user when:
 
 - a product, architecture, data model, workflow, or issue-planning decision is
   required and not already approved
-- a UI/product journey exposes a decision about the intended user flow, content
-  ownership, approval path, or information architecture
 - the current checkout is stale, on the wrong base branch, or dirty in files
   relevant to the requested work
 - GitHub issues or PRs already cover the work and updating them may be better

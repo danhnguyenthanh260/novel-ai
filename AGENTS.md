@@ -149,6 +149,7 @@ Repo-specific Codex skills live under `.agents/skills/`. Use them after reading 
 - `chapter-generation-workflow`: chapter planning, AutoWrite, `CHAPTER_WRITE_V3`, status polling, retries, staging, and generation acceptance checks.
 - `agent-progress-panel`: progress/thinking display, `workflow_progress`, right inspector progress mode, streaming state, cancellation, and retry state.
 - `artifact-context-contract`: `artifact_preview`, document artifact panels, context digests, approval gates, and right-panel document behavior.
+- `user-journey-product-review`: user-facing journey simulation, UX/product critique, short/long content pressure, and issue-ready product reports before UI implementation.
 - `codex-style-layout-review`: Codex-like triple-pane Write layout, viewport locking, independent scroll regions, right panel behavior, and responsive fallback.
 - `long-text-ingestion`: pasted/uploaded long text, `PASTE_TEXT`, `MEGA_FILE`, `ZIP_UPLOAD`, source docs, and split-draft traceability.
 - `playwright-e2e-verification`: browser/E2E verification for chat-first writing, layout containment, artifact panel behavior, and missing-context onboarding.

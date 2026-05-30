@@ -69,6 +69,8 @@ _staging*
 !.agents/skills/agent-progress-panel/SKILL.md
 !.agents/skills/artifact-context-contract/
 !.agents/skills/artifact-context-contract/SKILL.md
+!.agents/skills/user-journey-product-review/
+!.agents/skills/user-journey-product-review/SKILL.md
 !.agents/skills/codex-style-layout-review/
 !.agents/skills/codex-style-layout-review/SKILL.md
 !.agents/skills/long-text-ingestion/
