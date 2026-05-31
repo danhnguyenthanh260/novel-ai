@@ -95,5 +95,7 @@ _staging*
 !.agents/skills/agent-harness-consistency-pass/SKILL.md
 !.agents/skills/memory-integrity-review/
 !.agents/skills/memory-integrity-review/SKILL.md
+!.agents/skills/session-retrospective/
+!.agents/skills/session-retrospective/SKILL.md
 !.agents/workflows/
 !.agents/workflows/prompt-universe.md

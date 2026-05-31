@@ -80,6 +80,7 @@ capability layer, and it must not create parallel trees such as `.ai/skills`,
 | Pasted/uploaded long text, mega files, ZIP imports, source docs | `long-text-ingestion` |
 | Browser, Playwright, E2E service requirements, layout verification | `playwright-e2e-verification` |
 | AGENTS/docs/skills/E2E drift or harness consistency | `agent-harness-consistency-pass` |
+| "đúc kết session", consolidate/distill a session into updated skills + memory + harness report + issues | `session-retrospective` |
 
 Use multiple skills only when the prompt crosses surfaces. Prefer the minimal set that covers the actual task.
 
