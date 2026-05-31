@@ -10,6 +10,7 @@ const REAL_LLM = process.env.E2E_REAL_LLM === "1";
 const RUNTIME_DIR = path.resolve(process.cwd(), "../../.runtime/e2e");
 const TIER_TIMEOUTS_MS = [600_000, 900_000, 1_200_000, 1_800_000] as const;
 const CHAPTER_ID = "ch11";
+const TARGET_WORD_COUNT = 1000;
 
 type ChapterStatusResponse = {
   ok?: boolean;
@@ -61,7 +62,7 @@ function chapter11Goal(): string {
     "Continue immediately after Chapter 10: Kuro, Mike, and Cerin are in Kuro's room after the tablet timestamp jumps from 19:42:11 to 19:42:23; the space barely answers Kuro; Kuro says they know we exist now; the Hollow is waiting.",
     "Preserve the slow-burn psychological sci-fi mystery voice: restrained third-person close narration, ordinary physical details turning strange, quiet dialogue, no exposition dump, no assistant meta-commentary.",
     "Keep Kuro, Mike, Cerin, Noctis, the Hollow, the twelve-second resonance check, and Professor Halden's remote observation coherent.",
-    "Write roughly 700 words of prose only.",
+    `Write roughly ${TARGET_WORD_COUNT} words of prose only.`,
   ].join(" ");
 }
 
@@ -169,7 +170,7 @@ async function runChapterWriteFromChat(
       `${baseURL}/api/stories/${encodeURIComponent(story.slug)}/chapters/${encodeURIComponent(CHAPTER_ID)}/auto-write`,
       {
         data: {
-          target_word_count: 700,
+          target_word_count: TARGET_WORD_COUNT,
           user_prompt: chapter11Goal(),
           writing_intent_mode: "CONTINUE_CANON",
         },
@@ -192,8 +193,8 @@ async function runChapterWriteFromChat(
   const wizard = page.locator(".surface-card").filter({ hasText: "AutoWrite v2: Chapter Architect" }).last();
   const targetSlider = wizard.locator('input[type="range"]').first();
   if (await targetSlider.isVisible().catch(() => false)) {
-    await targetSlider.fill("700");
-    await expect(targetSlider).toHaveValue("700");
+    await targetSlider.fill(String(TARGET_WORD_COUNT));
+    await expect(targetSlider).toHaveValue(String(TARGET_WORD_COUNT));
   }
 
   const writeAutoButton = page.getByRole("button", { name: /WRITE AUTO/i }).first();
