@@ -93,5 +93,7 @@ _staging*
 !.agents/skills/github-issue-pr-workflow/SKILL.md
 !.agents/skills/agent-harness-consistency-pass/
 !.agents/skills/agent-harness-consistency-pass/SKILL.md
+!.agents/skills/memory-integrity-review/
+!.agents/skills/memory-integrity-review/SKILL.md
 !.agents/workflows/
 !.agents/workflows/prompt-universe.md
