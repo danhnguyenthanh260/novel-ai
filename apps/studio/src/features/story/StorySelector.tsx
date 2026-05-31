@@ -32,6 +32,7 @@ export default function StorySelector() {
   const [items, setItems] = useState<StoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [savingLang, setSavingLang] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -66,6 +67,12 @@ export default function StorySelector() {
     setPortalReady(true);
   }, []);
 
+  useEffect(() => {
+    const openLibrary = () => setShowLibrary(true);
+    window.addEventListener("novel:open-story-picker", openLibrary);
+    return () => window.removeEventListener("novel:open-story-picker", openLibrary);
+  }, []);
+
   const routeStorySlug = (() => {
     const fromStories = pathname.match(/^\/stories\/([^/]+)/);
     if (fromStories?.[1]) return decodeURIComponent(fromStories[1]);
@@ -74,16 +81,9 @@ export default function StorySelector() {
     return null;
   })();
 
-  useEffect(() => {
-    if (!pathname.startsWith("/shelf")) return;
-    if (storySlug !== "default") setStorySlug("default");
-  }, [pathname, setStorySlug, storySlug]);
-
   const storyExists = items.some((i) => i.slug === storySlug);
   const selectedSlug =
-    pathname.startsWith("/shelf")
-      ? null
-      : routeStorySlug && items.some((i) => i.slug === routeStorySlug)
+    routeStorySlug && items.some((i) => i.slug === routeStorySlug)
         ? routeStorySlug
         : storyExists
           ? storySlug
@@ -190,7 +190,7 @@ export default function StorySelector() {
           toneProfileJson: "{}",
           defaultLlmParamsJson: "{}",
         });
-        router.push(`/stories/${encodeURIComponent(slug)}/pipelines`);
+        router.push(`/stories/${encodeURIComponent(slug)}/write`);
         router.refresh();
       });
     } catch {
@@ -203,34 +203,47 @@ export default function StorySelector() {
   const actionsDisabled = loading || headerBusy;
   const switchDisabled = actionsDisabled || !selectedSlug || savingLang;
   const disabledLinkClass = useMemo(() => (actionsDisabled ? "pointer-events-none opacity-50" : ""), [actionsDisabled]);
-  const storyLinkBase = selectedSlug ? `/stories/${selectedSlug}` : "/shelf";
+  const storyLinkBase = selectedSlug ? `/stories/${selectedSlug}` : "";
+  const disabledHref = "#";
   const navItems = useMemo(
     () => [
-      { label: "Pipelines", href: selectedSlug ? `${storyLinkBase}/pipelines` : "/shelf", match: "/pipelines" },
-      { label: "Ingest", href: selectedSlug ? `${storyLinkBase}/ingest` : "/shelf", match: "/ingest" },
-      { label: "Write", href: selectedSlug ? `${storyLinkBase}/write` : "/shelf", match: "/write" },
-      { label: "Analysis", href: selectedSlug ? `${storyLinkBase}/analysis` : "/shelf", match: "/analysis" },
-      { label: "Memory", href: selectedSlug ? `${storyLinkBase}/memory` : "/shelf", match: "/memory" },
-      { label: "Map", href: selectedSlug ? `${storyLinkBase}/map` : "/shelf", match: "/map" },
+      { label: "Pipelines", href: selectedSlug ? `${storyLinkBase}/pipelines` : disabledHref, match: "/pipelines" },
+      { label: "Ingest", href: selectedSlug ? `${storyLinkBase}/ingest` : disabledHref, match: "/ingest" },
+      { label: "Write", href: selectedSlug ? `${storyLinkBase}/write` : disabledHref, match: "/write" },
+      { label: "Analysis", href: selectedSlug ? `${storyLinkBase}/analysis` : disabledHref, match: "/analysis" },
+      { label: "Memory", href: selectedSlug ? `${storyLinkBase}/memory` : disabledHref, match: "/memory" },
+      { label: "Map", href: selectedSlug ? `${storyLinkBase}/map` : disabledHref, match: "/map" },
     ],
-    [selectedSlug, storyLinkBase]
+    [selectedSlug, storyLinkBase, disabledHref]
   );
   const moreItems = useMemo(
     () => [
-      { label: "Agents", href: selectedSlug ? `${storyLinkBase}/agents` : "/shelf" },
-      { label: "Reviews", href: selectedSlug ? `${storyLinkBase}/reviews` : "/shelf" },
-      { label: "Feedback", href: selectedSlug ? `${storyLinkBase}/feedback` : "/shelf" },
-      { label: "Settings", href: selectedSlug ? `${storyLinkBase}/settings` : "/shelf" },
-      { label: "Story Shelf", href: "/shelf" },
+      { label: "Agents", href: selectedSlug ? `${storyLinkBase}/agents` : disabledHref },
+      { label: "Reviews", href: selectedSlug ? `${storyLinkBase}/reviews` : disabledHref },
+      { label: "Feedback", href: selectedSlug ? `${storyLinkBase}/feedback` : disabledHref },
+      { label: "Settings", href: selectedSlug ? `${storyLinkBase}/settings` : disabledHref },
     ],
-    [selectedSlug, storyLinkBase]
+    [selectedSlug, storyLinkBase, disabledHref]
   );
   const activeNavItem = useMemo(() => navItems.find((item) => pathname.includes(item.match)) ?? navItems[0], [navItems, pathname]);
 
   return (
     <div className="flex max-w-[calc(100vw-180px)] flex-wrap items-center justify-end gap-2 text-sm">
       <div className="shell-control flex min-w-0 items-center gap-2 px-2 py-1.5">
-        <span className="muted hidden sm:inline">Story</span>
+        <button
+          type="button"
+          className="grid h-7 w-7 place-items-center rounded border border-[#2a3441] bg-[#0d1524] text-[var(--text-secondary)] transition hover:border-[#3e867f] hover:text-[var(--accent)]"
+          onClick={() => setShowLibrary(true)}
+          disabled={actionsDisabled}
+          title="Choose story"
+          aria-label="Choose story"
+          data-testid="story-picker-button"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z" />
+          </svg>
+        </button>
         <span className="max-w-[320px] truncate font-medium">
           {loading
             ? "Loading..."
@@ -294,8 +307,7 @@ export default function StorySelector() {
               className="block w-full rounded px-2 py-1 text-left hover:bg-[#162236] disabled:pointer-events-none disabled:opacity-50"
               disabled={actionsDisabled}
               onClick={() => {
-                router.push("/shelf");
-                router.refresh();
+                setShowLibrary(true);
               }}
             >
               Switch Story
@@ -305,7 +317,7 @@ export default function StorySelector() {
                 key={item.label}
                 href={item.href}
                 className={`block rounded px-2 py-1 hover:bg-[#162236] ${
-                  !selectedSlug && item.href !== "/shelf" ? "pointer-events-none opacity-50" : ""
+                  !selectedSlug ? "pointer-events-none opacity-50" : ""
                 }`}
               >
                 {item.label}
@@ -331,6 +343,64 @@ export default function StorySelector() {
         </svg>
         <span className="text-[10px] font-bold uppercase tracking-tight text-[#8ef2d5]">Story</span>
       </button>
+
+      {portalReady &&
+        showLibrary &&
+        createPortal(
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4" data-testid="story-picker-modal">
+            <div className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[#223247] bg-[#0f1722] p-4 text-white">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-base font-semibold">Choose Story</div>
+                  <div className="muted text-xs">Pick a book and continue writing in the chat workspace.</div>
+                </div>
+                <button type="button" className="shell-link px-3 py-2 text-xs" onClick={() => setShowLibrary(false)}>
+                  Close
+                </button>
+              </div>
+              <div className="grid gap-2">
+                {loading ? <div className="muted text-sm">Loading stories...</div> : null}
+                {!loading && items.length === 0 ? <div className="quiet-empty-state p-3 text-sm">No stories yet.</div> : null}
+                {items.map((item) => (
+                  <button
+                    key={item.slug}
+                    type="button"
+                    data-testid={`story-picker-option-${item.slug}`}
+                    className={`flex items-center justify-between gap-3 rounded border px-3 py-2 text-left transition hover:border-[#3e867f] hover:bg-[#162236] ${
+                      item.slug === selectedSlug ? "border-[#3e867f] bg-[#133a37]" : "border-[#223247] bg-[#0d1524]"
+                    }`}
+                    onClick={() => {
+                      setStorySlug(item.slug);
+                      setShowLibrary(false);
+                      router.push(`/stories/${encodeURIComponent(item.slug)}/write`);
+                      router.refresh();
+                    }}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold">{item.title || item.slug}</span>
+                      <span className="muted block truncate text-xs">{item.slug}</span>
+                    </span>
+                    <span className="status-pill status-pill--drafting">{item.status}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="primary-action px-3 py-2 text-xs"
+                  onClick={() => {
+                    setShowLibrary(false);
+                    setFormError(null);
+                    setShowNew(true);
+                  }}
+                >
+                  New story
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {portalReady &&
         showNew &&

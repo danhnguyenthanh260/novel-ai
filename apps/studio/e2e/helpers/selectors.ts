@@ -6,6 +6,9 @@ export const S = {
   storySlugInput: '[data-testid="story-slug-input"]',
   storyCreateSubmit: '[data-testid="story-create-submit"]',
   storyCreateError: '[data-testid="story-create-error"]',
+  storyPickerButton: '[data-testid="story-picker-button"]',
+  storyPickerModal: '[data-testid="story-picker-modal"]',
+  storyPickerOption: (slug: string) => `[data-testid="story-picker-option-${slug}"]`,
 
   // Write workspace
   writeWorkspace: '[data-testid="write-workspace"]',
@@ -27,6 +30,7 @@ export const S = {
   workflowProgressBlock: '.workflow-progress-block, [data-block-type="workflow_progress"]',
   artifactPreviewBlock: '.artifact-preview-block, [data-block-type="artifact_preview"]',
   approvalGateBlock: '.approval-gate-block, [data-block-type="approval_gate"]',
+  artifactDraftReader: '[data-testid="artifact-draft-reader"]',
 
   // Generic
   primaryAction: '.primary-action',

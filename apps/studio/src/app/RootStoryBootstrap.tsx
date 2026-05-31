@@ -140,14 +140,6 @@ export default function RootStoryBootstrap() {
             <button data-testid="story-create-submit" type="submit" className="primary-action" disabled={submitting}>
               {submitting ? "Creating..." : "Create Story"}
             </button>
-            <button
-              type="button"
-              className="shell-link px-3 py-2"
-              onClick={() => router.push("/shelf")}
-              disabled={submitting}
-            >
-              Story Shelf
-            </button>
           </div>
         </form>
       </section>

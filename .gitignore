@@ -63,6 +63,10 @@ _staging*
 !.agents/skills/chat-first-workspace/SKILL.md
 !.agents/skills/story-context-grooming/
 !.agents/skills/story-context-grooming/SKILL.md
+!.agents/skills/narrative-style-continuity-research/
+!.agents/skills/narrative-style-continuity-research/SKILL.md
+!.agents/skills/narrative-style-continuity-research/references/
+!.agents/skills/narrative-style-continuity-research/references/*.md
 !.agents/skills/chapter-generation-workflow/
 !.agents/skills/chapter-generation-workflow/SKILL.md
 !.agents/skills/agent-progress-panel/

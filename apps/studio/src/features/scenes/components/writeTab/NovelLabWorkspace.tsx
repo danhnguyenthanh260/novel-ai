@@ -107,7 +107,6 @@ function NavigationPanel(
   const storyBase = `/stories/${encodeURIComponent(props.storySlug)}`;
   const readerHref = props.selectedChapterId && props.hasDraft ? `/read/${encodeURIComponent(props.storySlug)}/${encodeURIComponent(props.selectedChapterId)}` : null;
   const workspaceLinks = [
-    { label: "Shelf", href: "/shelf" },
     { label: "Write", href: `${storyBase}/write`, active: true },
     { label: "Memory", href: `${storyBase}/memory` },
     { label: "Reviews", href: `${storyBase}/reviews` },
@@ -224,9 +223,12 @@ function selectedChapterTitle(selectedChapterId: string): string {
   return selectedChapterId ? `${getChapterTitle(selectedChapterId)} Draft` : "No chapter selected";
 }
 
+// eslint-disable-next-line complexity
 function assistantAvailability(props: NovelLabWorkspaceProps, hasDraft: boolean): AssistantAvailability {
-  const hasSourceChapters = props.chapterScenes.length > 0 || Boolean(props.current?.text_content || props.stagingData?.llm_prose || props.v3Draft?.full_text);
-  const hasMemorySnapshot = Boolean(props.v3Draft?.virtual_scenes?.length || props.stagingData || hasDraft);
+  const hasStoryChapterContext = props.chapterIds.length > 0;
+  const hasSourceChapters =
+    hasStoryChapterContext || props.chapterScenes.length > 0 || Boolean(props.current?.text_content || props.stagingData?.llm_prose || props.v3Draft?.full_text);
+  const hasMemorySnapshot = Boolean(props.v3Draft?.virtual_scenes?.length || props.stagingData || hasDraft || hasStoryChapterContext);
   return {
     has_source_chapters: hasSourceChapters,
     has_active_characters: hasSourceChapters,
@@ -368,7 +370,12 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
         storySlug={props.storySlug}
         selectedChapterId={props.selectedChapterId}
         showAutoWrite={props.showAutoWrite}
-        onAutoWriteComplete={props.onAutoWriteComplete}
+        onAutoWriteComplete={async (prose) => {
+          await props.onAutoWriteComplete(prose);
+          setIsArtifactVisible(true);
+          setArtifactDrawerOpen(false);
+          setInspectorMode("artifacts");
+        }}
         setShowAutoWrite={props.setShowAutoWrite}
       />
     </>

@@ -136,8 +136,11 @@ export type ChoiceGroupBlock = {
   submitBehavior: "immediate" | "requires_confirm";
   metadata?: {
     intent?: StudioChatIntent;
-    groupKind?: "brainstorm_angle" | "brainstorm_followup" | "brainstorm_continuation_next" | "context_recovery";
+    groupKind?: "brainstorm_angle" | "brainstorm_followup" | "brainstorm_continuation_next" | "context_recovery" | "write_confirmation";
     seed?: string | null;
+    command?: CommandId;
+    goal?: string;
+    chapterId?: string | null;
     [key: string]: unknown;
   };
 };

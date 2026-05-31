@@ -75,7 +75,7 @@ export async function getStoryIdBySlug(db: Queryable, slug: string): Promise<num
   return Number(res.rows[0]?.id ?? 0) || null;
 }
 
-export async function listShelfStories(
+export async function listLibraryStories(
   db: Queryable,
   args: { q?: string; tags?: string[]; cautions?: string[]; limit?: number; scope?: "all" | "published" }
 ): Promise<StoryPublicCard[]> {

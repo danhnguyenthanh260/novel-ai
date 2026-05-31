@@ -71,7 +71,9 @@ test.describe("Chat-first Chapter 11 acceptance", () => {
 
     await page.getByRole("button", { name: "Artifacts" }).click();
     await expect(page.getByRole("heading", { name: "Chapter 11 Draft", exact: true })).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Editable chapter draft artifact" })).toHaveValue(/rain-slick pier/);
+    await expect(page.getByRole("textbox", { name: "Editable chapter draft artifact" })).toHaveValue(/Frequencies of Memory/);
+    await expect(page.getByRole("textbox", { name: "Editable chapter draft artifact" })).toHaveValue(/Kuro/);
+    await expect(page.getByRole("textbox", { name: "Editable chapter draft artifact" })).toHaveValue(/Hollow/);
     expectNoSecondaryNavigation(page, visited);
 
     fixture.teardownChapter11();

@@ -237,9 +237,9 @@ function EmptyArtifact({ hasChapter, onOpenAutoWrite }: { hasChapter: boolean; o
 
 function ReadArtifact({ paragraphs, searchQuery }: { paragraphs: string[]; searchQuery: string }) {
   return (
-    <div className="document-artifact p-4">
+    <div className="document-artifact p-4" data-testid="artifact-draft-reader">
       <div className="grid gap-4">
-        {paragraphs.slice(0, 8).map((paragraph, index) => (
+        {paragraphs.map((paragraph, index) => (
           <p key={`${paragraph.slice(0, 16)}-${index}`} className="text-sm leading-7 text-[var(--text-primary)]">
             {highlightSearch(paragraph, searchQuery)}
           </p>
@@ -391,7 +391,7 @@ function ArtifactModePanel({
 }
 
 export default function ArtifactSurface(props: ArtifactSurfaceProps) {
-  const [activeMode, setActiveMode] = useState<ArtifactMode>("edit");
+  const [activeMode, setActiveMode] = useState<ArtifactMode>("read");
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const hasDraft = props.draftText.trim().length > 0;

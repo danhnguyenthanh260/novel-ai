@@ -69,6 +69,7 @@ capability layer, and it must not create parallel trees such as `.ai/skills`,
 | User asks for PR/local diff review | `pr-review-strict` |
 | Write Assistant, chat timeline, composer, slash commands, story switching | `chat-first-workspace` |
 | Story memory, context gaps, source traceability, context grooming | `story-context-grooming` |
+| Author style, narrative coherence, long-fiction continuity, timeline consistency, scientific paper research for writing workflows | `narrative-style-continuity-research`, then add `story-context-grooming`, `chapter-generation-workflow`, or `long-text-ingestion` as needed |
 | Chapter planning, AutoWrite, CHAPTER_WRITE_V3, generation status | `chapter-generation-workflow` |
 | Progress/thinking cards, workflow progress, right inspector status | `agent-progress-panel` |
 | Artifacts, context digest, artifact preview, approval display | `artifact-context-contract` |

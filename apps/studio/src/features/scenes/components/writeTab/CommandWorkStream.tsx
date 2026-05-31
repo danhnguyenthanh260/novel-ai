@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import React from "react";
 import { useRouter } from "next/navigation";
 import ChatComposer from "@/features/scenes/components/writeTab/chatOrchestration/ChatComposer";
@@ -17,7 +18,7 @@ import {
   buildBrainstormFollowupChoiceGroup,
   type StructuredChoiceSelection,
 } from "@/features/scenes/components/writeTab/chatOrchestration/choiceGroups";
-import { approvalGateBlock, buildCommands, buildContextDigestBlock, buildContextMiniBar, buildSourceArtifactBlock, buildWorkspaceArtifactBlock, buildWorkspaceWorkflowBlock, chipTarget, commandDefinition, commandLabel, commandTail, contextWithCommandIntent, type CommandResult, workspaceHref } from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
+import { approvalGateBlock, buildCommands, buildContextDigestBlock, buildContextMiniBar, buildSourceArtifactBlock, buildWorkspaceArtifactBlock, buildWorkspaceWorkflowBlock, buildWriteConfirmationChoiceGroup, chipTarget, commandDefinition, commandLabel, commandTail, contextWithCommandIntent, type CommandResult, workspaceHref } from "@/features/scenes/components/writeTab/chatOrchestration/commandSurfaceContracts";
 import { routeStudioIntent } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import type { BrainstormChoiceStage, BrainstormFollowupAction } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 import { buildAssistantReadiness } from "@/features/scenes/components/writeTab/chatOrchestration/readiness";
@@ -70,7 +71,6 @@ function useCommandRunner(args: {
   onPipelineSnapshotChange: (snapshot: PipelineSnapshot | null) => void;
   onReviewSnapshotChange: (snapshot: ReviewSnapshot | null) => void;
 }) {
-  const router = useRouter();
   const [commandResult, setCommandResult] = React.useState<CommandResult | null>(null);
   const [intentBlock, setIntentBlock] = React.useState<TimelineBlock | null>(null);
 
@@ -200,8 +200,8 @@ function useCommandRunner(args: {
           });
           return;
         }
-        args.onOpenAutoWrite();
-        setCommandResult({ tone: "running", title: "AutoWrite opened", detail: `Chapter ${args.chapterId} is ready for a writing run.` });
+        args.onConversationBlock(buildWriteConfirmationChoiceGroup(args.chapterId, goal));
+        setCommandResult({ tone: "ready", title: "Confirm chapter write", detail: `Chapter ${args.chapterId} is ready. Confirm in chat before generation starts.` });
         return;
       }
 
@@ -278,7 +278,7 @@ function useCommandRunner(args: {
       args.onActiveBrainstormChoiceStageChange(route.brainstormChoiceStage);
     }
     if (route.intent === "SWITCH_STORY") {
-      router.push("/shelf");
+      window.dispatchEvent(new CustomEvent("novel:open-story-picker"));
       setCommandResult({ tone: "ready", title: "Opening story selector", detail: "Choose the story you want to work on next." });
       return;
     }
@@ -327,7 +327,7 @@ function useCommandRunner(args: {
       return;
     }
     if (route.command) runCommand(route.command, route.goal);
-  }, [args, router, runCommand]);
+  }, [args, runCommand]);
 
   return { commandResult, intentBlock, runCommand, submitMessage };
 }
@@ -457,10 +457,15 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
       );
       return;
     }
+    if (chip.intent === "browse_stories" || chip.intent === "switch_story") {
+      window.dispatchEvent(new CustomEvent("novel:open-story-picker"));
+      return;
+    }
     if (target) router.push(target);
   };
 
   const handleChoice = (selection: StructuredChoiceSelection) => {
+    const choiceBlock = conversationBlocks.find((block) => block.type === "choice_group" && block.id === selection.choiceGroupId);
     const userBlock: TimelineBlock = {
       id: `user-choice-${Date.now()}`,
       type: "text_message",
@@ -474,6 +479,35 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
         intent: selection.intent,
       },
     };
+    if (choiceBlock?.type === "choice_group" && choiceBlock.metadata?.groupKind === "write_confirmation") {
+      setPendingAssistant(true);
+      void selectChoice(selection.choiceGroupId, selection.choiceId)
+        .then(() => appendBlock(userBlock))
+        .then(() => {
+          if (selection.choiceId === "confirm_write") {
+            return appendBlock({
+              id: `assistant-write-confirmed-${Date.now()}`,
+              type: "text_message",
+              source: "assistant",
+              label: "Studio Writing Assistant",
+              text: "Confirmed. Opening the chapter writing workflow now.",
+              tone: "running",
+            }).then(() => {
+              props.onOpenAutoWrite();
+            });
+          }
+          return appendBlock({
+            id: `assistant-write-cancelled-${Date.now()}`,
+            type: "text_message",
+            source: "assistant",
+            label: "Studio Writing Assistant",
+            text: "Cancelled. I did not start chapter generation.",
+            tone: "ready",
+          });
+        })
+        .finally(() => setPendingAssistant(false));
+      return;
+    }
     setPendingAssistant(true);
     void selectChoice(selection.choiceGroupId, selection.choiceId)
       .then(() => appendBlock(userBlock))
