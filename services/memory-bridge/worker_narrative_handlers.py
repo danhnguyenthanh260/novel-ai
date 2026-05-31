@@ -845,7 +845,7 @@ Output JSON: {{ "summary": "...", "patches": ["..."] }}
     started = time.time()
     llm_res = call_llm_json(
         messages,
-        max_tokens=1000,
+        max_tokens=4000,
         temperature=0.4,
         timeout_sec=get_llm_timeout("narrative_critic"),
     )

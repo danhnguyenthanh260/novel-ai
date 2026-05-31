@@ -1665,7 +1665,7 @@ export async function runChapterPlanning(
             const llmResponse = await callChatCompletionJson({
                 messages: [{ role: "user", content: planningPrompt }],
                 temperature: 0.35,
-                maxTokens: 1800,
+                maxTokens: 6000,
                 timeoutMs: CHAPTER_PLAN_TIMEOUT_MS,
             });
 
