@@ -114,6 +114,53 @@ fix list, marking each as memory-layer (extraction/grooming) vs prose-layer
 and canon all hold AND prose has no loops/artifacts — sentence quality alone is
 not enough.
 
+## Known pipeline bottlenecks (verified 2026-05-31)
+
+Generation can silently abort or under-deliver at several stages. When a chapter
+is short, empty, or never persists, check these first:
+
+- **Planning** (`chapterPlanning.ts`): `maxTokens` was 1800 → truncated the JSON
+  plan for 2000-word targets → `JSON_PARSE_FAILED`. Raised to 6000 (commit 5df5bab).
+  Studio change → requires a docker image rebuild to take effect.
+- **Critic** (`worker_narrative_handlers.py`): `max_tokens` was 1000 → truncated
+  critic JSON → `NARRATIVE_CRITIC_SCHEMA_INVALID` → REFINE never runs → only raw
+  stylist output survives. Raised to 4000 (commit 5df5bab).
+- **v3 guard `ANCHOR_MISSED`**: the prose must occur at the plan's
+  `context_guard.location_anchor` (matched near-verbatim). A chapter that moves
+  location fails and is blocked. Guard-blocked prose is NOT retained anywhere
+  (only the guard `metadata` is in `ingest_task.result_json`) — hard to inspect.
+  Workaround: prompt the chapter to stay at the planned anchor location.
+- **quality_gate** (`quality_gate_report_v1`): permanently `pass=false`
+  (FAIL_MEMORY_CONTEXT / FAIL_CANON_CONFLICT / FAIL_QUALITY_SCORE) because the
+  memory lanes don't load (see Step 1 + #194). Advisory, does not block staging.
+- **World grounding (#196)**: world_rules exist in `writing_snapshot_v3.snapshot_json`
+  but never reach `story_worldbuilding_note` (the table the writer's CORE world
+  context reads) → world drift. Backfill projects snapshot world_rules into that
+  table; the extracted rules are also dirty (plot/theme leakage) and need cleanup.
+
+Open issues: #191-#196. The fix order that matters for quality: ground the world
+(#196) → load memory lanes (#194) → wire read side (#192) → then the gate (#195).
+
+## Running a grounded regeneration / A/B (runbook)
+
+LLM provider is OpenAI-compatible (`LLM_API_BASE`/`LLM_API_KEY`/`LLM_MODEL`).
+For Gemini: base = `https://generativelanguage.googleapis.com/v1beta/openai`
+(NO trailing slash — trailing `/` → 404); key in `.runtime/gemini.key`, read via
+a FILE in the launcher (never inline through nested shells → API_KEY_INVALID).
+Free-tier daily quota: `gemini-2.5-flash`=20/day, `gemini-flash-latest`=separate
+bucket, `gemini-2.0-flash`=0. A single chapter ≈ several calls, so free tier is
+insufficient for unattended runs. Probe quota with `.runtime/ab-compare-ch11/quota_check.py`.
+
+Topology: planning runs in the Studio (docker), prose in the native worker (WSL),
+both on the same DB. To run Gemini end-to-end:
+1. Backfill world grounding first if `story_worldbuilding_note` is empty (Step 1 / #196).
+2. Native worker: `LLM_API_KEY_FILE=.../gemini.key LLM_MODEL=gemini-2.5-flash bash .runtime/ab-compare-ch11/start_worker.sh` (sets `NARRATIVE_LEGACY_DISPATCH_ENABLED=1`).
+3. Studio: a temp container `novel_studio_gemini` on :3002 from the rebuilt
+   `infra-novel-studio` image with Gemini env. POST to
+   `http://localhost:3002/api/stories/<slug>/chapters/<chapterId>/auto-write`.
+4. Use an anchor-aligned prompt to pass the ANCHOR guard.
+5. Tear down the temp container + worker when done (they hold the key / consume quota).
+
 ## Output contract
 
 - `Story resolved`: id, slug, why this one.
