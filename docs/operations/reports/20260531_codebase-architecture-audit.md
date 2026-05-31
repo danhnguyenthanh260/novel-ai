@@ -459,6 +459,8 @@ Title:
 [Feature][OPS + AI] Split Memory Bridge task dispatch from task implementations
 ```
 
+Implementation status: Started in this planning cycle. Wave 1 extracted writing and memory-rollup task handlers into `services/memory-bridge/worker_tasks/writing_dispatch.py` while keeping `worker_task_handlers.py` exports compatible.
+
 #### Agent Mode
 
 Purpose: Reduce worker task risk by making `worker_task_handlers.py` a task registry and dispatch adapter, with task-specific behavior owned by dedicated modules.
