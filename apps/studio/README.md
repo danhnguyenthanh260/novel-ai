@@ -497,7 +497,14 @@ npm run typecheck
 # Python compile gate
 cd ..
 python3 -m py_compile services/memory-bridge/memory_bridge_worker.py services/memory-bridge/worker_text_repair.py services/memory-bridge/worker_split_quality.py services/memory-bridge/worker_profile_learning.py
+
+# Worker architecture budget report
+python3 services/memory-bridge/scripts/check_worker_line_budgets.py
 ```
+
+The worker line-budget report is intentionally non-failing by default during the
+current boundary cleanup. Use `--fail-on-hard-cap` only when a cleanup wave wants
+to prove no Memory Bridge worker module exceeds the provisional hard cap.
 
 Doctor scripts note:
 

@@ -65,6 +65,7 @@ capability layer, and it must not create parallel trees such as `.ai/skills`,
 | Unclear root cause, regression, data inconsistency, or unclear behavior | `investigation-workflow` |
 | User asks for an execution plan, issue plan, or file manifest | `implementation-planning` |
 | User asks to review a proposed plan or issue body | `implementation-plan-review` |
+| Code organization, module boundaries, naming conventions, line budgets, file splitting, or repo-wide coding standards | `implementation-planning`, then add the relevant surface skill such as `frontend-code`, `chat-first-workspace`, or `chapter-generation-workflow` |
 | User asks for issues, branches, commits, PRs, or staging publish flow | `github-issue-pr-workflow` |
 | User asks for PR/local diff review | `pr-review-strict` |
 | Write Assistant, chat timeline, composer, slash commands, story switching | `chat-first-workspace` |

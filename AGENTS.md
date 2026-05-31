@@ -146,6 +146,7 @@ Repo-specific Codex skills live under `.agents/skills/`. Use them after reading 
 
 - `chat-first-workspace`: Write Assistant chat, composer, slash commands, durable conversations, context switching, and missing-context chat behavior.
 - `story-context-grooming`: `WritingContext`, memory/context extraction, source traceability, context gaps, and source-doc based context preparation.
+- `memory-integrity-review`: generated chapter publishability review, canon/world/character/timeline drift checks, and memory extraction cleanliness audits grounded in live source data.
 - `narrative-style-continuity-research`: research-backed planning for author style preservation, narrative coherence, chapter continuity, timeline ordering, character consistency, and source-grounded writing patterns.
 - `chapter-generation-workflow`: chapter planning, AutoWrite, `CHAPTER_WRITE_V3`, status polling, retries, staging, and generation acceptance checks.
 - `agent-progress-panel`: progress/thinking display, `workflow_progress`, right inspector progress mode, streaming state, cancellation, and retry state.

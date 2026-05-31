@@ -90,6 +90,7 @@ Agents choose runtime skills by surface:
 | PR or local diff review | `pr-review-strict` |
 | Chat timeline, composer, slash commands, story switching | `chat-first-workspace` |
 | Context, memory, source traceability, context grooming | `story-context-grooming` |
+| Generated chapter publishability, canon/world/character/timeline drift, memory cleanliness | `memory-integrity-review` |
 | Chapter planning, AutoWrite, `CHAPTER_WRITE_V3`, generation status | `chapter-generation-workflow` |
 | Progress blocks, thinking display, inspector progress | `agent-progress-panel` |
 | Artifact previews, context digest, document panels | `artifact-context-contract` |
