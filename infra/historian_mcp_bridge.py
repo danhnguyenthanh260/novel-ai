@@ -365,9 +365,9 @@ def _neo4j_bootstrap_schema() -> None:
 
 
 def _neo4j_upsert_projection(story_id: int, facts: List[Dict[str, Any]]) -> Dict[str, Any]:
-    upserted = 0
     skipped = 0
     relation_types: Dict[str, int] = {}
+    rows: List[Dict[str, Any]] = []
     for fact in facts[:500]:
         if not isinstance(fact, dict):
             skipped += 1
@@ -379,43 +379,51 @@ def _neo4j_upsert_projection(story_id: int, facts: List[Dict[str, Any]]) -> Dict
             skipped += 1
             continue
         rel_type = _predicate_to_rel_type(predicate)
-        statement = f"""
-        MERGE (s:Entity {{story_id:$story_id, name_lc:toLower($subject)}})
-        ON CREATE SET s.name = $subject
-        SET s.entity_type = $subject_entity_type, s.updated_at = datetime()
-        MERGE (o:Entity {{story_id:$story_id, name_lc:toLower($object)}})
-        ON CREATE SET o.name = $object
-        SET o.entity_type = $object_entity_type, o.updated_at = datetime()
-        MERGE (s)-[r:{rel_type}]->(o)
-        SET r.predicate = $predicate,
-            r.classification = $classification,
-            r.confidence = $confidence,
-            r.is_static = $is_static,
-            r.source = 'historian_projection',
-            r.updated_at = datetime()
-        """
-        payload = {
-            "statements": [
-                {
-                    "statement": statement,
-                    "parameters": {
-                        "story_id": int(story_id),
-                        "subject": subject,
-                        "predicate": predicate,
-                        "object": obj,
-                        "subject_entity_type": _entity_type(fact.get("subject_entity_type", fact.get("entity_type"))),
-                        "object_entity_type": _entity_type(fact.get("object_entity_type", "OTHER")),
-                        "classification": str(fact.get("classification") or "STATIC").strip().upper(),
-                        "confidence": float(fact.get("confidence") or 0.0),
-                        "is_static": bool(fact.get("is_static", True)),
-                    },
-                }
-            ]
-        }
-        _http_post_json(NEO4J_HTTP_URL, payload, headers=_neo4j_headers())
+        rows.append({
+            "story_id": int(story_id),
+            "subject": subject,
+            "predicate": predicate,
+            "object": obj,
+            "rel_type": rel_type,
+            "subject_entity_type": _entity_type(fact.get("subject_entity_type", fact.get("entity_type"))),
+            "object_entity_type": _entity_type(fact.get("object_entity_type", "OTHER")),
+            "classification": str(fact.get("classification") or "STATIC").strip().upper(),
+            "confidence": float(fact.get("confidence") or 0.0),
+            "is_static": bool(fact.get("is_static", True)),
+        })
         relation_types[rel_type] = relation_types.get(rel_type, 0) + 1
-        upserted += 1
-    return {"upserted": upserted, "skipped": skipped, "relation_types": relation_types}
+
+    if not rows:
+        return {"upserted": 0, "skipped": skipped, "relation_types": relation_types}
+
+    # Batch by rel_type — Neo4j requires static relationship type names, so we
+    # group rows that share the same rel_type and issue one UNWIND per group.
+    by_rel: Dict[str, List[Dict[str, Any]]] = {}
+    for row in rows:
+        by_rel.setdefault(row["rel_type"], []).append(row)
+
+    statements = []
+    for rel_type, group in by_rel.items():
+        stmt = f"""
+        UNWIND $rows AS r
+        MERGE (s:Entity {{story_id:r.story_id, name_lc:toLower(r.subject)}})
+        ON CREATE SET s.name = r.subject
+        SET s.entity_type = r.subject_entity_type, s.updated_at = datetime()
+        MERGE (o:Entity {{story_id:r.story_id, name_lc:toLower(r.object)}})
+        ON CREATE SET o.name = r.object
+        SET o.entity_type = r.object_entity_type, o.updated_at = datetime()
+        MERGE (s)-[rel:{rel_type}]->(o)
+        SET rel.predicate = r.predicate,
+            rel.classification = r.classification,
+            rel.confidence = r.confidence,
+            rel.is_static = r.is_static,
+            rel.source = 'historian_projection',
+            rel.updated_at = datetime()
+        """
+        statements.append({"statement": stmt, "parameters": {"rows": group}})
+
+    _http_post_json(NEO4J_HTTP_URL, {"statements": statements}, headers=_neo4j_headers())
+    return {"upserted": len(rows), "skipped": skipped, "relation_types": relation_types}
 
 
 class HistorianBridgeHandler(BaseHTTPRequestHandler):

@@ -1,0 +1,7 @@
+FROM python:3.12-slim
+WORKDIR /app
+# Script is stdlib-only (http.server, urllib, json, base64) — no pip install needed.
+# Baked in rather than bind-mounted so the container does not depend on host path
+# resolution, which is unreliable across the WSL <-> Docker VM boundary.
+COPY historian_mcp_bridge.py /app/historian_mcp_bridge.py
+CMD ["python", "/app/historian_mcp_bridge.py"]
