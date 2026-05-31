@@ -24,6 +24,7 @@ export const S = {
 
   // AutoWriteWizard — no data-testid yet; use role + text
   autoWriteModal: '.autowrite-wizard, [class*="autowrite"]',
+  autoWriteInstructionInput: '[data-testid="autowrite-instruction-input"]',
 
   // Timeline blocks
   timelineStack: '.timeline-stack',

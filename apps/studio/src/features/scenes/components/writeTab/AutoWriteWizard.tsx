@@ -1,12 +1,13 @@
 /* eslint-disable max-lines */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { WritingWorkflowDashboard } from "@/features/autowrite/components/WritingWorkflowDashboard";
 
 type AutoWriteWizardProps = {
     storySlug: string;
     chapterId: string;
+    initialPrompt?: string;
     onComplete: (prose: string) => void;
     onClose: () => void;
 };
@@ -122,10 +123,11 @@ type PlanningGuardV1 = {
 
 const TERMINAL_FAILED_STATUSES = new Set(["FAILED", "CANCELLED", "PAUSED"]);
 
-export default function AutoWriteWizard({ storySlug, chapterId, onComplete, onClose }: AutoWriteWizardProps) {
+export default function AutoWriteWizard({ storySlug, chapterId, initialPrompt = "", onComplete, onClose }: AutoWriteWizardProps) {
+    const normalizedInitialPrompt = initialPrompt.trim();
     const [step, setStep] = useState<"targets" | "planning" | "review" | "executing" | "splitting" | "done">("targets");
     const [targetWords, setTargetWords] = useState(1500);
-    const [userPrompt, setUserPrompt] = useState("");
+    const [userPrompt, setUserPrompt] = useState(normalizedInitialPrompt);
     const [plan, setPlan] = useState<PlanResult | null>(null);
     const [prose, setProse] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -136,6 +138,10 @@ export default function AutoWriteWizard({ storySlug, chapterId, onComplete, onCl
     const [retrying, setRetrying] = useState(false);
     const [writingIntentMode, setWritingIntentMode] = useState<"CONTINUE_CANON" | "RETCON_REWRITE">("CONTINUE_CANON");
     const [isEditingPlan, setIsEditingPlan] = useState(false);
+
+    useEffect(() => {
+        setUserPrompt(normalizedInitialPrompt);
+    }, [normalizedInitialPrompt]);
 
     const waitMs = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
     const errorMessage = (err: unknown) => (err instanceof Error ? err.message : "UNKNOWN_ERROR");
@@ -493,6 +499,7 @@ export default function AutoWriteWizard({ storySlug, chapterId, onComplete, onCl
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold uppercase tracking-widest muted">Instruction (Optional)</label>
                                 <textarea
+                                    data-testid="autowrite-instruction-input"
                                     className="w-full bg-white/5 border border-white/10 rounded p-3 text-sm focus:border-[#9de5dc] outline-none min-h-[100px]"
                                     placeholder="e.g. Focus on the tension between Kuro and Halden. Mention the rusted iron gate..."
                                     value={userPrompt}

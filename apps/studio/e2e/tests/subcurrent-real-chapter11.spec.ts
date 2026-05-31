@@ -11,6 +11,7 @@ const RUNTIME_DIR = path.resolve(process.cwd(), "../../.runtime/e2e");
 const TIER_TIMEOUTS_MS = [600_000, 900_000, 1_200_000, 1_800_000] as const;
 const CHAPTER_ID = "ch11";
 const TARGET_WORD_COUNT = 1000;
+const SESSION_SCREENSHOT_ID = new Date().toISOString().replace(/[:.]/g, "-");
 
 type ChapterStatusResponse = {
   ok?: boolean;
@@ -94,6 +95,20 @@ function persistGeneratedOutput(status: ChapterStatusResponse): void {
   writeFileSync(statusPath, JSON.stringify(status, null, 2), "utf8");
 }
 
+async function captureSessionScreenshot(
+  page: Page,
+  testInfo: import("@playwright/test").TestInfo,
+  name: string
+): Promise<void> {
+  const filePath = subcurrentOutputPath(`session-screenshots/${SESSION_SCREENSHOT_ID}-${name}.png`);
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  await page.screenshot({ path: filePath, fullPage: true });
+  await testInfo.attach(`${name}.png`, {
+    path: filePath,
+    contentType: "image/png",
+  });
+}
+
 async function waitForRealGeneration(
   page: Page,
   request: APIRequestContext,
@@ -148,6 +163,7 @@ async function runChapterWriteFromChat(
   await sendChatMessage(page, chapter11Goal());
   const confirmWrite = page.getByRole("button", { name: /Confirm write/i }).first();
   await expect(confirmWrite).toBeVisible({ timeout: 15_000 });
+  await captureSessionScreenshot(page, testInfo, "01-confirmation-card");
   const noEarlyAutoWrite = page.getByText("AutoWrite v2: Chapter Architect");
   await expect(noEarlyAutoWrite).toBeHidden({ timeout: 2_000 });
   await confirmWrite.click();
@@ -191,6 +207,9 @@ async function runChapterWriteFromChat(
   }
 
   const wizard = page.locator(".surface-card").filter({ hasText: "AutoWrite v2: Chapter Architect" }).last();
+  const instructionInput = wizard.locator(S.autoWriteInstructionInput);
+  await expect(instructionInput).toHaveValue(chapter11Goal(), { timeout: 10_000 });
+  await captureSessionScreenshot(page, testInfo, "02-autowrite-prefilled");
   const targetSlider = wizard.locator('input[type="range"]').first();
   if (await targetSlider.isVisible().catch(() => false)) {
     await targetSlider.fill(String(TARGET_WORD_COUNT));
@@ -219,7 +238,9 @@ async function runChapterWriteFromChat(
   }
 
   const jobId = Number(autoWriteJson?.job_id || 0) || undefined;
-  return waitForRealGeneration(page, request, baseURL, jobId, testInfo);
+  const status = await waitForRealGeneration(page, request, baseURL, jobId, testInfo);
+  await captureSessionScreenshot(page, testInfo, "03-generation-complete");
+  return status;
 }
 
 test.describe("The Subcurrent real Chapter 11 route", () => {
@@ -266,6 +287,7 @@ test.describe("The Subcurrent real Chapter 11 route", () => {
 
     const status = await runChapterWriteFromChat(page, page.request, baseURL, testInfo);
     const prose = status.prose ?? "";
+    const opening = prose.slice(0, 1200);
     const bodyText = await page.locator("body").textContent();
 
     expect(prose).toContain("Kuro");
@@ -273,6 +295,9 @@ test.describe("The Subcurrent real Chapter 11 route", () => {
     expect(prose).toMatch(/\bCerin\b/);
     expect(prose).toMatch(/\bHollow\b/i);
     expect(prose).toMatch(/\b(19:42|twelve|timestamp|tablet|Halden|Noctis|current|resonance)\b/i);
+    expect(opening).toMatch(/\b(Kuro|room|apartment|tablet|19:42|timestamp|space|Hollow|waiting)\b/i);
+    expect(opening).not.toMatch(/\b(restricted library archive|tattered map|ancient maps|moved stealthily through the labyrinthine passages)\b/i);
+    expect(prose).not.toMatch(/\b(a much larger journey|mysteries of the Hollow|ancient and powerful)\b/i);
     expect(prose).not.toMatch(/\b(as an ai|i cannot write|i can't write|here is chapter)\b/i);
     expect(bodyText ?? "").not.toMatch(/TypeError:|ReferenceError:|Unhandled Runtime Error|at Object\./);
   });
@@ -285,6 +310,7 @@ test.describe("The Subcurrent real Chapter 11 route", () => {
     await expect(page.locator(S.writeWorkspace)).toBeVisible({ timeout: 15_000 });
     await page.locator(S.storyPickerButton).click();
     await expect(page.locator(S.storyPickerModal)).toBeVisible({ timeout: 10_000 });
+    await captureSessionScreenshot(page, testInfo, "04-story-picker-modal");
     await page.locator(S.storyPickerOption("the_subcurrent")).click();
     await expect(page).toHaveURL(/\/stories\/the_subcurrent\/write/);
     await page.goto(`${baseURL}/stories/the_subcurrent/write?chapter_id=${CHAPTER_ID}`);
@@ -294,6 +320,7 @@ test.describe("The Subcurrent real Chapter 11 route", () => {
 
     const reader = page.locator(S.artifactDraftReader);
     await expect(reader).toBeVisible({ timeout: 15_000 });
+    await captureSessionScreenshot(page, testInfo, "05-artifact-reader");
     await expect(reader).toContainText("Kuro", { timeout: 10_000 });
     await expect(reader).toContainText("Mike");
     await expect(reader).toContainText("Cerin");

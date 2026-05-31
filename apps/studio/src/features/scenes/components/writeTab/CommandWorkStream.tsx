@@ -36,7 +36,7 @@ type CommandWorkStreamProps = {
   commandMenuOpen: boolean;
   onComposerValueChange: (value: string) => void;
   onCommandMenuOpenChange: (value: boolean) => void;
-  onOpenAutoWrite: () => void;
+  onOpenAutoWrite: (initialPrompt?: string) => void;
   onOpenArtifactDrawer: () => void;
   onQueueContinuity: () => void;
   onInspectorModeChange: (mode: WriteInspectorMode) => void;
@@ -53,7 +53,7 @@ function useCommandRunner(args: {
   storySlug: string;
   chapterId: string;
   chatScope: ChatScope;
-  onOpenAutoWrite: () => void;
+  onOpenAutoWrite: (initialPrompt?: string) => void;
   onQueueContinuity: () => void;
   readinessContext: AssistantReadinessContext;
   mode: "chat" | "brainstorm";
@@ -153,7 +153,7 @@ function useCommandRunner(args: {
           setCommandResult({ tone: "blocked", title: "Chapter Planning", detail: readiness.blockedWriteReason ?? "The chapter context is blocked. Add missing context before planning." });
           return;
         }
-        args.onOpenAutoWrite();
+        args.onOpenAutoWrite(goal);
         setCommandResult({ tone: "running", title: "Planning preflight passed", detail: "The AutoWrite planner is ready to continue with your chapter goal." });
         return;
       }
@@ -493,7 +493,8 @@ export default function CommandWorkStream(props: CommandWorkStreamProps) {
               text: "Confirmed. Opening the chapter writing workflow now.",
               tone: "running",
             }).then(() => {
-              props.onOpenAutoWrite();
+              const confirmedGoal = selection.value.trim() || choiceBlock.metadata?.goal || "";
+              props.onOpenAutoWrite(confirmedGoal);
             });
           }
           return appendBlock({
