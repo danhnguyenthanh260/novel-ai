@@ -1342,6 +1342,59 @@ def process_chapter_validate_task(conn, task):
     finally:
         cur.close()
 
+def _project_world_rules_to_core_notes(cur, story_id: int, snapshot_v3: Dict[str, Any]) -> int:
+    """Bridge analysis snapshot world_rules -> story_worldbuilding_note (CORE).
+
+    The writer's CORE world-context (storyContextBuilder.ts) reads
+    `story_worldbuilding_note` with injection_mode='CORE', but the analysis
+    pipeline only persisted world rules into `writing_snapshot_v3.snapshot_json`.
+    This projection bridges that gap so world grounding actually reaches
+    planning/prose (see issue #196).
+
+    World rules in the snapshot are a list of {label, detail}. They accumulate
+    across chapters; insertion is idempotent on (story_id, category, content)
+    via WHERE NOT EXISTS (the table has no unique constraint there), so a
+    re-analysis of the same chapter does not create duplicates.
+
+    Returns the number of rows newly inserted. Best-effort: callers wrap in
+    try/except so a projection failure never blocks the analysis task.
+    """
+    rules = (snapshot_v3 or {}).get("world_rules") or []
+    if not isinstance(rules, list) or not rules:
+        return 0
+
+    inserted = 0
+    seen: set[str] = set()
+    for rule in rules:
+        if isinstance(rule, dict):
+            label = str(rule.get("label") or rule.get("rule") or "").strip()
+            detail = str(rule.get("detail") or rule.get("description") or "").strip()
+        else:
+            label = str(rule or "").strip()
+            detail = ""
+        if not label:
+            continue
+        content = f"{label}: {detail}" if detail else label
+        content = content[:500]
+        if content in seen:
+            continue
+        seen.add(content)
+        cur.execute(
+            """
+            INSERT INTO public.story_worldbuilding_note
+              (story_id, category, content, importance, injection_mode, tags)
+            SELECT %s, 'world_rule', %s, 4, 'CORE', ARRAY['world_rule']::text[]
+            WHERE NOT EXISTS (
+              SELECT 1 FROM public.story_worldbuilding_note
+              WHERE story_id = %s AND category = 'world_rule' AND content = %s
+            )
+            """,
+            (story_id, content, story_id, content),
+        )
+        inserted += int(cur.rowcount or 0)
+    return inserted
+
+
 def process_writing_analysis_task(conn, task: Dict[str, Any]) -> None:
     from worker_writing_analysis import analyze_story_state
     from worker_memory_context import build_planning_context_v5
@@ -1708,6 +1761,25 @@ def process_writing_analysis_task(conn, task: Dict[str, Any]) -> None:
                 _json.dumps(analysis_delta_report),
             ),
         )
+
+        # Bridge world rules into the CORE world-context table the writer reads.
+        # Best-effort: a projection failure must not block the analysis task.
+        try:
+            projected = _project_world_rules_to_core_notes(
+                cur, story_id, (analysis_payload.get("snapshot_v3") or {})
+            )
+            if projected:
+                print(
+                    f"[writing_analysis][world_rules_projected] story_id={story_id} chapter_id={chapter_id} inserted={projected}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+        except Exception as err:
+            print(
+                f"[writing_analysis][world_rules_project_error] story_id={story_id} chapter_id={chapter_id} err={str(err)[:500]}",
+                file=sys.stderr,
+                flush=True,
+            )
 
         cur.execute(
             """

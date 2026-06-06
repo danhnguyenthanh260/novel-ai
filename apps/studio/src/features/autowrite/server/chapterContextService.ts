@@ -68,6 +68,17 @@ export async function buildWorkingSet(
   `, [storyId]);
   const anchorRow = anchorRes.rows[0];
 
+  // 1b. Fetch World Rules (Tier 1) — CORE world-context the writer grounds on.
+  // Single source of truth: story_worldbuilding_note, populated from the
+  // analysis snapshot at persist time (see issue #196).
+  const worldRulesRes = await client.query(`
+    SELECT id, content
+    FROM public.story_worldbuilding_note
+    WHERE story_id = $1 AND injection_mode = 'CORE'
+    ORDER BY importance DESC, updated_at DESC, id DESC
+    LIMIT 30
+  `, [storyId]);
+
   // 2. Fetch Active Cast (Tier 2) - Top 10 most recent active characters
   const castRes = await client.query(`
     SELECT f.subject as name, f.object as status, s.chapter_id
@@ -77,6 +88,36 @@ export async function buildWorkingSet(
     ORDER BY f.created_at DESC
     LIMIT 10
   `, [storyId]);
+
+  // 2b. Fetch per-character motivation (most recent goal/desire fact per subject).
+  const motivationRes = await client.query(`
+    SELECT DISTINCT ON (lower(f.subject)) f.subject as name, f.object as motivation
+    FROM public.canon_fact f
+    WHERE f.story_id = $1
+      AND f.tags && ARRAY['motivation', 'goal', 'desire', 'want', 'wants']
+    ORDER BY lower(f.subject), f.created_at DESC
+  `, [storyId]);
+  const motivationByName = new Map<string, string>();
+  for (const row of motivationRes.rows) {
+    const key = String(row.name || "").trim().toLowerCase();
+    const value = String(row.motivation || "").trim();
+    if (key && value) motivationByName.set(key, value);
+  }
+
+  // 2c. Fetch timeline facts (chronology-tagged canon facts).
+  const timelineRes = await client.query(`
+    SELECT f.subject, f.predicate, f.object
+    FROM public.canon_fact f
+    WHERE f.story_id = $1
+      AND f.tags && ARRAY['timeline', 'timeline_fact', 'chronology']
+    ORDER BY f.created_at DESC
+    LIMIT 20
+  `, [storyId]);
+  const timelineFacts = dedupeStrings(
+    timelineRes.rows.map(r =>
+      [r.subject, r.predicate, r.object].map(v => String(v ?? "").trim()).filter(Boolean).join(" ")
+    )
+  );
 
   // 3. Fetch Meso (Tier 3) - Milestones + Unresolved Loops
   const milestoneRes = await client.query(`
@@ -115,6 +156,19 @@ export async function buildWorkingSet(
     ...(Array.isArray(r.modified_states) ? r.modified_states : [])
   ]);
 
+  // World flags = the most recent ledger's modified_states object (jsonb object,
+  // not an array). Falls back to {} when absent.
+  const latestModifiedStates = ledgerRes.rows[0]?.modified_states;
+  const worldFlags: Record<string, JsonValue> =
+    latestModifiedStates && typeof latestModifiedStates === "object" && !Array.isArray(latestModifiedStates)
+      ? (latestModifiedStates as Record<string, JsonValue>)
+      : {};
+
+  const worldRules = worldRulesRes.rows.map(r => ({
+    id: Number(r.id),
+    content: String(r.content ?? "").trim()
+  })).filter(r => r.content.length > 0);
+
   // Enforce Token Budgets (Simplified)
   const finalRecentChanges = enforceBudget(dedupeStrings(recentChanges), 1000);
   const finalMilestones = enforceBudget(milestoneSummaries, 800);
@@ -124,7 +178,10 @@ export async function buildWorkingSet(
     chapter_id: chapterId,
     snapshot_hash: generateSnapshotHash({
       anchorRow,
+      worldRules,
       castRes: castRes.rows,
+      worldFlags,
+      timelineFacts,
       unresolvedLoops,
       recentChanges: finalRecentChanges
     }),
@@ -136,17 +193,17 @@ export async function buildWorkingSet(
         pacing: anchorRow?.pacing_bias || "Medium",
         perspective: "Third Person Limited"
       },
-      world_rules: []
+      world_rules: worldRules
     },
     active_state: {
       cast: castRes.rows.map(r => ({
         name: r.name,
         status: r.status,
-        motivation: "N/A",
+        motivation: motivationByName.get(String(r.name || "").trim().toLowerCase()) || "N/A",
         last_seen_chapter: r.chapter_id
       })),
-      world_flags: {},
-      timeline_facts: []
+      world_flags: worldFlags,
+      timeline_facts: timelineFacts
     },
     meso_context: {
       unresolved_loops: unresolvedLoops,

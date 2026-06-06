@@ -32,8 +32,31 @@ pipeline.
 - `references/research-bibliography.md`: paper notes and design implications.
 - `references/the-subcurrent-style-continuity-plan.md`: current application to
   the user's active story source captured under `.runtime/story-sources/the-subcurrent`.
+- `references/prose-evaluation-rubric.md`: rubric for judging generated prose,
+  A/B chapter outputs, repetition, causal progression, style continuity, and
+  critic/persistence readiness.
 
 Load only the reference file needed for the current task.
+
+## Local Report Intake
+
+When the user asks to evaluate a generated chapter, compare models, or mentions
+an A/B report, first look for local evidence before making claims:
+
+1. Read the comparison report, for example
+   `.runtime/ab-compare-*/COMPARISON.md`.
+2. Read the compared prose files, for example `caseA-*-prose.md` and
+   `caseB-*-prose.md`.
+3. Read the status/log files only for runtime claims, for example
+   `case*-status.json`, `worker_*.log`, `start_worker.sh`, and probe scripts.
+4. Read source context files only as needed for grounding checks, for example
+   `source-chapters-*.tsv`, `source-memory-snapshots-*.tsv`, and
+   `source-memory-rollups-*.tsv`.
+5. If the report references a pipeline failure, inspect the named worker file
+   only after confirming the failure from report/log evidence.
+
+Do not treat a stylist prose artifact as a finalized chapter if critic,
+refinement, staging, or persistence failed.
 
 ## Core Principles
 
@@ -85,6 +108,9 @@ Load only the reference file needed for the current task.
    - character state contradictions
    - unresolved loop handling
    - source trace coverage for high-impact facts
+   - causal progression and scene state change
+   - repetition, padding, and dialogue-loop risk
+   - prompt artifacts or meta-connectors leaking into prose
 
 ## Output Contract
 
