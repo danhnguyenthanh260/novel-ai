@@ -47,10 +47,10 @@ Return:
 
 ## Prompt-Universe Router
 
-Use `.agents/workflows/prompt-universe.md` when you have a messy prompt, pasted context, or you are not sure which skill/mode applies.
+Use root `prompt-universe.md` with Codex `@` autocomplete when you have a messy prompt, pasted context, or you are not sure which skill/mode applies. The root file is a short entrypoint that points to the full router at `.agents/workflows/prompt-universe.md`.
 
 ```md
-Use .agents/workflows/prompt-universe.md as the intake router.
+Use @prompt-universe as the intake router.
 
 Interpret this raw request before editing anything:
 [paste request]
