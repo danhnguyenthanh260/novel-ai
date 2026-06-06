@@ -94,3 +94,47 @@ test("normalizes placeholder values into explicit degraded metadata", () => {
     assert.ok(result.preflight.degraded_reasons.includes("CURRENT_WORLD_FLAGS_UNKNOWN"));
     assert.ok(result.preflight.degraded_reasons.includes("CHARACTER_MOTIVATION_UNKNOWN"));
 });
+
+test("populated working set raises no world/motivation uncertainties", () => {
+    // Mirrors a buildWorkingSet result after #192/#196 wiring: world_rules,
+    // world_flags, and per-character motivation are all populated from the DB.
+    const result = assembleChapterWritingContext({
+        workingSet: workingSet({
+            anchor: {
+                story_pitch: "A courier smuggles letters through a drowned city.",
+                style_dna: {
+                    tone: "Standard",
+                    pacing: "Medium",
+                    perspective: "Third Person Limited",
+                },
+                world_rules: [
+                    { id: 1, content: "Tides rise at dusk: the lower district floods nightly." },
+                    { id: 2, content: "Letters sealed with red wax carry legal authority." },
+                ],
+            },
+            active_state: {
+                cast: [
+                    {
+                        name: "A",
+                        status: "at the gate",
+                        motivation: "Reach the upper district before the tide.",
+                        last_seen_chapter: "ch01",
+                    },
+                ],
+                world_flags: { tide_rising: true, gate_open: false },
+                timeline_facts: ["A left the harbor at dawn."],
+            },
+        }),
+        userIntent: "Continue the escape.",
+    });
+
+    const reasons = [
+        ...result.preflight.degraded_reasons,
+        ...result.preflight.block_reasons,
+    ];
+    assert.ok(!reasons.includes("WORLD_RULES_PARTIAL"));
+    assert.ok(!reasons.includes("CURRENT_WORLD_FLAGS_UNKNOWN"));
+    assert.ok(!reasons.includes("CHARACTER_MOTIVATION_UNKNOWN"));
+    assert.ok(!reasons.includes("STORY_PITCH_UNKNOWN"));
+    assert.equal(result.preflight.status, "proceed");
+});

@@ -437,6 +437,19 @@ def call_llm_text(
     try:
         with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
             body = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        err_body = ""
+        try:
+            err_body = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            err_body = ""
+        print(
+            f"[call_llm_text] HTTPError: code={getattr(e, 'code', '?')} reason={getattr(e, 'reason', '')} body={err_body[:1200]}",
+            file=sys.stderr,
+            flush=True,
+        )
+        traceback.print_exc(file=sys.stderr)
+        return ""
     except urllib.error.URLError as e:
         print(f"[call_llm_text] URLError: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines, max-lines-per-function, complexity, @typescript-eslint/no-unused-vars */
 import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
 import type { ArcItem, ChapterItem, PublicDetail } from "@/features/story/components/storyLanding/types";
@@ -634,14 +635,14 @@ export default function StoryLandingView({
             </article>
 
             <Link
-              href="/shelf"
+              href={`/stories/${encodeURIComponent(item.slug)}/write`}
               className="flex items-center justify-center gap-2 rounded-md bg-white/5 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-400 hover:bg-white/10 transition"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-3 w-3">
                 <line x1="19" y1="12" x2="5" y2="12" />
                 <polyline points="12 19 5 12 12 5" />
               </svg>
-              Back to Shelf
+              Open Write Workspace
             </Link>
           </aside>
         </div>

@@ -125,6 +125,7 @@ Do not run whole-project lint unless requested. If verification cannot run, stat
 ## Source Of Truth
 
 - Agent instructions: `AGENTS.md`.
+- Agent harness, workflows, runtime skills, and agent-only metadata: `.agents/`.
 - Product architecture and flows: `apps/studio/README.md`.
 - Data model and contracts: `db/migrations/*.sql`.
 - Change boundary map: `docs/architecture/change-impact-map.md`.
@@ -137,15 +138,20 @@ Local Codex, Claude, or desktop memory is a cache, not a source of truth. Use it
 
 When a user prompt is vague, raw, multi-intent, or does not name the right skill, read `.agents/workflows/prompt-universe.md` before choosing a workflow. Use it as the intake router for mapping the request to investigation, implementation planning, GitHub issue/PR work, E2E verification, review, or harness maintenance.
 
+`.agents/` is the only active agent harness layer. Keep harness specs, prompt routing, runtime skills, maintenance rules, reports, agent profiles, and agent scripts under `.agents/`. `AGENTS.md` is only the root entrypoint required for agent discovery.
+
 ## Repository Codex Skills
 
 Repo-specific Codex skills live under `.agents/skills/`. Use them after reading this file and before editing the related surface:
 
 - `chat-first-workspace`: Write Assistant chat, composer, slash commands, durable conversations, context switching, and missing-context chat behavior.
 - `story-context-grooming`: `WritingContext`, memory/context extraction, source traceability, context gaps, and source-doc based context preparation.
+- `memory-integrity-review`: generated chapter publishability review, canon/world/character/timeline drift checks, and memory extraction cleanliness audits grounded in live source data.
+- `narrative-style-continuity-research`: research-backed planning for author style preservation, narrative coherence, chapter continuity, timeline ordering, character consistency, and source-grounded writing patterns.
 - `chapter-generation-workflow`: chapter planning, AutoWrite, `CHAPTER_WRITE_V3`, status polling, retries, staging, and generation acceptance checks.
 - `agent-progress-panel`: progress/thinking display, `workflow_progress`, right inspector progress mode, streaming state, cancellation, and retry state.
 - `artifact-context-contract`: `artifact_preview`, document artifact panels, context digests, approval gates, and right-panel document behavior.
+- `user-journey-product-review`: user-facing journey simulation, UX/product critique, short/long content pressure, and issue-ready product reports before UI implementation.
 - `codex-style-layout-review`: Codex-like triple-pane Write layout, viewport locking, independent scroll regions, right panel behavior, and responsive fallback.
 - `long-text-ingestion`: pasted/uploaded long text, `PASTE_TEXT`, `MEGA_FILE`, `ZIP_UPLOAD`, source docs, and split-draft traceability.
 - `playwright-e2e-verification`: browser/E2E verification for chat-first writing, layout containment, artifact panel behavior, and missing-context onboarding.

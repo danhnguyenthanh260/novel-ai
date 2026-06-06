@@ -91,7 +91,6 @@ export function contextWithCommandIntent(context: AssistantReadinessContext, com
 }
 
 export function chipTarget(chip: RecoveryChip): string | null {
-  if (chip.intent === "browse_stories" || chip.intent === "switch_story") return "/shelf";
   if (chip.intent === "start_story") return "/";
   return null;
 }
@@ -266,6 +265,40 @@ export function buildSourceArtifactBlock(text: string, stamp = Date.now()): Time
       "Use ingest or source review before promoting this material.",
     ],
     actions: ["open_source_artifact"],
+  };
+}
+
+export function buildWriteConfirmationChoiceGroup(chapterId: string, goal: string, stamp = Date.now()): TimelineBlock {
+  const targetChapter = chapterId || "selected chapter";
+  const compactGoal = goal.trim() || `Continue ${targetChapter}.`;
+  return {
+    id: `write-confirmation-${stamp}`,
+    type: "choice_group",
+    source: "assistant",
+    prompt: `Confirm writing ${targetChapter}?`,
+    selectionMode: "single",
+    submitBehavior: "requires_confirm",
+    choices: [
+      {
+        id: "confirm_write",
+        label: "Confirm write",
+        description: "Start AutoWrite for this chapter with the current context.",
+        value: compactGoal,
+      },
+      {
+        id: "cancel_write",
+        label: "Cancel",
+        description: "Keep the chat open without starting generation.",
+        value: "Cancel chapter writing.",
+      },
+    ],
+    metadata: {
+      groupKind: "write_confirmation",
+      intent: "WRITE",
+      command: "/write chapter",
+      chapterId: chapterId || null,
+      goal: compactGoal,
+    },
   };
 }
 

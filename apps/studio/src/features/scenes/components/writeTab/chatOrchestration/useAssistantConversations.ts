@@ -35,8 +35,8 @@ async function jsonOrError(res: Response): Promise<Record<string, unknown>> {
   return json as Record<string, unknown>;
 }
 
-function conversationWorkspace(scope: ChatScope): "write_assistant" | "story" {
-  return scope === "story" ? "story" : "write_assistant";
+function conversationWorkspace(): "write_assistant" {
+  return "write_assistant";
 }
 
 function scopedChapterId(scope: ChatScope, chapterId: string): string {
@@ -68,7 +68,7 @@ export function useAssistantConversations(args: { storySlug: string; chapterId: 
 
   const conversationsUrl = React.useCallback(() => {
     const chapterId = scopedChapterId(args.chatScope, args.chapterId);
-    const qs = new URLSearchParams({ scope, workspace: conversationWorkspace(args.chatScope) });
+    const qs = new URLSearchParams({ scope, workspace: conversationWorkspace() });
     if (chapterId) qs.set("chapter_id", chapterId);
     return `/api/stories/${encodeURIComponent(args.storySlug)}/assistant/conversations?${qs.toString()}`;
   }, [args.chapterId, args.chatScope, args.storySlug, scope]);
@@ -146,7 +146,7 @@ export function useAssistantConversations(args: { storySlug: string; chapterId: 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          workspace: conversationWorkspace(args.chatScope),
+          workspace: conversationWorkspace(),
           chapter_id: scopedChapterId(args.chatScope, args.chapterId) || null,
           state_json: defaultConversationState,
         }),

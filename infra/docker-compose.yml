@@ -32,7 +32,8 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
-      retries: 10
+      retries: 20
+      start_period: 60s
 
   qdrant:
     image: qdrant/qdrant:v1.13.4
@@ -49,10 +50,11 @@ services:
       retries: 10
 
   historian-mcp-bridge:
-    image: python:3.12-slim
+    build:
+      context: .
+      dockerfile: Dockerfile.historian
     container_name: novel_historian_bridge
     working_dir: /app
-    command: ["python", "/app/historian_mcp_bridge.py"]
     environment:
       HISTORIAN_BRIDGE_HOST: 0.0.0.0
       HISTORIAN_BRIDGE_PORT: "8090"
@@ -61,8 +63,6 @@ services:
       HISTORIAN_NEO4J_USER: neo4j
       HISTORIAN_NEO4J_PASSWORD: novelgraphpass
       HISTORIAN_BRIDGE_TIMEOUT_SECONDS: "10"
-    volumes:
-      - ./historian_mcp_bridge.py:/app/historian_mcp_bridge.py:ro
     ports:
       - "8090:8090"
     depends_on:
@@ -133,9 +133,9 @@ services:
       db-migrate:
         condition: service_completed_successfully
       neo4j:
-        condition: service_started
+        condition: service_healthy
       qdrant:
-        condition: service_started
+        condition: service_healthy
       historian-mcp-bridge:
         condition: service_healthy
 volumes:

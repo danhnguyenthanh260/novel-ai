@@ -53,9 +53,6 @@ function RootDatabaseRecovery() {
           <Link href="/" className="primary-action">
             Retry
           </Link>
-          <Link href="/shelf" className="shell-link px-3 py-2">
-            Story Shelf
-          </Link>
         </div>
       </section>
     </main>

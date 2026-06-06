@@ -3,6 +3,11 @@ import { defineConfig, devices } from "@playwright/test";
 const port = Number(process.env.PLAYWRIGHT_PORT ?? process.env.E2E_STUDIO_PORT ?? 3000);
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`;
 const healthURL = `${baseURL}/stories/subcurrent/write`;
+const screenshotMode = (() => {
+  const mode = process.env.PLAYWRIGHT_SCREENSHOT_MODE;
+  if (mode === "off" || mode === "on" || mode === "only-on-failure") return mode;
+  return process.env.CI ? "only-on-failure" : "on";
+})();
 
 export default defineConfig({
   testDir: "./e2e/tests",
@@ -12,9 +17,9 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     baseURL,
-    headless: true,
+    headless: process.env.CI ? true : process.env.PLAYWRIGHT_HEADLESS === "1",
     trace: "retain-on-failure",
-    screenshot: "only-on-failure",
+    screenshot: screenshotMode,
   },
   webServer: {
     command: `npm run dev -- --hostname 127.0.0.1 --port ${port}`,

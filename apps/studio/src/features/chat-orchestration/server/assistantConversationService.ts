@@ -4,7 +4,7 @@ import { pool } from "@/server/db/pool";
 import { resolveStoryId, resolveStoryIdForWrite } from "@/features/scenes/server/workflow/routeUtils";
 
 const WORKSPACE = "write_assistant";
-const WORKSPACES = new Set(["write_assistant", "story"]);
+const WORKSPACES = new Set([WORKSPACE]);
 const MAX_TITLE_LENGTH = 72;
 const MESSAGE_ROLES = new Set(["user", "assistant", "system", "tool", "workflow"]);
 const STATUS_VALUES = new Set(["active", "archived"]);

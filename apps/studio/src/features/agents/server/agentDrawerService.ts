@@ -1,157 +1,21 @@
+/* eslint-disable complexity, max-lines-per-function */
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/server/db/pool";
-
-type AgentDrawerIdentityRow = {
-  profile_id: number | null;
-  species_name: string | null;
-  nick_name: string | null;
-  level: number | null;
-  experience_pts: string | null;
-  is_sealed: boolean | null;
-  visual_profile_json: unknown;
-};
-
-type AgentDrawerPromptRow = {
-  version_id: number;
-  status: string;
-  version_no: number;
-  created_at: string;
-  change_note: string | null;
-  system_prompt: string;
-  developer_prompt: string | null;
-};
-
-type AgentDrawerRunRow = {
-  id: number;
-  job_id: number | null;
-  task_id: number | null;
-  status: string;
-  error_code: string | null;
-  prompt_version_id: number | null;
-  model_name: string | null;
-  latency_ms: number | null;
-  token_in: number | null;
-  token_out: number | null;
-  quality_json: unknown;
-  created_at: string;
-};
-
-type AgentDrawerMemoryRow = {
-  id: number;
-  memory_type: string;
-  memory_text: string;
-  score: string;
-  created_at: string;
-};
-
-type AgentDrawerFeedbackRow = {
-  id: number;
-  feedback_type: string;
-  feedback_source: string;
-  feedback_text: string;
-  status: string;
-  created_at: string;
-};
-
-type AgentDrawerTuningRow = {
-  id: number;
-  action: string;
-  reason: string;
-  created_at: string;
-};
-
-type AgentDrawerProfileEventRow = {
-  id: number;
-  action: string;
-  details_json: unknown;
-  created_at: string;
-};
-
-type AgentDrawerHydrationRow = {
-  id: number;
-  run_trace_id: number | null;
-  task_type: string;
-  prompt_version_id: number | null;
-  hydration_output_hash: string | null;
-  hydration_output_text: string | null;
-  hydration_render_steps_json: unknown;
-  llm_request_meta_json: unknown;
-  tokens_prompt_base: number | null;
-  tokens_rules_injected: number | null;
-  tokens_memory_injected: number | null;
-  tokens_feedback_injected: number | null;
-  tokens_truncated: number | null;
-  created_at: string;
-};
-
-type TruthConflictRow = {
-  id: number;
-  conflict_id: string;
-  losing_rule_ref: string;
-  winning_rule_ref: string;
-  resolution_mode: string;
-  resolution_reason: string;
-  payload_json: Record<string, unknown>;
-  created_at: string;
-};
-
-type ShadowPairRow = {
-  id: number;
-  pair_status: string;
-  active_run_trace_id: number | null;
-  shadow_run_trace_id: number | null;
-  active_prompt_version_id: number | null;
-  shadow_prompt_version_id: number | null;
-  compare_json: Record<string, unknown>;
-  created_at: string;
-};
-
-type ShadowRunTraceLiteRow = {
-  id: number;
-  status: string;
-  latency_ms: number | null;
-  token_in: number | null;
-  token_out: number | null;
-  quality_json: unknown;
-};
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function parseNumber(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const n = Number(value);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
-}
-
-function sanitizeVisualProfile(input: unknown): Record<string, string> {
-  const obj = isPlainObject(input) ? input : {};
-  const pick = (key: string, fallback: string): string => {
-    const raw = obj[key];
-    return typeof raw === "string" && raw.trim() ? raw.trim().slice(0, 80) : fallback;
-  };
-  return {
-    skin: pick("skin", "mint_core"),
-    frame: pick("frame", "bronze_ring"),
-    badge: pick("badge", "split_master"),
-    title: pick("title", ""),
-    fx_level: pick("fx_level", "low"),
-  };
-}
-
-async function resolveStoryId(slug: string): Promise<number> {
-  const res = await pool.query<{ id: number }>(
-    `SELECT id FROM public.story_series WHERE slug = $1 LIMIT 1`,
-    [slug]
-  );
-  const id = Number(res.rows[0]?.id ?? 0);
-  if (!id) throw new Error("NOT_FOUND");
-  return id;
-}
+import { resolveStoryId } from "@/features/agents/server/agentGovernanceServerUtils";
+import { loadAgentDrawerShadowCompare } from "@/features/agents/server/agentDrawerShadow";
+import {
+  type AgentDrawerFeedbackRow,
+  type AgentDrawerHydrationRow,
+  type AgentDrawerIdentityRow,
+  type AgentDrawerMemoryRow,
+  type AgentDrawerProfileEventRow,
+  type AgentDrawerPromptRow,
+  type AgentDrawerRunRow,
+  type AgentDrawerTuningRow,
+  type TruthConflictRow,
+  isPlainObject,
+  sanitizeVisualProfile,
+} from "@/features/agents/server/agentDrawerUtils";
 
 export async function getAgentDrawerResponse(
   req: NextRequest,
@@ -329,24 +193,6 @@ export async function getAgentDrawerResponse(
       ? (latestRun.quality_json as Record<string, unknown>)
       : {};
     let truthConflicts: TruthConflictRow[] = [];
-    let shadowPairs: ShadowPairRow[] = [];
-    let shadowCompare: Array<{
-      pair_id: number;
-      pair_status: string;
-      active_run_trace_id: number | null;
-      shadow_run_trace_id: number | null;
-      active_prompt_version_id: number | null;
-      shadow_prompt_version_id: number | null;
-      delta_latency_ms: number | null;
-      delta_token_in: number | null;
-      delta_token_out: number | null;
-      active_hard_fail: boolean | null;
-      shadow_hard_fail: boolean | null;
-      active_flagged_pct: number | null;
-      shadow_flagged_pct: number | null;
-      compare_json: Record<string, unknown>;
-      created_at: string;
-    }> = [];
     if (latestRun?.task_id) {
       try {
         const conflictRes = await pool.query<TruthConflictRow>(
@@ -364,80 +210,10 @@ export async function getAgentDrawerResponse(
           throw error;
         }
       }
-      try {
-        const shadowRes = await pool.query<ShadowPairRow>(
-          `SELECT
-             id,
-             pair_status,
-             active_run_trace_id,
-             shadow_run_trace_id,
-             active_prompt_version_id,
-             shadow_prompt_version_id,
-             compare_json,
-             created_at::text
-           FROM public.shadow_run_pair
-           WHERE story_id = $1
-             AND task_id = $2
-           ORDER BY created_at DESC, id DESC
-           LIMIT 20`,
-          [storyId, latestRun.task_id],
-        );
-        shadowPairs = shadowRes.rows;
-      } catch (error: unknown) {
-        if (!error || typeof error !== "object" || !["42P01", "42703"].includes((error as { code?: string }).code || "")) {
-          throw error;
-        }
-      }
     }
-    if (shadowPairs.length > 0) {
-      const ids = Array.from(
-        new Set(
-          shadowPairs
-            .flatMap((x) => [x.active_run_trace_id, x.shadow_run_trace_id])
-            .filter((x): x is number => Number.isFinite(Number(x)) && Number(x) > 0),
-        ),
-      );
-      let runById = new Map<number, ShadowRunTraceLiteRow>();
-      if (ids.length > 0) {
-        const runRes = await pool.query<ShadowRunTraceLiteRow>(
-          `SELECT id, status, latency_ms, token_in, token_out, quality_json
-           FROM public.agent_run_trace
-           WHERE story_id = $1
-             AND id = ANY($2::bigint[])`,
-          [storyId, ids],
-        );
-        runById = new Map(runRes.rows.map((r) => [Number(r.id), r]));
-      }
-      shadowCompare = shadowPairs.map((p) => {
-        const active = p.active_run_trace_id ? runById.get(Number(p.active_run_trace_id)) : undefined;
-        const shadow = p.shadow_run_trace_id ? runById.get(Number(p.shadow_run_trace_id)) : undefined;
-        const activeQ = active?.quality_json && isPlainObject(active.quality_json) ? active.quality_json : {};
-        const shadowQ = shadow?.quality_json && isPlainObject(shadow.quality_json) ? shadow.quality_json : {};
-        const activeLatency = parseNumber(active?.latency_ms);
-        const shadowLatency = parseNumber(shadow?.latency_ms);
-        const activeIn = parseNumber(active?.token_in);
-        const shadowIn = parseNumber(shadow?.token_in);
-        const activeOut = parseNumber(active?.token_out);
-        const shadowOut = parseNumber(shadow?.token_out);
-        return {
-          pair_id: p.id,
-          pair_status: p.pair_status,
-          active_run_trace_id: p.active_run_trace_id,
-          shadow_run_trace_id: p.shadow_run_trace_id,
-          active_prompt_version_id: p.active_prompt_version_id,
-          shadow_prompt_version_id: p.shadow_prompt_version_id,
-          delta_latency_ms: activeLatency != null && shadowLatency != null ? shadowLatency - activeLatency : null,
-          delta_token_in: activeIn != null && shadowIn != null ? shadowIn - activeIn : null,
-          delta_token_out: activeOut != null && shadowOut != null ? shadowOut - activeOut : null,
-          active_hard_fail: typeof activeQ.hard_fail === "boolean" ? activeQ.hard_fail : null,
-          shadow_hard_fail: typeof shadowQ.hard_fail === "boolean" ? shadowQ.hard_fail : null,
-          active_flagged_pct: parseNumber(activeQ.flagged_pct),
-          shadow_flagged_pct: parseNumber(shadowQ.flagged_pct),
-          compare_json: isPlainObject(p.compare_json) ? p.compare_json : {},
-          created_at: p.created_at,
-        };
-      });
-    }
+    const { shadowPairs, shadowCompare } = latestRun?.task_id
+      ? await loadAgentDrawerShadowCompare(storyId, latestRun.task_id)
+      : { shadowPairs: [], shadowCompare: [] };
 
     const activityEvents = [
       ...runs.slice(0, 6).map((r) => ({

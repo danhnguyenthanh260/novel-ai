@@ -107,7 +107,6 @@ function NavigationPanel(
   const storyBase = `/stories/${encodeURIComponent(props.storySlug)}`;
   const readerHref = props.selectedChapterId && props.hasDraft ? `/read/${encodeURIComponent(props.storySlug)}/${encodeURIComponent(props.selectedChapterId)}` : null;
   const workspaceLinks = [
-    { label: "Shelf", href: "/shelf" },
     { label: "Write", href: `${storyBase}/write`, active: true },
     { label: "Memory", href: `${storyBase}/memory` },
     { label: "Reviews", href: `${storyBase}/reviews` },
@@ -224,9 +223,12 @@ function selectedChapterTitle(selectedChapterId: string): string {
   return selectedChapterId ? `${getChapterTitle(selectedChapterId)} Draft` : "No chapter selected";
 }
 
+// eslint-disable-next-line complexity
 function assistantAvailability(props: NovelLabWorkspaceProps, hasDraft: boolean): AssistantAvailability {
-  const hasSourceChapters = props.chapterScenes.length > 0 || Boolean(props.current?.text_content || props.stagingData?.llm_prose || props.v3Draft?.full_text);
-  const hasMemorySnapshot = Boolean(props.v3Draft?.virtual_scenes?.length || props.stagingData || hasDraft);
+  const hasStoryChapterContext = props.chapterIds.length > 0;
+  const hasSourceChapters =
+    hasStoryChapterContext || props.chapterScenes.length > 0 || Boolean(props.current?.text_content || props.stagingData?.llm_prose || props.v3Draft?.full_text);
+  const hasMemorySnapshot = Boolean(props.v3Draft?.virtual_scenes?.length || props.stagingData || hasDraft || hasStoryChapterContext);
   return {
     has_source_chapters: hasSourceChapters,
     has_active_characters: hasSourceChapters,
@@ -247,13 +249,16 @@ function WorkspaceStatusMessages({ error, loadingDetail, loadingChapter }: Pick<
 }
 
 function WorkspaceAutoWriteModal(
-  props: Pick<NovelLabWorkspaceProps, "storySlug" | "selectedChapterId" | "showAutoWrite" | "onAutoWriteComplete" | "setShowAutoWrite">
+  props: Pick<NovelLabWorkspaceProps, "storySlug" | "selectedChapterId" | "showAutoWrite" | "onAutoWriteComplete" | "setShowAutoWrite"> & {
+    initialPrompt: string;
+  }
 ) {
   if (!props.showAutoWrite || !props.selectedChapterId) return null;
   return (
     <AutoWriteWizard
       storySlug={props.storySlug}
       chapterId={props.selectedChapterId}
+      initialPrompt={props.initialPrompt}
       onComplete={props.onAutoWriteComplete}
       onClose={() => props.setShowAutoWrite(false)}
     />
@@ -272,6 +277,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshot | null>(null);
   const [pipelineSnapshot, setPipelineSnapshot] = useState<PipelineSnapshot | null>(null);
   const [reviewSnapshot, setReviewSnapshot] = useState<ReviewSnapshot | null>(null);
+  const [autoWriteInitialPrompt, setAutoWriteInitialPrompt] = useState("");
   const draftSource = useMemo(() => buildDraftSource(props), [props]);
   const chapterTitle = selectedChapterTitle(props.selectedChapterId);
   const hasDraft = draftSource.text.trim().length > 0;
@@ -284,6 +290,10 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
     setInspectorMode(mode);
     setIsArtifactVisible(false);
     setArtifactDrawerOpen(true);
+  };
+  const openAutoWrite = (initialPrompt?: string) => {
+    setAutoWriteInitialPrompt(initialPrompt?.trim() ?? "");
+    props.setShowAutoWrite(true);
   };
 
   return (
@@ -320,7 +330,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           commandMenuOpen={commandMenuOpen}
           onComposerValueChange={setComposerValue}
           onCommandMenuOpenChange={setCommandMenuOpen}
-          onOpenAutoWrite={() => props.setShowAutoWrite(true)}
+          onOpenAutoWrite={openAutoWrite}
           onOpenArtifactDrawer={() => setArtifactDrawerOpen(true)}
           onQueueContinuity={() => setContinuityQueued(true)}
           onInspectorModeChange={openInspectorMode}
@@ -357,7 +367,7 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           drawerOpen={artifactDrawerOpen}
           onDrawerOpenChange={setArtifactDrawerOpen}
           continuityQueued={continuityQueued}
-          onOpenAutoWrite={() => props.setShowAutoWrite(true)}
+          onOpenAutoWrite={openAutoWrite}
           onQueueContinuity={() => setContinuityQueued(true)}
           onSaveDraft={props.onSaveChapterDraft}
         />
@@ -368,7 +378,13 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
         storySlug={props.storySlug}
         selectedChapterId={props.selectedChapterId}
         showAutoWrite={props.showAutoWrite}
-        onAutoWriteComplete={props.onAutoWriteComplete}
+        initialPrompt={autoWriteInitialPrompt}
+        onAutoWriteComplete={async (prose) => {
+          await props.onAutoWriteComplete(prose);
+          setIsArtifactVisible(true);
+          setArtifactDrawerOpen(false);
+          setInspectorMode("artifacts");
+        }}
         setShowAutoWrite={props.setShowAutoWrite}
       />
     </>
