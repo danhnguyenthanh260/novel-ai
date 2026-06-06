@@ -86,6 +86,32 @@ services:
     depends_on:
       - postgres
 
+  db-migrate:
+    image: postgres:15
+    container_name: novel_db_migrate
+    environment:
+      PGPASSWORD: novelpass
+    volumes:
+      - ../db/migrations:/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - sh
+      - -lc
+      - |
+        set -eu
+        baseline_count="$(psql -h postgres -U novel -d novel -tAc "SELECT count(*) FROM pg_tables WHERE schemaname = 'public' AND tablename = 'story_series'")"
+        for file in /migrations/*.sql; do
+          name="$$(basename "$$file")"
+          if [ "$$baseline_count" = "1" ] && [ "$$name" = "000_baseline_20260502.sql" ]; then
+            echo "Skipping $$name because public.story_series already exists."
+            continue
+          fi
+          echo "Applying $$name"
+          psql -h postgres -U novel -d novel -v ON_ERROR_STOP=1 -f "$$file"
+        done
+
   novel-studio:
     build:
       context: ../apps/studio
@@ -104,8 +130,8 @@ services:
     ports:
       - "3001:3000"
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
       neo4j:
         condition: service_started
       qdrant:

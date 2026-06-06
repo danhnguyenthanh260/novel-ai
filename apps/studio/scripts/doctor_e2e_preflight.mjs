@@ -247,6 +247,10 @@ const REQUIRED_TABLES = [
   ["story_chapter", "chapter list"],
 ];
 
+const ACTIVE_MIGRATION_FIX =
+  "Run Docker bootstrap: docker compose -f infra/docker-compose.yml up db-migrate. " +
+  "Manual fallback: apply root-level db/migrations/*.sql in filename order; do not apply archived migrations.";
+
 async function checkDbTables() {
   const client = new Client({ connectionString: DB_URL, connectionTimeoutMillis: 5000 });
   try {
@@ -264,7 +268,7 @@ async function checkDbTables() {
         fail(
           `table:${table}`,
           `MISSING — required by ${reason}`,
-          "Apply migrations: psql $DATABASE_URL -f db/migrations/000_baseline_20260502.sql"
+          ACTIVE_MIGRATION_FIX
         );
       }
     }
@@ -279,7 +283,7 @@ async function checkDbTables() {
     // Check for assistant_conversation table (added in delta migration)
     const convMigration = existing.has("assistant_conversation");
     if (convMigration) pass("db-migration-delta", "assistant_conversation table present (delta migration applied)");
-    else fail("db-migration-delta", "assistant_conversation missing", "Apply: psql $DATABASE_URL -f db/migrations/20260508_assistant_conversation_history.sql");
+    else fail("db-migration-delta", "assistant_conversation missing", ACTIVE_MIGRATION_FIX);
 
   } catch (err) {
     fail("db-tables", `Query failed: ${err.message}`);
