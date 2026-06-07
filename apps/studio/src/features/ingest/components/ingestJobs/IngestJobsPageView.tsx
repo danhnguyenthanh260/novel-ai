@@ -28,6 +28,12 @@ function llmStatusText(detail: string | undefined) {
   return "unknown";
 }
 
+function dbStatusText(state: IngestJobsControllerState) {
+  const readiness = state.workerStatus?.readiness;
+  if (!readiness) return "unknown";
+  return readiness.ok ? "ready" : `missing ${readiness.missing_tables.length}`;
+}
+
 function workerTone(workerState: string) {
   if (workerState.includes("running")) return "ok";
   if (workerState === "disabled") return "warn";
@@ -37,6 +43,12 @@ function workerTone(workerState: string) {
 function llmTone(llmState: string) {
   if (llmState === "ready") return "ok";
   if (llmState === "offline") return "bad";
+  return "muted";
+}
+
+function dbTone(dbState: string) {
+  if (dbState === "ready") return "ok";
+  if (dbState.startsWith("missing")) return "bad";
   return "muted";
 }
 
@@ -97,6 +109,10 @@ function IngestJobsHeader({ storySlug, state, lastUpdatedAt }: HeaderProps) {
   const workerState = workerStatusText(state);
   const splitLaneState = splitLaneStatus(state);
   const llmState = llmStatusText(state.workerStatus?.detail);
+  const dbState = dbStatusText(state);
+  const missingTables = state.workerStatus?.readiness?.missing_tables ?? [];
+  const migrationHint = state.workerStatus?.readiness?.hint;
+  const dbError = state.workerStatus?.readiness?.error;
 
   return (
     <div className="surface-card sticky top-0 z-20 p-3">
@@ -114,10 +130,18 @@ function IngestJobsHeader({ storySlug, state, lastUpdatedAt }: HeaderProps) {
             <div className="mt-2 flex flex-wrap gap-2">
               {statusChip("worker", workerState, workerTone(workerState))}
               {statusChip("split lane", splitLaneState, splitLaneState === "running" ? "ok" : "warn")}
+              {statusChip("db", dbState, dbTone(dbState))}
               {statusChip("llm", llmState, llmTone(llmState))}
               {statusChip("last updated", lastUpdatedAt, "muted")}
             </div>
             {state.workerStatus?.detail ? <div className="muted mt-2 text-xs">{state.workerStatus.detail}</div> : null}
+            {missingTables.length > 0 ? (
+              <div className="mt-2 rounded border border-rose-700/40 bg-rose-950/20 p-2 text-xs leading-5 text-rose-100">
+                DB migration incomplete. Missing: {missingTables.join(", ")}.
+                {migrationHint ? <span className="ml-1">{migrationHint}</span> : null}
+                {dbError ? <div className="mt-1 text-rose-100/80">{dbError}</div> : null}
+              </div>
+            ) : null}
           </details>
         </div>
         <HeaderActions storySlug={storySlug} state={state} />
@@ -144,6 +168,11 @@ function selectedJobLabel(state: IngestJobsControllerState): string {
   return `Job #${state.selectedJobId ?? "-"}`;
 }
 
+function selectedJobPipelineHref(storySlug: string, state: IngestJobsControllerState): string {
+  if (!state.selectedJobId) return "#ingest-diagnostics";
+  return `/stories/${encodeURIComponent(storySlug)}/pipelines/${state.selectedJobId}`;
+}
+
 function actionForAttentionState(state: IngestJobsControllerState): AuthorNextAction | null {
   if (state.error) {
     return {
@@ -164,8 +193,17 @@ function actionForAttentionState(state: IngestJobsControllerState): AuthorNextAc
   return null;
 }
 
-function actionForJobStatus(status: string, state: IngestJobsControllerState): AuthorNextAction | null {
+function actionForJobStatus(storySlug: string, status: string, state: IngestJobsControllerState): AuthorNextAction | null {
   const jobLabel = selectedJobLabel(state);
+  const pipelineHref = selectedJobPipelineHref(storySlug, state);
+  const dbBlocked = state.workerStatus?.readiness && !state.workerStatus.readiness.ok;
+  const workerBlocked = state.workerStatus && !state.workerStatus.running;
+  const progressBody = dbBlocked
+    ? `${jobLabel} cannot advance because DB migrations are incomplete. Open diagnostics and run the migration command.`
+    : workerBlocked
+      ? `${jobLabel} is queued, but the worker is not running. Open diagnostics to start the worker or inspect runtime details.`
+      : `${jobLabel} is processing. Open Pipeline View to inspect task-level progress.`;
+  const progressHref = workerBlocked || dbBlocked ? "#ingest-diagnostics" : pipelineHref;
   const byStatus: Partial<Record<string, AuthorNextAction>> = {
     AWAITING_DATA_APPROVAL: {
       label: "Review source validation",
@@ -187,14 +225,14 @@ function actionForJobStatus(status: string, state: IngestJobsControllerState): A
     },
     RUNNING: {
       label: "Monitor progress",
-      body: `${jobLabel} is processing. The page will refresh while the worker advances tasks.`,
-      href: "#ingest-work",
+      body: progressBody,
+      href: progressHref,
       tone: "active",
     },
     PENDING: {
       label: "Monitor progress",
-      body: `${jobLabel} is processing. The page will refresh while the worker advances tasks.`,
-      href: "#ingest-work",
+      body: progressBody,
+      href: progressHref,
       tone: "active",
     },
     FAILED: {
@@ -211,7 +249,7 @@ function buildAuthorNextAction(storySlug: string, state: IngestJobsControllerSta
   const status = String(state.selectedJob?.status || "").toUpperCase();
   const attentionAction = actionForAttentionState(state);
   if (attentionAction) return attentionAction;
-  const statusAction = actionForJobStatus(status, state);
+  const statusAction = actionForJobStatus(storySlug, status, state);
   if (statusAction) return statusAction;
   return {
     label: "Continue to analysis",

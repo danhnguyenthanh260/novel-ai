@@ -61,6 +61,26 @@ function UploadModeControl({
   );
 }
 
+function InputContractHint({ uploadMode, splitMode }: Pick<UploadStateProps, "uploadMode" | "splitMode">) {
+  const splitHint =
+    splitMode === "manual"
+      ? "Manual split also requires scene delimiters such as ## Scene or --- inside each chapter."
+      : "Auto split can accept chapter text without scene delimiters; the worker and LLM must be running.";
+  const modeHint =
+    uploadMode === "ZIP_UPLOAD"
+      ? "ZIP files must contain UTF-8 text files named with a chapter number, for example chapter-01.txt, ch02.md, 01-title.txt, or book/chapter_3.txt."
+      : uploadMode === "MEGA_FILE"
+        ? "MEGA text must separate chapters with markers like === CHAPTER 1 ===, # Chapter 1, or CHAPTER I."
+        : "Paste text can be one chapter, or multiple chapters when separated by === CHAPTER 1 ===, # Chapter 1, or CHAPTER I markers.";
+  return (
+    <div className="rounded border border-amber-700/40 bg-amber-950/20 p-3 text-xs leading-5 text-amber-100">
+      <div className="font-medium">Source format requirements</div>
+      <div className="mt-1 text-amber-100/90">{modeHint}</div>
+      <div className="text-amber-100/80">{splitHint}</div>
+    </div>
+  );
+}
+
 function AdvancedUploadControls({
   splitMode,
   setSplitMode,
@@ -156,7 +176,7 @@ function AdvancedUploadControls({
         </select>
       </label>
       <label className="grid gap-1 text-sm">
-        <span>Validate Data</span>
+        <span>Review Before Split</span>
         <select
           className="shell-control px-2 py-2 text-sm"
           value={validateBeforeSplit ? "on" : "off"}
@@ -165,6 +185,7 @@ function AdvancedUploadControls({
           <option value="on">ON (Review first)</option>
           <option value="off">OFF (Direct split)</option>
         </select>
+        <span className="muted text-xs">File structure is always checked before a job is created.</span>
       </label>
       <label className="grid gap-1 text-sm">
         <span>Created By</span>
@@ -206,6 +227,7 @@ function UploadPayloadInput({
           className="shell-control px-2 py-2 text-sm"
           onChange={(e) => setZipFile(e.target.files?.[0] ?? null)}
         />
+        <span className="muted text-xs">Each file name must include chapter/ch plus a number, or start with a number.</span>
       </label>
     );
   }
@@ -252,7 +274,7 @@ function UploadPayloadInput({
           className="shell-control min-h-40 px-2 py-2 text-sm"
           value={pastedText}
           onChange={(e) => setPastedText(e.target.value)}
-          placeholder="Paste chapter text or mega text with chapter markers..."
+          placeholder={"CHAPTER I\nPaste chapter text here...\n\nCHAPTER II\nPaste chapter text here..."}
         />
       </label>
     </div>
@@ -295,6 +317,7 @@ export function UploadSourcePanel(props: UploadSourcePanelProps) {
           pastedText={props.pastedText}
           setPastedText={props.setPastedText}
         />
+        <InputContractHint uploadMode={props.uploadMode} splitMode={props.splitMode} />
         <details className="rounded border border-[#223247] bg-[#0b1526] p-3">
           <summary className="cursor-pointer text-sm font-medium text-slate-200">Advanced ingest options</summary>
           <div className="mt-3">

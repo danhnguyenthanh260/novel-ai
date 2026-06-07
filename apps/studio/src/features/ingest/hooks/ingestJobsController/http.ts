@@ -3,6 +3,7 @@ import type {
   FeedbackDraft,
   IngestJob,
   IngestTask,
+  RuntimeReadiness,
   SourceDocItem,
   SplitDraftData,
   SplitDraftScene,
@@ -19,6 +20,42 @@ type JsonRecord = Record<string, unknown>;
 
 async function parseJsonResponse(res: Response): Promise<JsonRecord> {
   return (await res.json()) as JsonRecord;
+}
+
+function explainIngestError(code: unknown): string | null {
+  if (typeof code !== "string" || !code) return null;
+  if (/^ZIP_FILE_CHAPTER_NUMBER_MISSING_\d+$/.test(code)) {
+    return `${code}: rename each ZIP file to include chapter/ch plus a number, or start with a number, for example chapter-01.txt, ch02.md, or 01-title.txt.`;
+  }
+  if (/^ZIP_FILE_SCENE_DELIMITER_MISSING_\d+$/.test(code)) {
+    return `${code}: manual split requires a scene delimiter such as ## Scene or --- in this chapter.`;
+  }
+  if (code === "ZIP_DECOMPRESS_FAILED") {
+    return `${code}: the file could not be opened as a ZIP archive. Re-export it as a standard .zip file and try again.`;
+  }
+  if (/^PASTE_SCENE_DELIMITER_MISSING_\d+$/.test(code)) {
+    return `${code}: manual split requires scene delimiters. Switch to auto split or add ## Scene / --- markers.`;
+  }
+  if (code === "WORKER_SCRIPT_NOT_FOUND") {
+    return `${code}: the app runtime cannot see the memory worker file. Check repo mount, cwd, and MEMORY_WORKER_SCRIPT.`;
+  }
+  return code;
+}
+
+function ingestErrorMessage(json: JsonRecord): string {
+  const raw = Array.isArray(json.errors) ? json.errors : [json.error];
+  return raw.map(explainIngestError).filter(Boolean).join(", ") || "INGEST_REQUEST_FAILED";
+}
+
+function resolveReadiness(raw: unknown): RuntimeReadiness | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const value = raw as JsonRecord;
+  return {
+    ok: Boolean(value.ok),
+    missing_tables: Array.isArray(value.missing_tables) ? value.missing_tables.map((item) => String(item)) : [],
+    hint: typeof value.hint === "string" ? value.hint : undefined,
+    error: typeof value.error === "string" ? value.error : undefined,
+  };
 }
 
 function resolveWorkerStatus(worker: unknown): WorkerStatus | null {
@@ -42,6 +79,7 @@ export async function fetchWorkerStatus(baseUrl: string): Promise<WorkerStatus |
   if (workerData && Array.isArray(json.lanes)) {
     workerData.lanes = json.lanes as WorkerLaneStatus[];
   }
+  if (workerData) workerData.readiness = resolveReadiness(json.readiness);
   return workerData;
 }
 
@@ -56,7 +94,10 @@ export async function postWorkerAction(baseUrl: string, action: "start" | "stop"
     throw new Error(typeof json.error === "string" ? json.error : `WORKER_${action.toUpperCase()}_FAILED`);
   }
   return {
-    worker: resolveWorkerStatus(json.worker) ?? { enabled: false, running: false, pid: null },
+    worker: {
+      ...(resolveWorkerStatus(json.worker) ?? { enabled: false, running: false, pid: null }),
+      readiness: resolveReadiness(json.readiness),
+    },
     result: json.result && typeof json.result === "object" ? (json.result as JsonRecord) : null,
   };
 }
@@ -394,8 +435,7 @@ export async function postValidateUpload(baseUrl: string, form: FormData): Promi
   });
   const json = await parseJsonResponse(res);
   if (!res.ok || json.ok === false) {
-    const msg = Array.isArray(json.errors) ? json.errors : [json.error];
-    throw new Error(msg.filter(Boolean).join(", "));
+    throw new Error(ingestErrorMessage(json));
   }
   return {
     chapters: Number((json.summary as JsonRecord | undefined)?.total_chapters ?? 0),
@@ -410,8 +450,7 @@ export async function postCreateIngestJob(baseUrl: string, form: FormData): Prom
   });
   const json = await parseJsonResponse(res);
   if (!res.ok || json.ok === false) {
-    const msg = Array.isArray(json.errors) ? json.errors : [json.error];
-    throw new Error(msg.filter(Boolean).join(", "));
+    throw new Error(ingestErrorMessage(json));
   }
   return json;
 }

@@ -41,8 +41,8 @@ export type InputValidationResult = {
   chapters: NormalizedChapter[];
 };
 
-const ZIP_CHAPTER_NAME_RE = /(chapter|ch)[^0-9]*([0-9]{1,4})/i;
-const MEGA_MARKER_RE = /^\s*(===\s*CHAPTER\s+([0-9]{1,4})\s*===|#\s*Chapter\s+([0-9]{1,4}))\s*$/gim;
+const ZIP_CHAPTER_NAME_RE = /(?:chapter|ch)[^0-9]*([0-9]{1,4})|(?:^|[/_\-\s])([0-9]{1,4})(?=[^/]*\.(txt|md)$)/i;
+const MEGA_MARKER_RE = /^\s*(===\s*CHAPTER\s+([0-9]{1,4}|[IVXLCDM]{1,12})\s*===|#\s*Chapter\s+([0-9]{1,4}|[IVXLCDM]{1,12})|CHAPTER\s+([0-9]{1,4}|[IVXLCDM]{1,12})\.?)\s*$/gim;
 const SCENE_HEADING_RE = /^\s*##\s*Scene\b.*$/gim;
 const SCENE_DASH_RE = /^\s*---\s*$/gim;
 
@@ -53,7 +53,26 @@ function hasEncodingIssue(text: string): boolean {
 function readChapterNoFromName(name: string): number | null {
   const m = ZIP_CHAPTER_NAME_RE.exec(name);
   if (!m) return null;
-  return Number(m[2]);
+  return Number(m[1] ?? m[2]);
+}
+
+function romanToInt(raw: string): number | null {
+  const values: Record<string, number> = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+  let total = 0;
+  let previous = 0;
+  for (const char of raw.toUpperCase().split("").reverse()) {
+    const value = values[char];
+    if (!value) return null;
+    total += value < previous ? -value : value;
+    previous = Math.max(previous, value);
+  }
+  return total > 0 && total <= 9999 ? total : null;
+}
+
+function parseChapterMarkerNo(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  if (/^[0-9]+$/.test(raw)) return normalizeChapterNo(Number(raw));
+  return romanToInt(raw);
 }
 
 function normalizeChapterNo(raw: unknown): number | null {
@@ -91,8 +110,8 @@ function splitMegaChapters(text: string): Array<{ title: string; chapterNo: numb
     const start = (cur.index ?? 0) + cur[0].length;
     const end = next?.index ?? text.length;
     const body = text.slice(start, end).trim();
-    const chapterNoRaw = cur[2] ?? cur[3] ?? null;
-    const chapterNo = chapterNoRaw ? Number(chapterNoRaw) : null;
+    const chapterNoRaw = cur[2] ?? cur[3] ?? cur[4] ?? null;
+    const chapterNo = parseChapterMarkerNo(chapterNoRaw);
 
     out.push({
       title: cur[1],
