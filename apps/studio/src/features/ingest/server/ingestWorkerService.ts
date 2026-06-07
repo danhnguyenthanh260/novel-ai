@@ -19,12 +19,68 @@ import {
 } from "@/features/ingest/server/workerControl";
 import { pool } from "@/server/db/pool";
 
+const REQUIRED_READY_TABLES = [
+  ["story_series", "story creation"],
+  ["assistant_conversation", "chat persistence"],
+  ["assistant_message", "chat messages"],
+  ["ingest_job", "ingest jobs"],
+  ["ingest_task", "ingest queue"],
+] as const;
+
+type IngestRuntimeReadiness = {
+  ok: boolean;
+  missing_tables: string[];
+  checks: Array<{ table: string; ok: boolean; required_by: string }>;
+  hint?: string;
+  error?: string;
+};
+
 function isLlamaManualOnly(): boolean {
   const raw = (process.env.LLAMA_MANUAL_ONLY ?? "1").trim().toLowerCase();
   return !["0", "false", "off", "no"].includes(raw);
 }
 
-async function getQueueMetrics() {
+function migrationHint(missingTables: string[]): string | undefined {
+  if (missingTables.length === 0) return undefined;
+  return "Run: docker compose -f infra/docker-compose.yml up db-migrate";
+}
+
+async function getRuntimeReadiness(): Promise<IngestRuntimeReadiness> {
+  try {
+    const rows = await pool.query<{ tablename: string }>(
+      "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+    );
+    const existing = new Set(rows.rows.map((row) => String(row.tablename)));
+    const checks = REQUIRED_READY_TABLES.map(([table, requiredBy]) => ({
+      table,
+      ok: existing.has(table),
+      required_by: requiredBy,
+    }));
+    const missingTables = checks.filter((check) => !check.ok).map((check) => check.table);
+    return {
+      ok: missingTables.length === 0,
+      missing_tables: missingTables,
+      checks,
+      hint: migrationHint(missingTables),
+    };
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      missing_tables: REQUIRED_READY_TABLES.map(([table]) => table),
+      checks: REQUIRED_READY_TABLES.map(([table, requiredBy]) => ({
+        table,
+        ok: false,
+        required_by: requiredBy,
+      })),
+      hint: "Start Postgres, then run: docker compose -f infra/docker-compose.yml up db-migrate",
+      error: error instanceof Error ? error.message : "DB_READINESS_CHECK_FAILED",
+    };
+  }
+}
+
+async function getQueueMetrics(readiness?: IngestRuntimeReadiness) {
+  const runtimeReadiness = readiness ?? await getRuntimeReadiness();
+  if (!runtimeReadiness.ok) return {};
   const rows = await pool.query<{
     lane: string;
     status: string;
@@ -70,6 +126,15 @@ async function getQueueMetrics() {
   return matrix;
 }
 
+async function buildWorkerPayload() {
+  const readiness = await getRuntimeReadiness();
+  const worker = await getIngestWorkerStatus();
+  const llama = await getLlamaServerStatus();
+  const lanes = await getAllWorkerLaneStatuses();
+  const queue = await getQueueMetrics(readiness);
+  return { worker, lanes, queue, llama, readiness };
+}
+
 function asLane(raw: unknown): WorkerLane | null {
   const text = String(raw || "").trim().toLowerCase();
   if (text === "split" || text === "analysis" || text === "writing" || text === "all") return text;
@@ -77,11 +142,8 @@ function asLane(raw: unknown): WorkerLane | null {
 }
 
 export async function getIngestWorkerResponse(): Promise<NextResponse> {
-  const status = await getIngestWorkerStatus();
-  const llama = await getLlamaServerStatus();
-  const lanes = await getAllWorkerLaneStatuses();
-  const queue = await getQueueMetrics();
-  return NextResponse.json({ ok: true, worker: status, lanes, queue, llama });
+  const payload = await buildWorkerPayload();
+  return NextResponse.json({ ok: true, ...payload });
 }
 
 export async function postIngestWorkerResponse(req: NextRequest): Promise<NextResponse> {
@@ -95,11 +157,8 @@ export async function postIngestWorkerResponse(req: NextRequest): Promise<NextRe
   }
 
   if (action === "status") {
-    const worker = await getIngestWorkerStatus();
-    const llama = await getLlamaServerStatus();
-    const lanes = await getAllWorkerLaneStatuses();
-    const queue = await getQueueMetrics();
-    return NextResponse.json({ ok: true, worker, lanes, queue, llama });
+    const payload = await buildWorkerPayload();
+    return NextResponse.json({ ok: true, ...payload });
   }
   if (action === "start_lane") {
     const lane = asLane(body?.lane);

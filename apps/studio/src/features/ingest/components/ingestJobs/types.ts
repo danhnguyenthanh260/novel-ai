@@ -222,12 +222,20 @@ export type WorkerLaneStatus = {
   pid: number | null;
 };
 
+export type RuntimeReadiness = {
+  ok: boolean;
+  missing_tables: string[];
+  hint?: string;
+  error?: string;
+};
+
 export type WorkerStatus = {
   enabled: boolean;
   running: boolean;
   pid: number | null;
   detail?: string;
   lanes?: WorkerLaneStatus[];
+  readiness?: RuntimeReadiness;
 };
 
 export type SourceDocItem = {
