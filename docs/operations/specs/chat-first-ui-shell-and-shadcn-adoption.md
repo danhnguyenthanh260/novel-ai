@@ -97,8 +97,12 @@ Dark-only: the app is dark-first by canon; no `.dark` variant is introduced.
    `src/components/ui/` (button, card, badge, separator, input, textarea,
    tabs, dialog, sheet, command, popover, dropdown-menu, tooltip, skeleton,
    scroll-area, sonner), icons stripped. No behavior change to existing pages.
-2. **Unified shell**: new AppShell with persistent chat dock, right inspector,
-   command palette; every story page openable as a panel from chat.
+2. **Unified shell**: AppShell gains a global command palette (Ctrl/Cmd+K:
+   surface navigation, story switching, actions) and an Assistant dock (right
+   sheet: story context digest as "chat showed" cards + recent durable
+   conversations + handoff to the Write workspace). The dock is read/resume
+   only for now — the global composer requires extracting the Write
+   orchestration layer and ships with phase 4.
 3. **Surface migration** (order: memory/reviews → ingest → muse/analysis →
    agents/pipelines): each surface re-skinned on the kit, its bespoke
    `globals.css` blocks deleted in the same PR.

@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { StoryProvider, useStory } from "@/features/story/StoryContext";
 import StorySelector from "@/features/story/StorySelector";
+import CommandPalette from "@/components/CommandPalette";
+import AssistantDock from "@/components/AssistantDock";
+import { Button } from "@/components/ui/button";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -20,23 +23,71 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <StoryProvider>
-      <div className={isWriteRoute ? "app-shell app-shell--write" : "app-shell"}>
-        <header className="app-header">
-          <div className="app-header__inner">
-            <Link href="/" className="brand-mark text-sm" aria-label="Novel Lab home">
-              <span>Novel</span>
-              <span>Lab</span>
-            </Link>
-            <CompactContextBar />
-            <div className="flex items-center gap-3">
-              <PipelineToggle />
-              <StorySelector />
-            </div>
-          </div>
-        </header>
-        <div className="app-body">{children}</div>
-      </div>
+      <ShellChrome isWriteRoute={isWriteRoute}>{children}</ShellChrome>
     </StoryProvider>
+  );
+}
+
+function ShellChrome({ children, isWriteRoute }: { children: ReactNode; isWriteRoute: boolean }) {
+  const pathname = usePathname();
+  const { storySlug } = useStory();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+
+  const routeStorySlug = (() => {
+    const fromStories = pathname.match(/^\/stories\/([^/]+)/);
+    if (fromStories?.[1]) return decodeURIComponent(fromStories[1]);
+    const fromRead = pathname.match(/^\/read\/([^/]+)/);
+    if (fromRead?.[1]) return decodeURIComponent(fromRead[1]);
+    return null;
+  })();
+  const selectedSlug = routeStorySlug ?? (storySlug.trim() ? storySlug : null);
+
+  return (
+    <div className={isWriteRoute ? "app-shell app-shell--write" : "app-shell"}>
+      <header className="app-header">
+        <div className="app-header__inner">
+          <Link href="/" className="brand-mark text-sm" aria-label="Novel Lab home">
+            <span>Novel</span>
+            <span>Lab</span>
+          </Link>
+          <CompactContextBar />
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-[11px] text-muted-foreground"
+              onClick={() => setPaletteOpen(true)}
+            >
+              Search
+              <span className="rounded border border-border px-1 text-[10px]">Ctrl K</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-[11px] text-muted-foreground"
+              onClick={() => setAssistantOpen(true)}
+            >
+              Assistant
+            </Button>
+            <PipelineToggle />
+            <StorySelector />
+          </div>
+        </div>
+      </header>
+      <div className="app-body">{children}</div>
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        selectedSlug={selectedSlug}
+        onOpenAssistant={() => setAssistantOpen(true)}
+      />
+      <AssistantDock
+        open={assistantOpen}
+        onOpenChange={setAssistantOpen}
+        selectedSlug={selectedSlug}
+      />
+    </div>
   );
 }
 
@@ -85,11 +136,6 @@ function PipelineToggle() {
         isArtifactVisible ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"
       }`}
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="12 2 2 7 12 12 22 7 12 2" />
-        <polyline points="2 17 12 22 22 17" />
-        <polyline points="2 12 12 17 22 12" />
-      </svg>
       <span className="text-[11px] font-medium">Pipeline</span>
     </button>
   );
