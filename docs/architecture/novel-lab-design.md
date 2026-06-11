@@ -68,7 +68,22 @@ The "Write" workspace is a dynamic 3-column grid:
 - Commands are invoked via the slash menu from the composer.
 - Task cards should be compact and show machine-actionable status.
 
-## 5. "Do / Don't" for Agents
+## 5. Component Kit (shadcn/ui)
+
+The shared component kit lives in `apps/studio/src/components/ui/` (shadcn/ui
+copies, icons stripped per the No Icons rule). Canonical adoption spec:
+`docs/operations/specs/chat-first-ui-shell-and-shadcn-adoption.md`.
+
+- **New components MUST use the kit primitives** plus Tailwind utilities.
+- **Do NOT add new classes to `globals.css`**; the legacy stylesheet is being
+  retired surface-by-surface (strangler migration).
+- Kit theme tokens are aliases of the palette in section 3 — never hardcode
+  colors. The Tailwind `accent` token maps to the hover surface
+  (`--accent-soft`), not the teal `--accent`.
+- Copied kit components must not import `lucide-react` or any icon set; use
+  plain-text glyphs (`×`, `✓`, `›`) with `sr-only` labels.
+
+## 6. "Do / Don't" for Agents
 
 - **DO** use plain text labels for all buttons.
 - **DO** use the 8px grid for any new component layout.
