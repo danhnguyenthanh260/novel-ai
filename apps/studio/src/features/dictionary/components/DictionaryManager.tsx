@@ -1,7 +1,9 @@
+/* eslint-disable max-lines -- Pre-existing oversized file (520 lines; debt R11 in docs/reviews/investigation-report-v1.md). Proper split is a separate refactor, not bundled into the CI-safety-net commit. */
 "use client";
 
 import React, { useState, useTransition } from "react";
 import { useParams } from "next/navigation";
+// eslint-disable-next-line no-restricted-imports -- upsert/deleteDictionaryEntry are Next.js server actions ("use server" in dictionaryService); importing them into a client component is the intended pattern, not a boundary violation.
 import { DictionaryEntry, DictionaryTier, upsertDictionaryEntry, deleteDictionaryEntry } from "../server/dictionaryService";
 
 type DictionaryManagerProps = {
@@ -36,7 +38,7 @@ export default function DictionaryManager({ initialEntries, storyId, defaultTier
 
     // Audit state
     const [isAuditing, setIsAuditing] = useState(false);
-    const [auditResult, setAuditResult] = useState<{ conflicts: any[], summary: string } | null>(null);
+    const [auditResult, setAuditResult] = useState<{ conflicts: Array<{ rule_a: string; rule_b: string; reason: string; resolution: string }>, summary: string } | null>(null);
 
     const filtered = entries.filter((e) => e.tier === activeTier);
 
@@ -52,8 +54,8 @@ export default function DictionaryManager({ initialEntries, storyId, defaultTier
             } else {
                 alert("Audit failed: " + data.error);
             }
-        } catch (e: any) {
-            alert("Audit failed: " + e.message);
+        } catch (e: unknown) {
+            alert("Audit failed: " + (e instanceof Error ? e.message : String(e)));
         } finally {
             setIsAuditing(false);
         }
@@ -132,8 +134,8 @@ export default function DictionaryManager({ initialEntries, storyId, defaultTier
                 }
                 setEditingId(null);
                 setAuditResult(null); // Reset audit when rules change
-            } catch (err: any) {
-                alert("Error saving: " + err.message);
+            } catch (err: unknown) {
+                alert("Error saving: " + (err instanceof Error ? err.message : String(err)));
             }
         });
     };
@@ -144,8 +146,8 @@ export default function DictionaryManager({ initialEntries, storyId, defaultTier
             try {
                 await deleteDictionaryEntry(id);
                 setEntries((prev) => prev.filter((e) => e.id !== id));
-            } catch (err: any) {
-                alert("Error deleting: " + err.message);
+            } catch (err: unknown) {
+                alert("Error deleting: " + (err instanceof Error ? err.message : String(err)));
             }
         });
     };
@@ -169,8 +171,8 @@ export default function DictionaryManager({ initialEntries, storyId, defaultTier
             } else {
                 setSimResult("Error: " + data.error);
             }
-        } catch (e: any) {
-            setSimResult("Failed to simulate: " + e.message);
+        } catch (e: unknown) {
+            setSimResult("Failed to simulate: " + (e instanceof Error ? e.message : String(e)));
         } finally {
             setIsSimulating(false);
         }
@@ -253,7 +255,7 @@ export default function DictionaryManager({ initialEntries, storyId, defaultTier
                                                 <span>↔</span>
                                                 <span className="bg-slate-800 px-1 rounded">{c.rule_b}</span>
                                             </div>
-                                            <div className="text-slate-300 mb-1 font-mono italic">"{c.reason}"</div>
+                                            <div className="text-slate-300 mb-1 font-mono italic">&quot;{c.reason}&quot;</div>
                                             <div className="text-slate-400"><strong className="text-slate-500">Fix Suggestion:</strong> {c.resolution}</div>
                                         </div>
                                         <div className="flex flex-col gap-1 shrink-0">

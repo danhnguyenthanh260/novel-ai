@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Pre-existing oversized file (546 lines; debt R11 in docs/reviews/investigation-report-v1.md). Proper split is a separate refactor, not bundled into the CI-safety-net commit. */
 import { spawn, spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";

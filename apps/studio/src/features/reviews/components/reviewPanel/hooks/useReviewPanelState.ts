@@ -10,7 +10,7 @@ import {
   normalizeResponses,
   parseSubmitPayload,
 } from "@/features/reviews/components/reviewPanel/actions";
-import type { ReviewFormState, ReviewRequest, ReviewResponse, ReviewStatus } from "@/features/reviews/components/reviewPanel/types";
+import type { ReviewFormState, ReviewRequest, ReviewResponse, ReviewStatus, V3ReviewData } from "@/features/reviews/components/reviewPanel/types";
 
 type UseReviewPanelStateResult = {
   requests: ReviewRequest[];
@@ -30,7 +30,7 @@ type UseReviewPanelStateResult = {
   applyLatest: () => Promise<void>;
   acceptLedger: () => Promise<void>;
   applyPatch: (issueId: number) => Promise<void>;
-  v3Data: any;
+  v3Data: V3ReviewData | null;
 };
 
 function buildStateResult(
@@ -163,7 +163,7 @@ export function useReviewPanelState(storySlug: string): UseReviewPanelStateResul
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [form, setForm] = useReviewFormState();
-  const [v3Data, setV3Data] = useState<any>(null);
+  const [v3Data, setV3Data] = useState<V3ReviewData | null>(null);
 
   const loadResponses = useCallback(
     async (requestId: number) => {

@@ -1,6 +1,13 @@
 
 export type NarrativePromptArgs = {
-    beat: any;
+    beat: {
+        idx?: number | string;
+        label?: string;
+        description?: string;
+        characters?: string[];
+        location?: string;
+        estimated_words?: number;
+    };
     contextBlock: string;
     writingLanguage: "en" | "vi";
     behavioralInstructions?: string;

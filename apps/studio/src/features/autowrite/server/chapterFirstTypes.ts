@@ -32,7 +32,7 @@ export interface AddedFact {
 
 export interface ModifiedStates {
   [characterId: string]: {
-    [property: string]: any;
+    [property: string]: unknown;
   };
 }
 

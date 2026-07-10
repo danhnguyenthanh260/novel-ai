@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Pre-existing oversized file (2178 lines; debt R11 in docs/reviews/investigation-report-v1.md). Proper split is a separate refactor, not bundled into the CI-safety-net commit. */
 import { pool } from "@/server/db/pool";
 import { getIngestWorkerStatus, getLlamaServerStatus, getWorkerLaneStatus } from "@/features/ingest/server/workerControl";
 

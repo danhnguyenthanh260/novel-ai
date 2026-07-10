@@ -2,20 +2,24 @@
 
 import { useState } from "react";
 
+export type ChapterSceneItem = {
+    id: number;
+    idx: number;
+    title: string | null;
+    status: string;
+    text_content: string;
+};
+
+export type ChapterV3Draft = { full_text: string; status: string; virtual_scenes: unknown[] };
+
 type ChapterReaderProps = {
     chapterId: string;
-    items: Array<{
-        id: number;
-        idx: number;
-        title: string | null;
-        status: string;
-        text_content: string;
-    }>;
+    items: ChapterSceneItem[];
     pendingProse: { id: string; prose: string } | null;
     stagingData: { user_prose: string; llm_prose: string; status: string } | null;
     onSave: (prose: string) => Promise<void>;
     onResplit: (prose: string) => Promise<void>;
-    v3Draft?: { full_text: string; status: string; virtual_scenes: unknown[] } | null;
+    v3Draft?: ChapterV3Draft | null;
 };
 
 function firstReadableProse(values: Array<string | null | undefined>): string {

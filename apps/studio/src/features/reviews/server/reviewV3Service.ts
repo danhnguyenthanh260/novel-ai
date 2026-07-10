@@ -6,7 +6,7 @@ export interface ContinuityIssue {
     issue_type: string;
     severity: string;
     description: string;
-    payload: any;
+    payload: unknown;
     auto_patch_available: boolean;
     patch_suggestion?: string;
 }
@@ -71,7 +71,7 @@ export class ReviewV3Service {
      * Resolves ledger facts into canon_fact table after review.
      */
     static async resolveLedgerToCanon(client: PoolClient, storyId: number, chapterId: string) {
-        const ledgerRes = await client.query<{ added_facts: any[] }>(
+        const ledgerRes = await client.query<{ added_facts: Array<string | { fact?: string; content?: string; category?: string }> }>(
             `SELECT added_facts FROM public.chapter_ledger
              WHERE story_id = $1 AND chapter_id = $2`,
             [storyId, chapterId]

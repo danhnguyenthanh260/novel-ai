@@ -169,7 +169,7 @@ export async function getReviewsResponse(req: NextRequest, storySlug: string): P
       responses = responseRes.rows;
     }
 
-    let v3Data: any = null;
+    let v3Data: { ledger: Record<string, unknown> | null; issues: Record<string, unknown>[] } | null = null;
     if (requestId !== null && listRes.rows[0]?.is_v3) {
       const row = listRes.rows[0];
       const ledgerRes = await pool.query(

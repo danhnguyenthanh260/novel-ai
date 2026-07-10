@@ -23,8 +23,8 @@ export function WorkerLogViewer({ baseUrl }: WorkerLogViewerProps) {
                     setLogs(result);
                     setError(null);
                 }
-            } catch (err: any) {
-                if (mounted) setError(err.message);
+            } catch (err: unknown) {
+                if (mounted) setError(err instanceof Error ? err.message : String(err));
             }
         }
 

@@ -215,7 +215,7 @@ export default function StorySettingsForm({ slug, initialTab = "meta" }: { slug:
                 />
               </label>
               <label className="grid gap-1 text-xs">
-                <span className="font-medium">Summary (The "Pitch")</span>
+                <span className="font-medium">Summary (The &quot;Pitch&quot;)</span>
                 <textarea
                   className="shell-control min-h-[80px] px-3 py-2"
                   value={form.summaryMd}

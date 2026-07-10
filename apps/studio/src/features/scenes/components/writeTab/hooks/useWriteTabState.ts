@@ -4,6 +4,7 @@ import { useStory } from "@/features/story/StoryContext";
 import { apiBase } from "@/lib/apiBase";
 import { buildHeaderContext, buildSeedPrompt, chooseSceneId } from "@/features/scenes/components/writeTab/actions";
 import type { CurrentVersion, DockTab, SceneItem } from "@/features/scenes/components/writeTab/types";
+import type { ChapterSceneItem, ChapterV3Draft } from "@/features/scenes/components/writeTab/ChapterReader";
 
 type UseWriteTabStateResult = {
   scenes: SceneItem[];
@@ -25,7 +26,7 @@ type UseWriteTabStateResult = {
   selectedChapterId: string;
   setSelectedChapterId: (id: string) => void;
   viewMode: "scene" | "chapter";
-  chapterScenes: any[];
+  chapterScenes: ChapterSceneItem[];
   stagingData: { user_prose: string; llm_prose: string; status: string } | null;
   loadingChapter: boolean;
   createNewChapter: () => Promise<void>;
@@ -38,7 +39,7 @@ type UseWriteTabStateResult = {
   handleAutoWriteComplete: (prose: string) => Promise<void>;
   saveChapterDraft: (prose: string) => Promise<void>;
   resplitChapter: (prose: string) => Promise<void>;
-  v3Draft: { full_text: string; status: string; virtual_scenes: any[] } | null;
+  v3Draft: ChapterV3Draft | null;
 };
 
 export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
@@ -55,7 +56,7 @@ export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
   const initialChapterId = params.get("chapter_id") || "";
   const [selectedChapterId, setSelectedChapterId] = useState<string>(initialChapterId);
   const [viewMode, setViewMode] = useState<"scene" | "chapter">("scene");
-  const [chapterScenes, setChapterScenes] = useState<any[]>([]);
+  const [chapterScenes, setChapterScenes] = useState<ChapterSceneItem[]>([]);
   const [loadingChapter, setLoadingChapter] = useState(false);
 
   const [scene, setScene] = useState<SceneItem | null>(null);
@@ -68,7 +69,7 @@ export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
   const [showAutoWrite, setShowAutoWrite] = useState(false);
   const [pendingChapterProse, setPendingChapterProse] = useState<{ id: string, prose: string } | null>(null);
   const [stagingData, setStagingData] = useState<{ user_prose: string; llm_prose: string; status: string } | null>(null);
-  const [v3Draft, setV3Draft] = useState<{ full_text: string; status: string; virtual_scenes: any[] } | null>(null);
+  const [v3Draft, setV3Draft] = useState<ChapterV3Draft | null>(null);
 
   const listUrl = useMemo(() => `${apiBase(storySlug)}/scenes`, [storySlug]);
   const detailUrl = useMemo(
@@ -101,7 +102,7 @@ export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
       const items = Array.isArray(scenesJson?.items) ? (scenesJson.items as SceneItem[]) : [];
       const chapterItems = Array.isArray(chaptersJson?.items) ? chaptersJson.items : [];
       const chapterList = chapterItems
-        .map((x: any) => (typeof x?.chapter_id === "string" ? x.chapter_id.trim() : ""))
+        .map((x: { chapter_id?: string }) => (typeof x?.chapter_id === "string" ? x.chapter_id.trim() : ""))
         .filter(Boolean);
       setScenes(items);
       setChapterIds(chapterList);
@@ -275,8 +276,8 @@ export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
       });
       if (!res.ok) throw new Error("SAVE_DRAFT_FAILED");
       await fetchChapterFull(selectedChapterId);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -292,8 +293,8 @@ export function useWriteTabState(storySlug: string): UseWriteTabStateResult {
       setPendingChapterProse(null);
       await reloadScenesList();
       await fetchChapterFull(selectedChapterId);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   };
 

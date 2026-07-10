@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Pre-existing oversized file (1009 lines; debt R11 in docs/reviews/investigation-report-v1.md). Proper split is a separate refactor, not bundled into the CI-safety-net commit. */
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
@@ -591,7 +592,7 @@ export default function HistorianAnalysisConsole({
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setScope(tab.id as any)}
+                onClick={() => setScope(tab.id as "chapter" | "arc" | "story")}
                 className={`px-4 py-2 text-[11px] font-bold tracking-widest transition-all border-b-2 ${scope === tab.id
                   ? "border-[#4DA3FF] text-[#4DA3FF] bg-[#4DA3FF]/5"
                   : "border-transparent text-slate-500 hover:text-slate-300"
@@ -675,7 +676,7 @@ export default function HistorianAnalysisConsole({
               <select
                 className="rounded border border-[#2A3441] bg-[#0E1217] px-3 py-1.5 text-xs focus:ring-1 focus:ring-[#4DA3FF] outline-none min-w-[130px]"
                 value={actionType}
-                onChange={(e) => setActionType(e.target.value as any)}
+                onChange={(e) => setActionType(e.target.value as "chapter_analysis" | "rollup")}
               >
                 <option value="chapter_analysis">Chapter Tasks</option>
                 <option value="rollup">Run Rollup</option>

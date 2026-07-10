@@ -27,10 +27,10 @@ export async function POST(
             task_id: "taskId" in result ? result.taskId : null,
             chapter_id: "chapterId" in result ? result.chapterId : null,
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[pipeline/analysis] error:", error);
         return NextResponse.json(
-            { ok: false, error: error.message || "INTERNAL_SERVER_ERROR" },
+            { ok: false, error: error instanceof Error ? error.message : "INTERNAL_SERVER_ERROR" },
             { status: 500 }
         );
     }

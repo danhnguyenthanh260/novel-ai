@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useState } from "react";
 import DraftRunner from "@/features/scenes/components/DraftRunner";
 import ChapterReader from "@/features/scenes/components/writeTab/ChapterReader";
+import type { ChapterSceneItem, ChapterV3Draft } from "@/features/scenes/components/writeTab/ChapterReader";
 import AutoWriteWizard from "@/features/scenes/components/writeTab/AutoWriteWizard";
 import type { CurrentVersion, SceneItem } from "@/features/scenes/components/writeTab/types";
 
@@ -23,7 +24,7 @@ type WriteTabCenterPanelProps = {
   selectedChapterId: string;
   onChapterIdChange: (id: string) => void;
   viewMode: "scene" | "chapter";
-  chapterScenes: any[];
+  chapterScenes: ChapterSceneItem[];
   loadingChapter: boolean;
   onCreateNewChapter: () => Promise<void>;
   onUnlockScene: () => Promise<void>;
@@ -34,7 +35,7 @@ type WriteTabCenterPanelProps = {
   onAutoWriteComplete: (prose: string) => Promise<void>;
   onSaveChapterDraft: (prose: string) => Promise<void>;
   onResplitChapter: (prose: string) => Promise<void>;
-  v3Draft?: { full_text: string; status: string; virtual_scenes: any[] } | null;
+  v3Draft?: ChapterV3Draft | null;
 };
 
 type SceneHeaderProps = {
@@ -154,14 +155,14 @@ type SceneBodyProps = {
   onGhostSuggestionReadyChange: (value: boolean) => void;
   // New view mode props
   viewMode: "scene" | "chapter";
-  chapterScenes: any[];
+  chapterScenes: ChapterSceneItem[];
   loadingChapter: boolean;
   selectedChapterId: string;
   pendingChapterProse: { id: string; prose: string } | null;
   stagingData: { user_prose: string; llm_prose: string; status: string } | null;
   onSaveChapterDraft: (prose: string) => Promise<void>;
   onResplitChapter: (prose: string) => Promise<void>;
-  v3Draft: { full_text: string; status: string; virtual_scenes: any[] } | null;
+  v3Draft: ChapterV3Draft | null;
 };
 
 function SceneBody({

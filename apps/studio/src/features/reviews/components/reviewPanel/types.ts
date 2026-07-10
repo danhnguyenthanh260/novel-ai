@@ -26,6 +26,36 @@ export type ReviewResponse = {
   created_at: string;
 };
 
+export type V3LedgerFact = {
+  fact?: string;
+  content?: string;
+  confidence?: number;
+};
+
+export type V3ContinuityIssue = {
+  id: number;
+  issue_type?: string;
+  severity?: string;
+  description?: string;
+  payload?: unknown;
+  status?: string;
+  auto_patch_available?: boolean;
+  patch_suggestion?: string;
+};
+
+export type V3ReviewData = {
+  ledger:
+    | {
+        added_facts?: V3LedgerFact[];
+        modified_states?: unknown;
+        unresolved_loops?: unknown[];
+        is_stale?: boolean;
+        stale_reason?: string | null;
+      }
+    | null;
+  issues: V3ContinuityIssue[];
+};
+
 export type ReviewFormState = {
   reviewerName: string;
   scoresJson: string;

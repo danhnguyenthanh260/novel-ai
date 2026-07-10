@@ -56,6 +56,7 @@ export function SplitterCompactPanel({ state }: { state: IngestJobsControllerSta
 
   useEffect(() => {
     if (!state.splitDraft?.chapters?.length) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional guarded derived-state sync (early-return guard); flagged for dedicated refactor review, see docs/reviews/investigation-report-v1.md.
       setSelectedChapterTaskId(null);
       return;
     }
@@ -133,6 +134,7 @@ export function SplitterCompactPanel({ state }: { state: IngestJobsControllerSta
     }
     statusRef.current = nextMap;
     if (nextFlash.length === 0) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional status-diff flash animation (guarded by early-return); inherently effect-driven, flagged for dedicated review, see docs/reviews/investigation-report-v1.md.
     setFlashMap((prev) => {
       const merged = { ...prev };
       const now = Date.now();

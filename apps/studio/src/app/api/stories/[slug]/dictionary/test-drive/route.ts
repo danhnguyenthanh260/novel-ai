@@ -55,8 +55,8 @@ Return your analysis in a clear, concise format.
         const analysis = data.choices?.[0]?.message?.content || "Simulation failed.";
 
         return NextResponse.json({ ok: true, analysis });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Failed to test-drive rule:", error);
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });
     }
 }

@@ -56,8 +56,8 @@ Return JSON with shape:
         const result = JSON.parse(data.choices?.[0]?.message?.content || "{}");
 
         return NextResponse.json({ ok: true, ...result });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Failed to audit dictionary:", error);
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });
     }
 }

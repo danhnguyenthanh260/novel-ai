@@ -74,7 +74,7 @@ export class ReadOnlySandbox {
     /**
      * Simulation of a read-only environment to prevent Knowledge Contamination.
      */
-    static protect(data: any): any {
+    static protect<T>(data: T): T {
         return JSON.parse(JSON.stringify(data)); // Deep clone to prevent direct mutations
     }
 }

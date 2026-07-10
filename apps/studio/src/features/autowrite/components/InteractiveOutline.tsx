@@ -19,7 +19,7 @@ interface InteractiveOutlineProps {
         chapter_summary: string;
         scenes: ScenePlan[];
     };
-    onApprove: (finalPlan: any) => void;
+    onApprove: (finalPlan: { chapter_summary: string; scenes: ScenePlan[] }) => void;
     onRefresh: (instructions: string) => void;
 }
 
@@ -105,7 +105,7 @@ export function InteractiveOutline({ initialPlan, onApprove, onRefresh }: Intera
                             The Architect
                         </h4>
                         <div className="text-xs text-white/40 leading-relaxed italic">
-                            "I've structured this chapter to resolve the Kuro subplot while hinting at the upcoming rebellion. Would you like me to adjust the pacing or focus more on a specific character?"
+                            {"\"I've structured this chapter to resolve the Kuro subplot while hinting at the upcoming rebellion. Would you like me to adjust the pacing or focus more on a specific character?\""}
                         </div>
                     </div>
 

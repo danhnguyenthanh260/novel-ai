@@ -1,8 +1,8 @@
-import type { ReviewRequest } from "@/features/reviews/components/reviewPanel/types";
+import type { ReviewRequest, V3ReviewData } from "@/features/reviews/components/reviewPanel/types";
 
 type ChapterReviewFormProps = {
   selectedRequest: ReviewRequest;
-  v3Data: any;
+  v3Data: V3ReviewData | null;
   acting: boolean;
   onAcceptLedger: () => Promise<void>;
   onApplyPatch: (issueId: number) => Promise<void>;
@@ -35,7 +35,7 @@ export default function ChapterReviewForm({
       <section className="space-y-2">
         <div className="text-xs font-bold uppercase text-slate-500">Narrative Ledger (Added Facts)</div>
         <div className="max-h-40 overflow-y-auto space-y-1 rounded bg-[#0b1219] p-2">
-          {ledger?.added_facts?.map((f: any, i: number) => (
+          {ledger?.added_facts?.map((f, i: number) => (
             <div key={i} className="flex items-start gap-2 border-b border-slate-800 pb-1 text-xs">
               <span className="text-emerald-500 font-mono">+</span>
               <span className="text-slate-300">{f.fact || f.content}</span>
@@ -52,7 +52,7 @@ export default function ChapterReviewForm({
       <section className="space-y-3">
         <div className="text-xs font-bold uppercase text-slate-500">Continuity Issues & Suggestions</div>
         <div className="space-y-3">
-          {issues.map((issue: any) => (
+          {issues.map((issue) => (
             <div key={issue.id} className={`rounded border p-3 ${issue.severity === 'CRITICAL' ? 'border-red-500/30 bg-red-950/10' : 'border-slate-700 bg-slate-800/20'}`}>
               <div className="flex items-center justify-between mb-1">
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${

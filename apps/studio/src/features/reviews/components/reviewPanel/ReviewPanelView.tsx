@@ -1,7 +1,7 @@
 import ReviewRequestsList from "@/features/reviews/components/reviewPanel/ReviewRequestsList";
 import ReviewResponsesList from "@/features/reviews/components/reviewPanel/ReviewResponsesList";
 import ReviewSubmitForm from "@/features/reviews/components/reviewPanel/ReviewSubmitForm";
-import type { ReviewFormState, ReviewRequest, ReviewResponse, ReviewStatus } from "@/features/reviews/components/reviewPanel/types";
+import type { ReviewFormState, ReviewRequest, ReviewResponse, ReviewStatus, V3ReviewData } from "@/features/reviews/components/reviewPanel/types";
 import ChapterReviewForm from "@/features/reviews/components/reviewPanel/ChapterReviewForm";
 
 type ReviewPanelViewProps = {
@@ -23,7 +23,7 @@ type ReviewPanelViewProps = {
   onApplyLatest: () => Promise<void>;
   onAcceptLedger: () => Promise<void>;
   onApplyPatch: (issueId: number) => Promise<void>;
-  v3Data: any;
+  v3Data: V3ReviewData | null;
 };
 
 export default function ReviewPanelView({
