@@ -1,3 +1,4 @@
+import { test } from "vitest";
 import { detectStudioIntent, routeStudioIntent } from "@/features/scenes/components/writeTab/chatOrchestration/intentRouter";
 
 function assert(condition: boolean, message: string): void {
@@ -138,4 +139,6 @@ export function runIntentRouterSelfTest(): void {
   assert(blockedWrite.command === "/write chapter", "blocked write still routes through preflight");
 }
 
-runIntentRouterSelfTest();
+test("routes studio intents", () => {
+  runIntentRouterSelfTest();
+});

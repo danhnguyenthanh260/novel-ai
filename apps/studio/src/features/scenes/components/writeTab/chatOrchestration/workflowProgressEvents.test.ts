@@ -1,3 +1,4 @@
+import { test } from "vitest";
 import {
   continuityWorkflowProgressEvent,
   upsertWorkflowProgressBlock,
@@ -25,4 +26,6 @@ export function runWorkflowProgressEventsSelfTest(): void {
   assert(merged[0]?.type === "workflow_progress" && merged[0].status === "complete", "upsert preserves latest workflow status");
 }
 
-runWorkflowProgressEventsSelfTest();
+test("updates workflow progress events", () => {
+  runWorkflowProgressEventsSelfTest();
+});

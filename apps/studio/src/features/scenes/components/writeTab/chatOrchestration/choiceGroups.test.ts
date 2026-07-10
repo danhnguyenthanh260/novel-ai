@@ -1,3 +1,4 @@
+import { test } from "vitest";
 import {
   buildBrainstormAngleChoiceGroup,
   buildBrainstormContinuationNextChoiceGroup,
@@ -36,4 +37,6 @@ export function runChoiceGroupsSelfTest(): void {
   assert(afterSceneGoal.choices[0].id === "character_contradiction", "after scene goal, option one is character contradiction");
 }
 
-runChoiceGroupsSelfTest();
+test("builds and selects choice groups", () => {
+  runChoiceGroupsSelfTest();
+});

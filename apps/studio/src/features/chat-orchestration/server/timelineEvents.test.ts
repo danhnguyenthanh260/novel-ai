@@ -1,3 +1,4 @@
+import { test } from "vitest";
 import {
   buildApprovalGateEvent,
   buildArtifactPreviewEvent,
@@ -85,4 +86,6 @@ export function runTimelineEventDtoSelfTest(): TimelineEvent[] {
   return [running, artifact, approval, failure, ...chapterEvents];
 }
 
-runTimelineEventDtoSelfTest();
+test("builds timeline event DTOs", () => {
+  runTimelineEventDtoSelfTest();
+});

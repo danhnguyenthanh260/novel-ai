@@ -1,3 +1,4 @@
+import { test } from "vitest";
 import {
   normalizeConversationState,
   persistedBlockPayload,
@@ -42,4 +43,6 @@ export function runConversationPersistenceSelfTest(): void {
   assert(fallback.recentBrainstormSeed === null, "invalid seed falls back to null");
 }
 
-runConversationPersistenceSelfTest();
+test("normalizes and persists conversation state", () => {
+  runConversationPersistenceSelfTest();
+});
