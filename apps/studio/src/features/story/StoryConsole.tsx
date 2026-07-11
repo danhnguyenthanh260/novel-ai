@@ -23,7 +23,37 @@ export default function StoryConsole({
         <div className="mx-auto max-w-6xl p-4 md:p-6 space-y-6">
             <div className="flex items-center justify-between mb-2">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-100">Unified Knowledge Hub</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold tracking-tight text-slate-100">Unified Knowledge Hub</h1>
+                        
+                        {/* BẮT ĐẦU: Code Spike giao diện thẻ Context */}
+                        {/* Mẹo: Thay đổi chữ "partial" thành "clean" hoặc "blocked" để đổi màu */}
+                        {(() => {
+                            const currentStatus: string = "partial";
+                            
+                            let colorClasses = "";
+                            let statusText = "";
+
+                            if (currentStatus === "blocked") {
+                                colorClasses = "bg-red-900 text-red-200 border-red-500";
+                                statusText = "Context Blocked";
+                            } else if (currentStatus === "partial") {
+                                colorClasses = "bg-yellow-900 text-yellow-200 border-yellow-500";
+                                statusText = "Context Degraded";
+                            } else {
+                                colorClasses = "bg-emerald-900 text-emerald-200 border-emerald-500";
+                                statusText = "Context Clean";
+                            }
+
+                            return (
+                                <span className={`px-3 py-1 text-xs font-semibold border rounded-full ${colorClasses}`}>
+                                    {statusText}
+                                </span>
+                            );
+                        })()}
+                        {/* KẾT THÚC: Code Spike */}
+
+                    </div>
                     <p className="muted text-sm mt-1">
                         Configuration and Constitutional Rules for <strong className="text-white">{slug}</strong>
                     </p>
