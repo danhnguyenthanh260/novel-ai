@@ -32,6 +32,7 @@ apps/studio/node_modules/
 apps/studio/.next/
 apps/studio/out/
 apps/studio/coverage/
+apps/studio/test-results/
 apps/studio/.turbo/
 apps/studio/.pnpm-store/
 apps/studio/*.tsbuildinfo
