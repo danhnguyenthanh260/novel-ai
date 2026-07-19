@@ -29,6 +29,7 @@ export function getRuntimeProviderPath(): string {
 
 function inferProviderFromBaseUrl(baseUrl: string): LlmProviderKind {
   if (baseUrl.includes("api.groq.com")) return "groq";
+  if (baseUrl.includes("generativelanguage.googleapis.com")) return "gemini";
   if (baseUrl.includes("localhost:20128") || baseUrl.includes("127.0.0.1:20128")) return "9router";
   if (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")) return "local";
   return "custom_openai_compatible";

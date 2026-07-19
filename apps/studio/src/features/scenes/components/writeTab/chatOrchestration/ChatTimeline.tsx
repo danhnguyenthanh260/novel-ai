@@ -20,6 +20,12 @@ function statusClass(status: ChatContextMiniBarPayload["status"]): string {
   return "status-pill status-pill--blocked";
 }
 
+function nextActionLabel(status: ChatContextMiniBarPayload["status"]): string {
+  if (status === "ready") return "Next: write, plan, or review";
+  if (status === "degraded") return "Next: add context or continue carefully";
+  return "Next: select story and chapter context";
+}
+
 export default function ChatTimeline({ context, blocks, onChip, onChoice, onOpenArtifact, onArtifactAction }: ChatTimelineProps) {
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const [nearBottom, setNearBottom] = React.useState(true);
@@ -48,6 +54,7 @@ export default function ChatTimeline({ context, blocks, onChip, onChoice, onOpen
         <span>/</span>
         <button type="button">{context.chapterLabel}</button>
         <span className={statusClass(context.status)}>{context.status.toUpperCase()}</span>
+        <span className="chat-context-mini-bar__next">{nextActionLabel(context.status)}</span>
       </div>
       <div ref={scrollRef} data-testid="chat-timeline" className="work-stream__scroll" onScroll={updateNearBottom}>
         <div className="timeline-stack">

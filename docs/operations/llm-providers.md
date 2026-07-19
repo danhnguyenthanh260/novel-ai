@@ -23,6 +23,8 @@ Supported profiles:
 
 - `Local API`: OpenAI-compatible local endpoint, default `http://localhost:8080/v1`.
 - `Groq`: OpenAI-compatible Groq endpoint, default `https://api.groq.com/openai/v1`.
+- `Gemini`: OpenAI-compatible Gemini endpoint, default `https://generativelanguage.googleapis.com/v1beta/openai`.
+- `9Router`: OpenAI-compatible local router endpoint, default `http://localhost:20128/v1`.
 - `Custom API`: any OpenAI-compatible provider.
 
 The selector writes a local override file:
@@ -74,6 +76,31 @@ Definitions:
 - `RPD`: requests per day.
 - `TPM`: tokens per minute.
 - `TPD`: tokens per day.
+
+## Gemini OpenAI-Compatible Profile
+
+Gemini can be used through Google's OpenAI-compatible chat completions endpoint.
+Use the first-class `Gemini` option in Studio Controls, or configure the same
+shape through env vars:
+
+```env
+LLM_API_BASE=https://generativelanguage.googleapis.com/v1beta/openai
+LLM_API_KEY=AIza_xxxxxxxxxxxxxxxxx
+LLM_MODEL=gemini-3.5-flash
+LLM_MAX_TOKENS=512
+```
+
+Notes:
+
+- Get the API key from Google AI Studio.
+- In env files, keep `LLM_API_BASE` without a trailing slash. Runtime UI input
+  is normalized, but scripts and workers are easier to reason about when the
+  env value is already normalized.
+- Start with a health check and low output cap before running chapter
+  generation. A full chapter can make several model calls.
+- The Studio runtime provider file controls the web UI health check and routes
+  that read the runtime provider. The Python worker still reads `LLM_API_BASE`,
+  `LLM_API_KEY`, and `LLM_MODEL` from environment.
 
 ## Model Selection Policy
 

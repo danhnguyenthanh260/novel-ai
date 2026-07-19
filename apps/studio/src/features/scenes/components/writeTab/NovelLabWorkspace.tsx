@@ -216,7 +216,7 @@ function NavigationPanel(
 }
 
 function workspaceColumns(isArtifactVisible: boolean): string {
-  return `236px 1fr ${isArtifactVisible ? "minmax(520px, 1.18fr)" : "320px"}`;
+  return `220px minmax(520px, 1.08fr) ${isArtifactVisible ? "minmax(420px, 0.92fr)" : "300px"}`;
 }
 
 function selectedChapterTitle(selectedChapterId: string): string {
@@ -265,6 +265,7 @@ function WorkspaceAutoWriteModal(
   );
 }
 
+// eslint-disable-next-line max-lines-per-function
 export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
   const { isArtifactVisible, setIsArtifactVisible } = useStory();
   const [activeChatScope, setActiveChatScope] = useState<ChatScope>(props.chatScope);
@@ -295,7 +296,6 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
     setAutoWriteInitialPrompt(initialPrompt?.trim() ?? "");
     props.setShowAutoWrite(true);
   };
-
   return (
     <>
       <main
@@ -372,7 +372,6 @@ export default function NovelLabWorkspace(props: NovelLabWorkspaceProps) {
           onSaveDraft={props.onSaveChapterDraft}
         />
       </main>
-
       <WorkspaceStatusMessages error={props.error} loadingDetail={props.loadingDetail} loadingChapter={props.loadingChapter} />
       <WorkspaceAutoWriteModal
         storySlug={props.storySlug}

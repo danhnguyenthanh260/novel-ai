@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   defaultLlmProviderConfig,
+  GEMINI_MODEL_OPTIONS,
   GROQ_MODEL_OPTIONS,
   LLM_PROVIDER_LABELS,
   type LlmHealthResult,
@@ -130,7 +131,11 @@ function ProviderFields({
   provider: RedactedLlmProviderConfig | null;
   selectProvider: (next: LlmProviderKind) => void;
 }) {
-  const modelOptions = useMemo(() => (form.provider === "groq" ? GROQ_MODEL_OPTIONS : []), [form.provider]);
+  const modelOptions = useMemo(() => {
+    if (form.provider === "groq") return GROQ_MODEL_OPTIONS;
+    if (form.provider === "gemini") return GEMINI_MODEL_OPTIONS;
+    return [];
+  }, [form.provider]);
 
   return (
     <div className="grid gap-2">

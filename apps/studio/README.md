@@ -201,7 +201,7 @@ Refactor direction for large modules:
 
 - `POST /api/pipeline/draft/stream` (proxy SSE tới `LLM_API_BASE`)
 - `GET/PUT/POST /api/llm/provider` reads, updates, and health-checks the local runtime LLM provider.
-- Top-bar `Controls` includes the local/dev LLM provider selector: Local API, Groq, or Custom OpenAI-compatible API.
+- Top-bar `Controls` includes the local/dev LLM provider selector: Local API, Groq, Gemini, 9Router, or Custom OpenAI-compatible API.
 - `npm run doctor:llm` checks the active OpenAI-compatible LLM endpoint with a tiny JSON-only request.
 - `POST /api/muse/stream` (Ghost Muse SSE, mode `bullets|block`)
 - `POST /api/muse/chat/compress` (Chapter compress, JSON strict non-stream, soft limit 350KB)
@@ -292,6 +292,11 @@ Thực thể chính:
 - `LLM_API_KEY`
 - `LLM_MAX_TOKENS` (optional; conservative output cap for local/provider testing)
 - Runtime UI override: `.runtime/llm-provider.json` (local-only, ignored by Git, takes precedence over `LLM_*` env vars)
+- Gemini option:
+  - Use a Gemini API key from Google AI Studio.
+  - OpenAI-compatible API base: `https://generativelanguage.googleapis.com/v1beta/openai`
+  - Choose `Gemini` in Studio Controls -> LLM Provider, paste the key, keep or edit the model, save, then run the provider health check.
+  - Start with `LLM_MAX_TOKENS=512` or the runtime max token field at `512` before full chapter generation.
 - Local 9Router option:
   - Run 9Router separately; Studio does not manage that process.
   - Dashboard: `http://localhost:20128/dashboard`

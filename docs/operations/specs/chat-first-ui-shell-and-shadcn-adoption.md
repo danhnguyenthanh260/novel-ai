@@ -5,6 +5,11 @@ Created: 2026-06-11
 Owner area: FE
 Related canon: `docs/architecture/novel-lab-design.md`, `.agents/skills/chat-first-workspace/SKILL.md`, `docs/operations/specs/studio-chat-orchestration-layer.md`
 
+Design direction update: as of 2026-07-06, the default visual system is the
+Manus-inspired light/editorial direction in `docs/architecture/novel-lab-design.md`.
+That update supersedes the earlier dark-only, no-icons visual canon. The
+chat-first architecture and shadcn adoption strategy remain active.
+
 ## 1. Purpose
 
 Make the whole studio app behave like the Write workspace already does: the user
@@ -38,8 +43,8 @@ are projections of canon.
 | Decision | Option chosen | Option rejected | Reason |
 |---|---|---|---|
 | Component layer | shadcn/ui (copy-in) | Custom kit, MUI/Mantine | Tailwind v4 + React 19 support, no lock-in, theme maps onto existing tokens |
-| Theming | Map existing `:root` tokens to shadcn CSS variables | New palette | `novel-lab-design.md` palette is canon; zero visual reset |
-| Icons | Strip lucide icons from copied components, use plain-text glyphs | Keep lucide defaults | Design canon forbids SVG/icon fonts ("No Icons" rule) |
+| Theming | Manus-inspired light/editorial default, with dark focus mode kept for compatibility | Continue dark-only cyberpunk direction | The new canon prioritizes clarity, lower noise, onboarding quality, and writing focus |
+| Icons | Restricted semantic icons in nav/status/tooling, always labelled | Decorative icons, emoji UI, mixed icon families | The new canon allows icons only when they reduce scanning cost without hiding meaning |
 | Navigation target | Chat + command palette + panels; pages kept as deep links | Delete pages | Deep links and E2E paths must keep working during migration |
 | Migration style | Strangler (per-surface) | Big-bang rewrite of `globals.css` | 1,900-line stylesheet underpins live surfaces; replace per migrated surface |
 
@@ -71,41 +76,44 @@ are projections of canon.
 
 ## 5. Token mapping (Phase 1)
 
-shadcn variables are aliases of the existing canon tokens. The legacy CSS var
-`--accent` (teal) keeps its name for the 1,900-line stylesheet; the Tailwind
-`accent` color token is mapped separately to the hover surface so shadcn
-hover/active states stay subtle.
+shadcn variables are aliases of the design tokens in
+`docs/architecture/novel-lab-design.md`. New UI uses the light/editorial tokens
+as the default. The old dark tokens may remain as a secondary focus mode or
+compatibility bridge while migrated surfaces are retired.
 
 | shadcn token | Mapped to | Note |
 |---|---|---|
-| `background` / `foreground` | `--bg-app` / `--text-primary` | already present |
-| `card`, `popover` | `--bg-surface` | navy slate |
-| `primary` | `--accent` (#42C7B8) | teal, dark foreground |
-| `secondary`, `accent` (Tailwind token) | `--bg-hover` | subtle hover states |
-| `muted` | `--bg-surface-muted` / `--text-muted` | |
+| `background` / `foreground` | `--bg-app` / `--text-primary` | light app canvas and primary text |
+| `card`, `popover` | `--bg-surface` | white elevated surfaces |
+| `primary` | `--primary` / `--primary-foreground` | black CTA, white text |
+| `secondary` | `--bg-surface-muted` / `--text-primary` | quiet secondary controls |
+| `accent` | `--accent` | selected state, focus, links |
+| `muted` | `--bg-surface-muted` / `--text-muted` | metadata and disabled context |
 | `destructive` | `--danger` | |
 | `border` / `input` | `--border-subtle` / `--border-strong` | |
-| `ring` | `--accent` | focus ring teal |
-| `radius` | `--radius-md` (12px) | |
+| `ring` | `--accent` | blue focus ring |
+| `radius` | `--radius-md` (10px to 12px) | cards, buttons, inputs |
 
-Dark-only: the app is dark-first by canon; no `.dark` variant is introduced.
+Dark focus mode may be introduced with a `.dark` or equivalent scope only after
+the default light tokens are stable. Do not block the light migration on dark
+mode completeness.
 
 ## 6. Rollout phases
 
-1. **Foundation (this spec's first PR)**: `components.json`, `src/lib/utils.ts`
-   (`cn`), token mapping in `globals.css`, copied kit primitives under
-   `src/components/ui/` (button, card, badge, separator, input, textarea,
-   tabs, dialog, sheet, command, popover, dropdown-menu, tooltip, skeleton,
-   scroll-area, sonner), icons stripped. No behavior change to existing pages.
-2. **Unified shell**: AppShell gains a global command palette (Ctrl/Cmd+K:
-   surface navigation, story switching, actions) and an Assistant dock (right
-   sheet: story context digest as "chat showed" cards + recent durable
-   conversations + handoff to the Write workspace). The dock is read/resume
-   only for now — the global composer requires extracting the Write
-   orchestration layer and ships with phase 4.
-3. **Surface migration** (order: memory/reviews → ingest → muse/analysis →
-   agents/pipelines): each surface re-skinned on the kit, its bespoke
-   `globals.css` blocks deleted in the same PR.
+1. **Foundation**: align `components.json`, `src/lib/utils.ts` (`cn`), token
+   mapping in `globals.css`, and copied kit primitives under
+   `src/components/ui/` with the light/editorial design tokens. Establish the
+   restricted semantic icon policy. No behavior change to existing pages.
+2. **Unified shell**: AppShell gains a quiet rail/nav, global command palette
+   (Ctrl/Cmd+K: surface navigation, story switching, actions), and an Assistant
+   dock/right panel for story context digest, recent durable conversations, and
+   handoff to the Write workspace. The dock is read/resume only for now; the
+   global composer requires extracting the Write orchestration layer and ships
+   with phase 4.
+3. **Surface migration** (order: Write empty/first-open -> readiness/context
+   digest -> artifact workspace -> memory/reviews -> ingest -> muse/analysis
+   -> agents/pipelines): each surface is re-skinned on the kit, and its bespoke
+   `globals.css` blocks are deleted in the same PR.
 4. **Chat coverage**: every long-running workflow emits `workflow_progress`
    blocks; every result renders as a card with an open-panel action.
 
@@ -113,9 +121,10 @@ Dark-only: the app is dark-first by canon; no `.dark` variant is introduced.
 
 - New components MUST use `src/components/ui/` primitives and Tailwind
   utilities. Do NOT add new classes to `globals.css`.
-- Copied shadcn components MUST NOT import `lucide-react` or other icon sets.
-  Use plain-text glyphs (`×`, `✓`, `›`) with `sr-only` labels.
-- Do not introduce colors outside the canon palette; extend the token mapping
+- Copied shadcn components may import an approved icon set only when the icon
+  follows the semantic icon policy in `novel-lab-design.md`. Icons require a
+  visible label or accessible text.
+- Do not introduce colors outside the canon token map; extend the token mapping
   instead.
 - Keep the chat-first contracts from `.agents/skills/chat-first-workspace/`:
   prose and artifacts belong to the right panel, not the chat stream.
@@ -128,8 +137,10 @@ Build:
   - [ ] npm run build passes
   - [ ] npx eslint <changed files> passes
 Visual:
-  - [ ] No new colors outside canon palette
-  - [ ] No icons (SVG/icon font/emoji) in shipped UI
+  - [ ] No hardcoded colors outside canon tokens
+  - [ ] Light/editorial default matches `novel-lab-design.md`
+  - [ ] Icons follow semantic icon policy and have text/ARIA support
+  - [ ] No decorative emoji, glow, neon framing, or cyberpunk accent overload
 Behavior:
   - [ ] Existing story page routes still resolve
   - [ ] Write workspace chat contracts unchanged

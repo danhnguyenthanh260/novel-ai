@@ -45,6 +45,7 @@ function validateBaseUrl(value) {
 
 function inferProviderFromBaseUrl(value) {
   if (String(value || "").includes("api.groq.com")) return "groq";
+  if (String(value || "").includes("generativelanguage.googleapis.com")) return "gemini";
   if (String(value || "").includes("localhost:20128") || String(value || "").includes("127.0.0.1:20128")) return "9router";
   if (String(value || "").includes("localhost") || String(value || "").includes("127.0.0.1")) return "local";
   return "custom_openai_compatible";

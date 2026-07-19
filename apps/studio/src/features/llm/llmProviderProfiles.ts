@@ -1,4 +1,4 @@
-export type LlmProviderKind = "local" | "groq" | "9router" | "custom_openai_compatible";
+export type LlmProviderKind = "local" | "groq" | "gemini" | "9router" | "custom_openai_compatible";
 
 export type LlmProviderConfig = {
   provider: LlmProviderKind;
@@ -27,6 +27,7 @@ export type LlmHealthResult = {
 export const LLM_PROVIDER_LABELS: Record<LlmProviderKind, string> = {
   local: "Local API",
   groq: "Groq",
+  gemini: "Gemini",
   "9router": "9Router",
   custom_openai_compatible: "Custom API",
 };
@@ -39,8 +40,11 @@ export const GROQ_MODEL_OPTIONS = [
   "llama-3.3-70b-versatile",
 ] as const;
 
+export const GEMINI_MODEL_OPTIONS = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"] as const;
+
 export const LOCAL_DEFAULT_BASE_URL = "http://localhost:8080/v1";
 export const GROQ_DEFAULT_BASE_URL = "https://api.groq.com/openai/v1";
+export const GEMINI_DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 export const NINE_ROUTER_DEFAULT_BASE_URL = "http://localhost:20128/v1";
 
 const DEFAULT_MAX_TOKENS = 512;
@@ -66,6 +70,16 @@ export function defaultLlmProviderConfig(provider: LlmProviderKind): LlmProvider
     };
   }
 
+  if (provider === "gemini") {
+    return {
+      provider,
+      baseUrl: GEMINI_DEFAULT_BASE_URL,
+      model: "gemini-3.5-flash",
+      apiKey: "",
+      maxTokens: DEFAULT_MAX_TOKENS,
+    };
+  }
+
   if (provider === "9router") {
     return {
       provider,
@@ -86,7 +100,7 @@ export function defaultLlmProviderConfig(provider: LlmProviderKind): LlmProvider
 }
 
 export function isLlmProviderKind(value: unknown): value is LlmProviderKind {
-  return value === "local" || value === "groq" || value === "9router" || value === "custom_openai_compatible";
+  return value === "local" || value === "groq" || value === "gemini" || value === "9router" || value === "custom_openai_compatible";
 }
 
 export function redactApiKey(value: string | undefined): string {

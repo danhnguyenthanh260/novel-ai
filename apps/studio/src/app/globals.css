@@ -105,9 +105,15 @@ body.write-route-lock {
 }
 
 .app-shell--write {
+  display: flex;
+  flex-direction: column;
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
+}
+
+.app-shell--write .app-header {
+  flex: 0 0 auto;
 }
 
 .app-header {
@@ -135,7 +141,8 @@ body.write-route-lock {
 }
 
 .app-shell--write .app-body {
-  height: calc(100dvh - var(--topbar-height));
+  flex: 1 1 auto;
+  height: auto;
   min-height: 0;
   overflow: hidden;
 }
@@ -359,7 +366,7 @@ body.write-route-lock {
 
 .novel-lab-workspace {
   display: grid;
-  grid-template-columns: 236px minmax(420px, 0.92fr) minmax(520px, 1.18fr);
+  grid-template-columns: 220px minmax(520px, 1.08fr) minmax(420px, 0.92fr);
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -567,11 +574,13 @@ body.write-route-lock {
 
 .artifact-actions {
   align-items: flex-start;
+  justify-content: flex-end;
+  max-width: min(360px, 45%);
 }
 
 .artifact-search {
   display: grid;
-  min-width: min(210px, 100%);
+  min-width: min(180px, 100%);
   gap: 4px;
   color: var(--text-muted);
   font-size: 10px;
@@ -830,6 +839,16 @@ body.write-route-lock {
   padding: 0 18px;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.chat-context-mini-bar__next {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-context-mini-bar button {
@@ -1624,11 +1643,15 @@ body.write-route-lock {
 
 @media (max-width: 1180px) {
   .novel-lab-workspace {
-    grid-template-columns: 200px minmax(0, 1fr) 300px;
+    grid-template-columns: 190px minmax(500px, 1fr) 288px !important;
   }
 
   .artifact-workspace {
     min-width: 0;
+  }
+
+  .artifact-actions {
+    max-width: min(300px, 42%);
   }
 
   .work-message,
@@ -1679,6 +1702,19 @@ body.write-route-lock {
   .app-context-bar {
     flex-wrap: wrap;
     white-space: normal;
+  }
+
+  .chat-context-mini-bar {
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 6px 8px;
+    min-height: 58px;
+    padding: 8px 12px;
+  }
+
+  .chat-context-mini-bar__next {
+    flex-basis: 100%;
+    margin-left: 0;
   }
 
   .novel-lab-workspace {
