@@ -47,10 +47,6 @@ function parseSplitMode(value: unknown): SplitMode {
   return value === "auto" ? "auto" : "manual";
 }
 
-function normalizeLineEndings(text: string): string {
-  return text.replace(/\r\n/g, "\n");
-}
-
 function sha256Hex(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
@@ -340,7 +336,10 @@ export async function createIngestJobResponse(req: NextRequest, storySlug: strin
     const splitMode = parseSplitMode(parsed.splitMode);
     const selfHealingEnabled = parsed.selfHealingEnabled !== false;
     const autoRetryEnabled = parsed.autoRetryEnabled !== false;
-    const maxLlmCalls = Math.min(5, Math.max(1, Number(parsed.maxLlmCalls ?? 3)));
+    const processingMode = parsed.processingMode;
+    const maxLlmCalls = processingMode === "source_only"
+      ? 0
+      : Math.min(5, Math.max(1, Number(parsed.maxLlmCalls ?? 3)));
     const validateBeforeSplit = parsed.validateBeforeSplit === true;
     const validation = validateAndNormalizeInput(parsed.payload, { splitMode });
 
@@ -378,6 +377,8 @@ export async function createIngestJobResponse(req: NextRequest, storySlug: strin
           auto_split_v1: true,
           split_mode: splitMode,
           validate_before_split: validateBeforeSplit,
+          processing_mode: processingMode,
+          provider_call_budget: maxLlmCalls,
           split_controls: {
             self_healing_enabled: selfHealingEnabled,
             auto_retry_enabled: autoRetryEnabled,
@@ -392,8 +393,8 @@ export async function createIngestJobResponse(req: NextRequest, storySlug: strin
     const coolOffSeconds = Number(process.env.LLM_COOL_OFF_SECONDS ?? "60");
     let taskIdx = 0;
     for (const chapter of validation.chapters) {
-      const normalizedText = normalizeLineEndings(chapter.text);
-      const textSha = sha256Hex(normalizedText);
+      const sourceText = chapter.text;
+      const textSha = sha256Hex(sourceText);
       const chapterId = buildChapterId(chapter.chapter_no);
       const sourceDocRes = await client.query<{ id: string }>(
         `INSERT INTO public.source_doc
@@ -415,7 +416,7 @@ export async function createIngestJobResponse(req: NextRequest, storySlug: strin
             source_type: "canonical_chapter",
             source_role: "canonical_truth",
           }),
-          normalizedText,
+          sourceText,
           textSha,
         ]
       );
@@ -425,7 +426,7 @@ export async function createIngestJobResponse(req: NextRequest, storySlug: strin
       }
 
       // Stagger tasks
-      const delaySec = taskIdx * coolOffSeconds;
+      const delaySec = processingMode === "source_only" ? 0 : taskIdx * coolOffSeconds;
       const availableAtSql = `NOW() + INTERVAL '${delaySec} seconds'`;
 
       await client.query(
@@ -446,6 +447,7 @@ export async function createIngestJobResponse(req: NextRequest, storySlug: strin
             estimated_scenes: chapter.estimated_scenes,
             ingest_run_id: ingestRunId,
             validate_before_split: validateBeforeSplit,
+            processing_mode: processingMode,
             split_mode: splitMode,
             split_controls: {
               self_healing_enabled: selfHealingEnabled,
@@ -466,6 +468,7 @@ export async function createIngestJobResponse(req: NextRequest, storySlug: strin
       story_id: storyId,
       review_mode: reviewMode,
       split_mode: splitMode,
+      processing_mode: processingMode,
       split_controls: {
         self_healing_enabled: selfHealingEnabled,
         auto_retry_enabled: autoRetryEnabled,

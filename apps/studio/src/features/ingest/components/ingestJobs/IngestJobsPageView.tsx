@@ -386,6 +386,8 @@ export function IngestJobsPageView({ storySlug, state }: IngestJobsPageViewProps
         <UploadSourcePanel
           uploadMode={state.uploadMode}
           setUploadMode={state.setUploadMode}
+          processingMode={state.processingMode}
+          setProcessingMode={state.setProcessingMode}
           splitMode={state.splitMode}
           setSplitMode={state.setSplitMode}
           reviewMode={state.reviewMode}

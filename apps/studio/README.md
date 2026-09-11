@@ -131,6 +131,9 @@ Refactor direction for large modules:
   - `split_mode=manual|auto`
     - `manual`: bắt buộc scene delimiter trong chapter
     - `auto`: không yêu cầu delimiter, worker split bằng LLM
+- `POST /ingest/jobs` nhận `processing_mode=source_only|standard`:
+  - `source_only` (mặc định trên UI): giữ nguyên byte-decoded UTF-8 source, tạo passage + PostgreSQL full-text index, và đặt provider budget bằng `0`.
+  - `standard`: tiếp tục flow review/split hiện có và có thể gọi provider.
 - `POST /ingest/jobs` (auto-split path) sẽ tạo `source_doc` (SSOT raw text) theo chapter trước khi enqueue split task.
 - `POST /ingest/jobs` auto-start worker backend (best effort) để ingest có thể chạy nền ngay sau khi bấm tạo job.
 - `POST /ingest/jobs/[jobId]/approve-split` enqueue `SCENE_CREATE` theo pointer (`source_doc_id + start/end`) để tránh nhân bản chapter text trong task payload.

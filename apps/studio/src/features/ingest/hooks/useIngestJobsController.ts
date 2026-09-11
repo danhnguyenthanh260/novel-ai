@@ -394,6 +394,8 @@ export function useIngestJobsController(storySlug: string) {
     uploading: uploadActions.uploading,
     uploadMode: uploadActions.uploadMode,
     setUploadMode: uploadActions.setUploadMode,
+    processingMode: uploadActions.processingMode,
+    setProcessingMode: uploadActions.setProcessingMode,
     splitMode: uploadActions.splitMode,
     setSplitMode: uploadActions.setSplitMode,
     selfHealingEnabled: uploadActions.selfHealingEnabled,

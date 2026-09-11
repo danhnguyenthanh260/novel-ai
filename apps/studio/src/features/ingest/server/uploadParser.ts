@@ -1,6 +1,8 @@
 import { unzipSync } from "fflate";
 import type { IngestInputPayload, InputMode, SplitMode } from "./inputContract";
 
+export type ProcessingMode = "standard" | "source_only";
+
 type ParsedIngestRequest = {
   payload: IngestInputPayload;
   createdBy?: string;
@@ -10,6 +12,7 @@ type ParsedIngestRequest = {
   autoRetryEnabled?: boolean;
   maxLlmCalls?: number;
   validateBeforeSplit?: boolean;
+  processingMode: ProcessingMode;
 };
 
 type ParsedOptions = Omit<ParsedIngestRequest, "payload">;
@@ -50,6 +53,12 @@ function parseMaxLlmCalls(raw: string | undefined, fallback: number): number {
   return Math.min(5, Math.max(1, Math.floor(n)));
 }
 
+function parseProcessingMode(raw: unknown): ProcessingMode {
+  return typeof raw === "string" && raw.trim().toLowerCase() === "source_only"
+    ? "source_only"
+    : "standard";
+}
+
 function parseOptionalChapterNo(raw: string | undefined): number | null {
   if (!raw) return null;
   const n = Number(raw);
@@ -76,14 +85,16 @@ function parseMaxLlmCallsFromUnknown(raw: unknown, fallback: number): number {
 }
 
 function parseOptionsFromForm(form: FormData): ParsedOptions {
+  const processingMode = parseProcessingMode(form.get("processing_mode"));
   return {
     createdBy: getOptionalText(form, "created_by"),
     reviewMode: getOptionalText(form, "review_mode"),
     splitMode: parseSplitMode(getOptionalText(form, "split_mode")),
     selfHealingEnabled: parseBoolLike(getOptionalText(form, "self_healing_enabled"), true),
     autoRetryEnabled: parseBoolLike(getOptionalText(form, "auto_retry_enabled"), true),
-    maxLlmCalls: parseMaxLlmCalls(getOptionalText(form, "max_llm_calls"), 5),
+    maxLlmCalls: processingMode === "source_only" ? 0 : parseMaxLlmCalls(getOptionalText(form, "max_llm_calls"), 5),
     validateBeforeSplit: parseBoolLike(getOptionalText(form, "validate_before_split"), false),
+    processingMode,
   };
 }
 
@@ -95,15 +106,18 @@ function parseOptionsFromJson(body: {
   auto_retry_enabled?: unknown;
   max_llm_calls?: unknown;
   validate_before_split?: unknown;
+  processing_mode?: unknown;
 }): ParsedOptions {
+  const processingMode = parseProcessingMode(body.processing_mode);
   return {
     createdBy: normalizeOptionalJsonText(body.created_by),
     reviewMode: normalizeOptionalJsonText(body.review_mode),
     splitMode: parseSplitMode(typeof body.split_mode === "string" ? body.split_mode : undefined),
     selfHealingEnabled: typeof body.self_healing_enabled === "boolean" ? body.self_healing_enabled : true,
     autoRetryEnabled: typeof body.auto_retry_enabled === "boolean" ? body.auto_retry_enabled : true,
-    maxLlmCalls: parseMaxLlmCallsFromUnknown(body.max_llm_calls, 5),
+    maxLlmCalls: processingMode === "source_only" ? 0 : parseMaxLlmCallsFromUnknown(body.max_llm_calls, 5),
     validateBeforeSplit: typeof body.validate_before_split === "boolean" ? body.validate_before_split : false,
+    processingMode,
   };
 }
 
@@ -151,10 +165,11 @@ async function parseMegaPayload(form: FormData): Promise<IngestInputPayload> {
 }
 
 function parsePastePayload(form: FormData): IngestInputPayload {
-  const pastedText = getOptionalText(form, "paste_text");
+  const rawPasteText = form.get("paste_text");
+  const pastedText = typeof rawPasteText === "string" ? rawPasteText : undefined;
   const pastedName = getOptionalText(form, "paste_name") || "pasted_input.txt";
   const pastedChapterNo = parseOptionalChapterNo(getOptionalText(form, "paste_chapter_no"));
-  if (!pastedText) throw new Error("PASTE_TEXT_MISSING");
+  if (!pastedText?.trim()) throw new Error("PASTE_TEXT_MISSING");
   return {
     mode: "PASTE_TEXT",
     paste_text: {
@@ -181,6 +196,7 @@ type JsonIngestRequestBody = IngestInputPayload & {
   auto_retry_enabled?: boolean;
   max_llm_calls?: number;
   validate_before_split?: boolean;
+  processing_mode?: ProcessingMode;
 };
 
 function parseJsonIngestRequest(body: JsonIngestRequestBody): ParsedIngestRequest {

@@ -5,10 +5,13 @@ import type { Dispatch, SetStateAction } from "react";
 type UploadMode = "ZIP_UPLOAD" | "MEGA_FILE" | "PASTE_TEXT";
 type SplitMode = "auto" | "manual";
 type ReviewMode = "AUTO_LOCK" | "REVIEW_GATE";
+type ProcessingMode = "source_only" | "standard";
 
 type UploadStateProps = {
   uploadMode: UploadMode;
   setUploadMode: Dispatch<SetStateAction<UploadMode>>;
+  processingMode: ProcessingMode;
+  setProcessingMode: Dispatch<SetStateAction<ProcessingMode>>;
   splitMode: SplitMode;
   setSplitMode: Dispatch<SetStateAction<SplitMode>>;
   reviewMode: ReviewMode;
@@ -44,26 +47,46 @@ type UploadSourcePanelProps = UploadStateProps & UploadActionProps;
 function UploadModeControl({
   uploadMode,
   setUploadMode,
-}: Pick<UploadStateProps, "uploadMode" | "setUploadMode">) {
+  processingMode,
+  setProcessingMode,
+}: Pick<UploadStateProps, "uploadMode" | "setUploadMode" | "processingMode" | "setProcessingMode">) {
   return (
-    <label className="grid gap-1 text-sm">
-      <span>Input Mode</span>
-      <select
-        className="shell-control px-2 py-2 text-sm"
-        value={uploadMode}
-        onChange={(e) => setUploadMode((e.target.value as UploadMode) ?? "ZIP_UPLOAD")}
-      >
-        <option value="ZIP_UPLOAD">ZIP upload</option>
-        <option value="MEGA_FILE">MEGA text file</option>
-        <option value="PASTE_TEXT">Paste text</option>
-      </select>
-    </label>
+    <div className="grid gap-2 md:grid-cols-2">
+      <label className="grid gap-1 text-sm">
+        <span>Input Mode</span>
+        <select
+          className="shell-control px-2 py-2 text-sm"
+          value={uploadMode}
+          onChange={(e) => setUploadMode((e.target.value as UploadMode) ?? "ZIP_UPLOAD")}
+        >
+          <option value="ZIP_UPLOAD">ZIP upload</option>
+          <option value="MEGA_FILE">MEGA text file</option>
+          <option value="PASTE_TEXT">Paste text</option>
+        </select>
+      </label>
+      <label className="grid gap-1 text-sm">
+        <span>Import Goal</span>
+        <select
+          className="shell-control px-2 py-2 text-sm"
+          value={processingMode}
+          onChange={(e) => setProcessingMode((e.target.value as ProcessingMode) ?? "source_only")}
+        >
+          <option value="source_only">Store + local search (0 AI calls)</option>
+          <option value="standard">Analyze and split with AI</option>
+        </select>
+      </label>
+    </div>
   );
 }
 
-function InputContractHint({ uploadMode, splitMode }: Pick<UploadStateProps, "uploadMode" | "splitMode">) {
-  const splitHint =
-    splitMode === "manual"
+function InputContractHint({
+  uploadMode,
+  splitMode,
+  processingMode,
+}: Pick<UploadStateProps, "uploadMode" | "splitMode" | "processingMode">) {
+  const splitHint = processingMode === "source_only"
+    ? "Source-only import stores searchable passages locally and makes zero AI provider calls."
+    : splitMode === "manual"
       ? "Manual split also requires scene delimiters such as ## Scene or --- inside each chapter."
       : "Auto split can accept chapter text without scene delimiters; the worker and LLM must be running.";
   const modeHint =
@@ -305,6 +328,8 @@ export function UploadSourcePanel(props: UploadSourcePanelProps) {
         <UploadModeControl
           uploadMode={props.uploadMode}
           setUploadMode={props.setUploadMode}
+          processingMode={props.processingMode}
+          setProcessingMode={props.setProcessingMode}
         />
         <UploadPayloadInput
           uploadMode={props.uploadMode}
@@ -317,7 +342,11 @@ export function UploadSourcePanel(props: UploadSourcePanelProps) {
           pastedText={props.pastedText}
           setPastedText={props.setPastedText}
         />
-        <InputContractHint uploadMode={props.uploadMode} splitMode={props.splitMode} />
+        <InputContractHint
+          uploadMode={props.uploadMode}
+          splitMode={props.splitMode}
+          processingMode={props.processingMode}
+        />
         <details className="rounded border border-[#223247] bg-[#0b1526] p-3">
           <summary className="cursor-pointer text-sm font-medium text-slate-200">Advanced ingest options</summary>
           <div className="mt-3">

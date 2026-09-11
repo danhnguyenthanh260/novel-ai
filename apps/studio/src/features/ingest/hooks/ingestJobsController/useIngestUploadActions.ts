@@ -46,6 +46,7 @@ export function useIngestUploadActions(params: {
   const [acting, setActing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMode, setUploadMode] = useState<"ZIP_UPLOAD" | "MEGA_FILE" | "PASTE_TEXT">("ZIP_UPLOAD");
+  const [processingMode, setProcessingMode] = useState<"source_only" | "standard">("source_only");
   const [splitMode, setSplitMode] = useState<"auto" | "manual">("auto");
   const [selfHealingEnabled, setSelfHealingEnabled] = useState(true);
   const [autoRetryEnabled, setAutoRetryEnabled] = useState(true);
@@ -95,6 +96,7 @@ export function useIngestUploadActions(params: {
     params.setUploadInfo(null);
     const form = buildUploadFormData({
       uploadMode,
+      processingMode,
       splitMode,
       selfHealingEnabled,
       autoRetryEnabled,
@@ -127,6 +129,7 @@ export function useIngestUploadActions(params: {
     params,
     uploading,
     uploadMode,
+    processingMode,
     splitMode,
     selfHealingEnabled,
     autoRetryEnabled,
@@ -147,6 +150,7 @@ export function useIngestUploadActions(params: {
     params.setUploadInfo(null);
     const form = buildUploadFormData({
       uploadMode,
+      processingMode,
       splitMode,
       selfHealingEnabled,
       autoRetryEnabled,
@@ -189,6 +193,7 @@ export function useIngestUploadActions(params: {
     params,
     uploading,
     uploadMode,
+    processingMode,
     splitMode,
     selfHealingEnabled,
     autoRetryEnabled,
@@ -207,6 +212,7 @@ export function useIngestUploadActions(params: {
     acting,
     uploading,
     uploadMode,
+    processingMode,
     splitMode,
     selfHealingEnabled,
     autoRetryEnabled,
@@ -218,6 +224,7 @@ export function useIngestUploadActions(params: {
     pastedName,
     pastedChapterNo,
     setUploadMode,
+    setProcessingMode,
     setSplitMode,
     setSelfHealingEnabled,
     setAutoRetryEnabled,
