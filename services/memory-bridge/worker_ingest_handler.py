@@ -7,6 +7,7 @@ from psycopg2.extras import Json, RealDictCursor
 
 from worker_common import parse_jsonb, repair_chapter_text
 from worker_ingest_repo import load_source_doc_text
+from worker_source_passages import replace_source_passages
 
 
 def _normalize_line_endings(text: str) -> str:
@@ -17,7 +18,7 @@ def _sha256_hex(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _fan_in_set_awaiting_chapter_approval(conn, *, job_id: int, story_id: int) -> None:
+def _fan_in_complete_chapter_import(conn, *, job_id: int, story_id: int) -> None:
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute(
@@ -32,6 +33,8 @@ def _fan_in_set_awaiting_chapter_approval(conn, *, job_id: int, story_id: int) -
         job = cur.fetchone()
         if not job:
             return
+        config = parse_jsonb(job.get("config_json"))
+        source_only = str(config.get("processing_mode") or "").strip().lower() == "source_only"
 
         cur.execute(
             """
@@ -65,7 +68,7 @@ def _fan_in_set_awaiting_chapter_approval(conn, *, job_id: int, story_id: int) -
             UPDATE public.ingest_job
             SET status = CASE
                   WHEN status IN ('CANCELLED', 'REJECTED', 'FAILED', 'DONE') THEN status
-                  ELSE 'AWAITING_DATA_APPROVAL'
+                  ELSE %s
                 END,
                 completed_tasks = (
                   SELECT count(*) FROM public.ingest_task
@@ -74,7 +77,7 @@ def _fan_in_set_awaiting_chapter_approval(conn, *, job_id: int, story_id: int) -
                 updated_at = now()
             WHERE id = %s
             """,
-            (job_id, job_id),
+            ("DONE" if source_only else "AWAITING_DATA_APPROVAL", job_id, job_id),
         )
     finally:
         cur.close()
@@ -92,25 +95,40 @@ def process_chapter_ingest_task(conn, task: Dict[str, Any]) -> None:
     if not isinstance(source_text, str) or not source_text.strip():
         raise ValueError("CHAPTER_INGEST_SOURCE_DOC_EMPTY")
 
-    normalized = _normalize_line_endings(source_text)
-    repaired, repair_report = repair_chapter_text(normalized)
-    stable_text = repaired if isinstance(repaired, str) else normalized
+    processing_mode = str(payload.get("processing_mode") or "standard").strip().lower()
+    source_only = processing_mode == "source_only"
+    normalized = source_text if source_only else _normalize_line_endings(source_text)
+    if source_only:
+        stable_text = source_text
+        repair_report: Dict[str, Any] = {}
+    else:
+        repaired, repair_report_raw = repair_chapter_text(normalized)
+        stable_text = repaired if isinstance(repaired, str) else normalized
+        repair_report = repair_report_raw if isinstance(repair_report_raw, dict) else {}
+    source_sha = _sha256_hex(source_text)
     stable_sha = _sha256_hex(stable_text)
+    passage_count = 0
+
+    if source_only:
+        passage_count = replace_source_passages(
+            conn,
+            story_id=story_id,
+            source_doc_id=source_doc_id,
+            chapter_id=str(payload.get("chapter_id") or "").strip() or None,
+            source_doc_sha256=source_sha,
+            source_text=source_text,
+        )
 
     cur = conn.cursor()
     try:
         cur.execute(
             """
             UPDATE public.source_doc
-            SET raw_text = %s,
-                raw_text_sha256 = %s,
-                char_len = char_length(%s),
-                is_stable = false,
-                version = version + 1
+            SET is_stable = %s
             WHERE story_id = %s
               AND id::text = %s
             """,
-            (stable_text, stable_sha, stable_text, story_id, source_doc_id),
+            (source_only, story_id, source_doc_id),
         )
         if cur.rowcount == 0:
             raise ValueError("CHAPTER_INGEST_SOURCE_DOC_NOT_FOUND")
@@ -128,13 +146,18 @@ def process_chapter_ingest_task(conn, task: Dict[str, Any]) -> None:
                 Json(
                     {
                         "source_doc_id": source_doc_id,
-                        "source_doc_sha256": stable_sha,
+                        "source_doc_sha256": source_sha,
+                        "normalized_text_sha256": _sha256_hex(normalized),
+                        "repaired_text_sha256": stable_sha,
                         "chapter_text_raw_chars": len(source_text),
                         "chapter_text_stable_chars": len(stable_text),
-                        "repair_report": repair_report if isinstance(repair_report, dict) else {},
-                        "normalization_applied": True,
-                        "is_stable": False,
-                        "awaiting_chapter_approval": True,
+                        "repair_report": repair_report,
+                        "normalization_applied": normalized != source_text,
+                        "processing_mode": processing_mode,
+                        "provider_calls_used": 0,
+                        "source_passage_count": passage_count,
+                        "is_stable": source_only,
+                        "awaiting_chapter_approval": not source_only,
                     }
                 ),
                 int(task["id"]),
@@ -143,7 +166,7 @@ def process_chapter_ingest_task(conn, task: Dict[str, Any]) -> None:
     finally:
         cur.close()
 
-    _fan_in_set_awaiting_chapter_approval(
+    _fan_in_complete_chapter_import(
         conn,
         job_id=job_id,
         story_id=story_id,

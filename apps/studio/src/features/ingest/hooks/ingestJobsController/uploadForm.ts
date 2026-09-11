@@ -1,5 +1,6 @@
 export function buildUploadFormData(params: {
   uploadMode: "ZIP_UPLOAD" | "MEGA_FILE" | "PASTE_TEXT";
+  processingMode: "source_only" | "standard";
   splitMode: "auto" | "manual";
   selfHealingEnabled: boolean;
   autoRetryEnabled: boolean;
@@ -16,6 +17,7 @@ export function buildUploadFormData(params: {
 }): FormData | null {
   const form = new FormData();
   form.set("mode", params.uploadMode);
+  form.set("processing_mode", params.processingMode);
   form.set("split_mode", params.splitMode);
   form.set("self_healing_enabled", String(params.selfHealingEnabled));
   form.set("auto_retry_enabled", String(params.autoRetryEnabled));
