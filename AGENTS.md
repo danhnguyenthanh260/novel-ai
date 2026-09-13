@@ -126,7 +126,8 @@ Do not run whole-project lint unless requested. If verification cannot run, stat
 
 - Agent instructions: `AGENTS.md`.
 - Agent harness, workflows, runtime skills, and agent-only metadata: `.agents/`.
-- Product architecture and flows: `apps/studio/README.md`.
+- Product architecture baseline: `docs/architecture/system-architecture.md`.
+- Current Studio implementation and workflow inventory: `apps/studio/README.md`.
 - Data model and contracts: `db/migrations/*.sql`.
 - Change boundary map: `docs/architecture/change-impact-map.md`.
 

@@ -2,6 +2,11 @@
 
 Tài liệu ngắn để nắm nhanh kiến trúc `apps/studio/src` hiện tại (multi-story).
 
+The approved product/runtime baseline is
+[Novel AI System Architecture](../../docs/architecture/system-architecture.md).
+This README inventories the current Studio implementation; when it conflicts
+with the approved baseline, stop and resolve the drift explicitly.
+
 For a non-technical, business-first system walkthrough, see [system-business-handbook.md](../../docs/operations/specs/system-business-handbook.md).
 
 ## 1) Boundary kiến trúc
