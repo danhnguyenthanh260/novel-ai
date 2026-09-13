@@ -11,6 +11,8 @@ Tai lieu duoc nhom theo taxonomy de de tim va giam trung lap.
 
 ## Quick Links
 
+- Architecture Baseline:
+  - [system-architecture.md](./architecture/system-architecture.md)
 - Business Handbook:
   - [system-business-handbook.md](./operations/specs/system-business-handbook.md)
 - Operations Specs:
